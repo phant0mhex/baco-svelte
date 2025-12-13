@@ -1,0 +1,35 @@
+
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@plugin "@tailwindcss/forms";
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  /* Vos styles de base existants */
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+}
+
+/* --- AJOUT SPÉCIFIQUE POUR CARTA MARKDOWN --- */
+@layer components {
+  /* Force l'application du plugin Typography (prose) sur la prévisualisation */
+  .carta-preview {
+    @apply prose prose-sm max-w-none dark:prose-invert p-4;
+    background-color: transparent;
+  }
+
+  /* Corrige la couleur du texte dans l'éditeur en mode sombre */
+  .dark .carta-input {
+    background-color: #1f2937 !important; /* gray-800 */
+    color: #e5e7eb !important; /* gray-200 */
+  }
+  
+  /* Masque la bordure par défaut de l'éditeur */
+  .carta-editor {
+    border: none !important;
+  }
+}
