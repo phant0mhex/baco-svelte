@@ -301,7 +301,7 @@
                                 on:click|stopPropagation
                                 class="w-full h-7 rounded text-xs font-medium 
                                 {day.isCurrentMonth ? '' : 'text-gray-600 dark:text-gray-600'}
-                                {day.isToday ? 'bg-red-200 text-white font-bold ring-2 ring-red-400' : 'hover:bg-gray-700'}
+                                {day.isToday ? 'bg-red-200 text-red-600 font-bold ring-2 ring-red-400' : 'hover:bg-gray-700'}
                                 {day.isCurrentMonth && !day.isToday ? 'text-gray-200' : ''}
                                 "
                                 title={day.date.toLocaleDateString('fr-FR')}
