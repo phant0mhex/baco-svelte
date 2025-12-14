@@ -330,7 +330,7 @@
                   <span class="font-medium text-gray-900 dark:text-gray-100">
                     {c.nom} <span class="text-gray-500 dark:text-gray-400 text-xs">({c.societes_bus.nom})</span>
                   </span>
-                  <a href="tel:{cleanPhone(c.tel)}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                  <a href="etrali:{cleanPhone(c.tel)}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
                     {formatPhone(c.tel)}
                   </a>
                 </li>
@@ -348,7 +348,7 @@
                   <span class="font-medium text-gray-900 dark:text-gray-100">
                     {c.nom} <span class="text-gray-500 dark:text-gray-400 text-xs">({c.societes_bus.nom})</span>
                   </span>
-                  <a href="tel:{cleanPhone(c.tel)}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                  <a href="etrali:{cleanPhone(c.tel)}" class="text-blue-600 dark:text-blue-400 hover:underline font-mono">
                     {formatPhone(c.tel)}
                   </a>
                 </li>

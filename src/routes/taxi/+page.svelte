@@ -323,7 +323,7 @@
               {#each taxi.contacts as contactLine}
                  <div class="flex justify-between text-sm">
                    <span class="text-gray-600 dark:text-gray-400">{contactLine}</span>
-                   <a href="tel:{cleanPhone(contactLine)}" class="text-blue-600 dark:text-blue-400 hover:underline"><Phone class="w-4 h-4 inline"/></a>
+                   <a href="etrali:{cleanPhone(contactLine)}" class="text-blue-600 dark:text-blue-400 hover:underline"><Phone class="w-4 h-4 inline"/></a>
                  </div>
               {/each}
             </div>

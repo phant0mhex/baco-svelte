@@ -230,7 +230,7 @@
                 {#if client.telephone}
                   <div class="flex items-center gap-3 text-sm">
                     <div class="p-1.5 bg-green-50 dark:bg-green-900/20 text-green-600 rounded-lg"><Phone size={14} /></div>
-                    <a href="tel:{client.telephone}" class="font-mono font-medium hover:text-blue-600 transition-colors">{formatPhone(client.telephone)}</a>
+                    <a href="etrali:{client.telephone}" class="font-mono font-medium hover:text-blue-600 transition-colors">{formatPhone(client.telephone)}</a>
                   </div>
                 {:else}<div class="text-sm text-gray-400 italic pl-1">Pas de téléphone</div>{/if}
                 {#if client.remarques}
@@ -271,7 +271,7 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap align-middle">
                       {#if client.telephone}
-                        <a href="tel:{client.telephone}" class="inline-flex items-center gap-2 text-sm font-mono text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-gray-50 dark:bg-gray-700/50 px-2 py-1 rounded-lg border border-gray-100 dark:border-gray-600 hover:border-blue-200">
+                        <a href="etrali:{client.telephone}" class="inline-flex items-center gap-2 text-sm font-mono text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors bg-gray-50 dark:bg-gray-700/50 px-2 py-1 rounded-lg border border-gray-100 dark:border-gray-600 hover:border-blue-200">
                           <Phone size={12} /> {formatPhone(client.telephone)}
                         </a>
                       {:else}<span class="text-xs text-gray-300 dark:text-gray-600 italic px-2">—</span>{/if}

@@ -427,7 +427,7 @@
                                         </div>
                                         <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm">
                                             {#if contact.tel}
-                                                <a href="tel:{cleanPhone(contact.tel)}" class="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                                                <a href="etrali:{cleanPhone(contact.tel)}" class="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-mono">
                                                     <Phone class="w-3 h-3" /> {formatPhone(contact.tel)}
                                                 </a>
                                             {/if}
