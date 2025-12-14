@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { 
-    Send, Paperclip, Search, Filter, AlertTriangle, 
+    Send, Paperclip, Search, Filter, AlertTriangle, BookCopy,
     Trash2, Pencil, FileText, Image, Loader2, X 
   } from 'lucide-svelte';
 
@@ -247,7 +247,8 @@
 <div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-10">
   
   <header class="sticky top-0 z-30 w-full bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-b-3xl transition-colors duration-300">
-   <div class="py-6"> <div class="flex justify-between items-center mb-6">
+   <div class="py-6"> 
+    <div class="flex justify-between items-center mb-6">
       <h1 class="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
       <BookCopy class="w-8 h-8 text-blue-500" />
             Journal
