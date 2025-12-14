@@ -152,9 +152,9 @@
         </a>
 
         {#if isAdmin || isModerator}
-            <a href="/b201" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('b201')}">
+           <!--  <a href="/b201" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('b201')}">
                 <ClipboardPaste class="w-4 h-4" /><span>Remise</span>
-            </a>
+            </a> -->
         {/if}
       </div>
 
