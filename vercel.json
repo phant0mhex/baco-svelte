@@ -2,12 +2,8 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/api-proxy",
-      "destination": "https://mgljaheyimizrydazrxh.supabase.co"
-    },
-    {
-      "source": "/api-proxy/:path*",
-      "destination": "https://mgljaheyimizrydazrxh.supabase.co/:path*"
+      "source": "/api-proxy/(.*)",
+      "destination": "https://mgljaheyimizrydazrxh.supabase.co/$1"
     }
   ],
 
@@ -21,7 +17,6 @@
         },
         {
           "key": "Access-Control-Allow-Origin",
-          
           "value": "*" 
         },
         {
@@ -30,8 +25,7 @@
         },
         {
           "key": "Access-Control-Allow-Headers",
-          
-          "value": "Authorization, Content-Type, apikey" 
+          "value": "Authorization, Content-Type, apikey, x-client-info" 
         }
       ]
     }
