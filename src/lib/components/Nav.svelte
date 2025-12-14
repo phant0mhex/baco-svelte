@@ -317,3 +317,48 @@
             <button on:click={(e) => toggleDropdown('notifications', e)} class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative">
                 <Bell class="w-5 h-5" />
                 {#if notificationsCount > 0}
+                    <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">{notificationsCount}</span>
+                {/if}
+            </button>
+            {#if activeDropdown === 'notifications'}
+                <div class="absolute top-full right-0 mt-2 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-4 text-sm text-gray-400">
+                    Aucune nouvelle notification.
+                </div>
+            {/if}
+        </div>
+
+        <div class="relative">
+            <div class="relative rounded-full {isAdmin ? 'p-[2px] bg-gradient-to-r from-blue-500 to-pink-500' : ''}">
+                <button on:click={(e) => toggleDropdown('profile', e)} class="block rounded-full focus:outline-none">
+                    <img 
+                      src={userProfile?.avatar_url} 
+                      alt="Avatar" 
+                      class="w-10 h-10 rounded-full object-cover border-2 border-gray-700"
+                    >
+                </button>
+            </div>
+            
+            {#if activeDropdown === 'profile'}
+                <div class="absolute top-full right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
+                    <div class="p-2">
+                        <div class="px-3 py-2 text-sm text-gray-400 border-b border-gray-700 mb-1">
+                          {userProfile?.full_name || 'Utilisateur'}
+                        </div>
+                        <a href="/profil" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"><UserCog class="w-4 h-4"/> Profil</a>
+                        {#if isAdmin}
+                            <hr class="border-gray-700 my-2">
+                            <a href="/admin" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-yellow-400 hover:bg-gray-700"><ShieldCheck class="w-4 h-4"/> Admin</a>
+                            <a href="/audit" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-yellow-400 hover:bg-gray-700"><ShieldCheck class="w-4 h-4"/> Audit Log</a>
+                            {/if}
+                        <button on:click={handleLogout} class="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-900/30 rounded mt-1">
+                            <LogOut class="w-4 h-4"/> Déconnexion
+                        </button>
+                    </div>
+                </div>
+            {/if}
+        </div>
+
+      </div>
+    </div>
+  </div>
+</nav>
