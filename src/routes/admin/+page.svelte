@@ -246,34 +246,74 @@
     }
   }
 
-  async function handleBanUser(user, shouldBan) {
-    if (user.user_id === currentAdminId) return toast.error("Impossible de vous bannir.");
-    if (!confirm(shouldBan ? "Bannir cet utilisateur ?" : "Débannir cet utilisateur ?")) return;
-    try {
-      let banDate = null;
-      if (shouldBan) {
-        const d = new Date();
-        d.setFullYear(d.getFullYear() + 100);
-        banDate = d.toISOString();
-      }
+  // Fonction interne contenant la logique métier (à exécuter APRÈS confirmation)
+function executeHandleBanUser(user, shouldBan) {
+    return async () => {
+        try {
+            let banDate = null;
+            
+            // Logique de calcul de la date de bannissement (100 ans)
+            if (shouldBan) {
+                const d = new Date();
+                d.setFullYear(d.getFullYear() + 100);
+                banDate = d.toISOString();
+            }
 
-      const updates = {
-        banned_until: banDate,
-        banned_until_status: shouldBan ? 'banned' : null
-      };
+            const updates = {
+                banned_until: banDate,
+                banned_until_status: shouldBan ? 'banned' : null
+            };
 
-      const { error } = await supabase.from('profiles').update(updates).eq('id', user.user_id);
-      if (error) throw error;
+            // 1. Mise à jour de la table 'profiles' (Ban/Unban)
+            const { error: updateError } = await supabase
+                .from('profiles')
+                .update(updates)
+                .eq('id', user.user_id);
+            
+            if (updateError) throw updateError;
 
-      if (!shouldBan) {
-        await supabase.from('infractions').update({ is_active: false }).eq('user_id', user.user_id);
-      }
+            // 2. Si débannissement, désactiver les infractions actives
+            if (!shouldBan) {
+                await supabase
+                    .from('infractions')
+                    .update({ is_active: false })
+                    .eq('user_id', user.user_id);
+            }
 
-      loadUsers();
-    } catch (e) {
-      toast.error("Erreur: " + e.message);
+            // 3. Rechargement des données
+            loadUsers();
+            
+            // ********* AJOUT DU TOAST DE SUCCÈS *********
+            const successMessage = shouldBan 
+                ? `L'utilisateur ${user.user_id} a été banni définitivement.` 
+                : `L'utilisateur ${user.user_id} a été débanni et ses infractions désactivées.`;
+            
+            toast.success(successMessage);
+            // ********************************************
+
+        } catch (e) {
+            toast.error("Erreur lors de l'opération: " + e.message);
+        }
+    };
+}
+
+async function handleBanUser(user, shouldBan) {
+    // Vérification initiale : Impossible de se bannir soi-même
+    if (user.user_id === currentAdminId) {
+        return toast.error("Impossible de vous bannir.");
     }
-  }
+    
+    // Détermination du message de confirmation
+    const confirmationMessage = shouldBan 
+        ? "Voulez-vous vraiment bannir cet utilisateur définitivement ?" 
+        : "Voulez-vous vraiment débannir cet utilisateur et désactiver ses infractions actives ?";
+
+    // Remplacement du 'confirm()' natif par la modale personnalisée
+    openConfirmModal(
+        confirmationMessage,
+        executeHandleBanUser(user, shouldBan) // Passe l'exécution de l'action en callback
+    );
+}
 
   // --- GESTION DES MODALES (unchanged) ---
 
