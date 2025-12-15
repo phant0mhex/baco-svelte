@@ -5,7 +5,7 @@
   import { 
     User, Mail, Shield, Camera, Lock, Save, 
     FileWarning, AlertOctagon, Loader2, CheckCircle,
-    Tag, Cake // <-- AJOUTER Cake
+    Tag, Cake 
   } from 'lucide-svelte';
 // --- ÉTAT ---
   let isLoading = true;
@@ -23,8 +23,8 @@
     full_name: "",
     email: "", // Traitement spécial
     role: "user",
-    fonction: "",
-    birthday: null, // <-- AJOUT DE LA DATE DE NAISSANCE
+    fonction: "", 
+    birthday: null, 
     avatar_url: null
   };
 // Mot de passe
@@ -82,7 +82,7 @@
   async function loadTargetProfile() {
     const { data, error } = await supabase
       .from('profiles')
-      .select('username, full_name, avatar_url, role, fonction, birthday') // <-- AJOUT DE birthday
+      .select('username, full_name, avatar_url, role, fonction, birthday') 
       .eq('id', targetUserId)
       .single();
     if (error) {
@@ -117,7 +117,8 @@
       const updates = {
         username: profileData.username,
         full_name: profileData.full_name,
-        birthday: profileData.birthday, // <-- ENREGISTREMENT DE LA DATE DE NAISSANCE
+        birthday: profileData.birthday, 
+        fonction: profileData.fonction, // <-- CORRECTION : LA FONCTION EST MAINTENANT INCLUSE
         updated_at: new Date()
       };
       const { error } = await supabase
@@ -322,7 +323,7 @@
                   <label class={labelClass}>Fonction</label>
                   <div class="relative">
                     <Tag size={16} class="absolute left-3 top-3.5 text-gray-400" />
-                    <input type="text" value={(profileData.fonction || 'N/A').toUpperCase()} class="{inputClass} pl-10" disabled={!isMyProfile && !isAdmin}>
+                    <input type="text" bind:value={profileData.fonction} class="{inputClass} pl-10" disabled={!isMyProfile && !isAdmin}>
                   </div>
                 </div>
                 <div>
