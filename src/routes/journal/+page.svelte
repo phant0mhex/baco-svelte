@@ -21,9 +21,9 @@
   let currentUser = null;
   let userRole = 'user'; // 'user', 'moderator', 'admin'
 
-  // --- NOUVEAU : Utilisateurs pour le tagging et l'Auto-Complétion ---
+  // --- Utilisateurs pour le tagging et l'Auto-Complétion ---
   let allUsers = []; 
-  let textareaElement; // Référence à la zone de texte
+  let textareaElement; 
   let showSuggestions = false;
   let filteredUsers = [];
   let tagSearchQuery = '';
@@ -46,9 +46,17 @@
   // Édition
   let editingLog = null; 
 
+  // --- NOUVEAU : Fonction de Normalisation ---
+  // Rendre les comparaisons robustes aux multiples espaces et aux majuscules/minuscules
+  const normalizeName = (name) => {
+    if (!name) return '';
+    return name.trim().toLowerCase().replace(/\s+/g, ' ');
+  };
+  // --- FIN NOUVEAU ---
+
+
   onMount(async () => {
     await loadUserAndRole();
-    // MODIFIÉ : Chargement de tous les profils pour le tagging et le filtre
     await Promise.all([loadAllProfiles(), loadLogs(true)]);
   });
 
@@ -78,9 +86,8 @@
   
   // --- CHARGEMENT ---
   
-  // MODIFIÉ : Correction de la requête RLS pour éviter l'erreur 400
   async function loadAllProfiles() {
-    // RLS FIX: Sélectionne uniquement les champs non sensibles (id, full_name) + avatar_url pour l'UI
+    // RLS FIX: Sélectionne uniquement les champs non sensibles
     const { data } = await supabase.from('profiles').select('id, full_name, avatar_url').order('full_name', { ascending: true });
     if (data) {
       allUsers = data; 
@@ -140,14 +147,12 @@
     isLoading = false;
   }
   
-  // --- NOUVEAU : Logique d'Auto-Complétion et de Tagging ---
+  // --- LOGIQUE D'AUTO-COMPLÉTION ---
 
-  // Gère l'affichage de l'auto-complétion
   function handleInput(e) {
     const value = e.target.value;
     const cursor = e.target.selectionStart;
 
-    // 1. Trouver le dernier '@' avant le curseur
     const textBeforeCursor = value.substring(0, cursor);
     const lastAtIndex = textBeforeCursor.lastIndexOf('@');
 
@@ -156,11 +161,8 @@
       return;
     }
 
-    // 2. Extraire la requête de recherche
-    // Récupère tout ce qui suit le dernier '@' jusqu'au curseur
-    const query = textBeforeCursor.substring(lastAtIndex + 1);
+    const query = textBeforeCursor.substring(lastAtIndex + 1); 
     
-    // Si la requête contient une nouvelle ligne ou plusieurs espaces après le '@', on arrête
     if (query.includes('\n')) {
         showSuggestions = false;
         return;
@@ -168,28 +170,23 @@
     
     tagSearchQuery = query.trim();
 
-    // 3. Filtrer les utilisateurs
-    if (tagSearchQuery.length >= 0) {
-      const lowerQuery = tagSearchQuery.toLowerCase();
-      
-      // Filtrer sur le début du full_name
-      filteredUsers = allUsers.filter(user => 
-        user.full_name?.toLowerCase().startsWith(lowerQuery)
-      ).slice(0, 5); // Limiter à 5 suggestions
-      showSuggestions = filteredUsers.length > 0 || tagSearchQuery.length > 0;
-    } else {
-      // Afficher tous les utilisateurs (ou les 5 premiers) si l'utilisateur vient de taper '@'
-      filteredUsers = allUsers.slice(0, 5); 
-      showSuggestions = true;
-    }
+    const lowerQuery = tagSearchQuery.toLowerCase();
+    
+    // Filtre utilisant includes() pour la tolérance aux noms composés
+    filteredUsers = allUsers.filter(user => 
+        user.full_name?.toLowerCase().includes(lowerQuery)
+    ).slice(0, 5); 
 
-    // Cacher les suggestions si l'utilisateur a tapé un espace après un '@' vide, ou si la recherche est vide
-    if(tagSearchQuery.length === 0 && query.trim() !== query) {
-         showSuggestions = false;
+    const hasResults = filteredUsers.length > 0;
+    const hasTrailingSpace = tagSearchQuery.length === 0 && query.trim() !== query;
+
+    showSuggestions = hasResults || (tagSearchQuery.length === 0 && query.length === 1); 
+    
+    if (hasTrailingSpace) {
+        showSuggestions = false;
     }
   }
 
-  // Insère le nom complet de l'utilisateur à la position du tag
   function selectUser(user) {
     if (!textareaElement) return;
 
@@ -200,20 +197,14 @@
 
     if (lastAtIndex === -1) return;
 
-    // Déterminer la partie à remplacer (du '@' jusqu'au curseur)
     const startReplaceIndex = lastAtIndex;
-
-    // Le format de tag utilisé pour la détection est @Nom Prénom 
     const tagToInsert = `@${user.full_name} `; 
     
-    // Nouvelle construction du message
     const newText = value.substring(0, startReplaceIndex) + tagToInsert + value.substring(cursor);
     newMessage = newText;
 
-    // Positionner le curseur après le nom inséré
     const newCursorPosition = startReplaceIndex + tagToInsert.length;
 
-    // Utiliser un timeout pour s'assurer que Svelte met à jour la valeur avant de repositionner le curseur
     setTimeout(() => {
         textareaElement.selectionStart = newCursorPosition;
         textareaElement.selectionEnd = newCursorPosition;
@@ -223,57 +214,58 @@
     showSuggestions = false;
   }
   
- // --- NOUVEAU : Fonction de traitement des tags et de notification (CORRIGÉE) ---
-async function processTagsAndNotify(message) {
-    if (!message || !currentUser) return;
+  // --- NOUVEAU : Fonction de traitement des tags et de notification (CORRIGÉE) ---
+  async function processTagsAndNotify(message) {
+      if (!message || !currentUser) return;
 
-    // Regex améliorée: capture le @ et tout ce qui suit (lettres, chiffres, espaces, tirets, apostrophes, accents)
-    // jusqu'à ce qu'un autre caractère soit trouvé ou que la chaîne se termine.
-    const tagRegex = /@([\w\s'-]+)/g; 
-    let match;
-    const taggedUserIds = new Set();
-    
-    while ((match = tagRegex.exec(message)) !== null) {
-        // La chaîne capturée par le groupe 1, nettoyée des espaces superflus
-        const taggedName = match[1].trim(); 
+      // Regex pour détecter '@' suivi de tous les caractères pouvant faire partie d'un nom (y compris accents, tirets, espaces)
+      const tagRegex = /@([a-zA-ZÀ-ÿ\s'-]+)/g; 
+      let match;
+      const taggedUserIds = new Set();
+      
+      while ((match = tagRegex.exec(message)) !== null) {
+          // La chaîne capturée par le groupe 1, nettoyée des espaces superflus
+          const taggedName = match[1].trim(); 
 
-        // 2. Chercher l'ID correspondant
-        // Utilise trim() et toLowerCase() sur les deux côtés pour une correspondance tolérante
-        const foundUser = allUsers.find(u => 
-            u.full_name?.trim().toLowerCase() === taggedName.toLowerCase()
-        );
-        
-        // Ajouter l'ID s'il est trouvé et n'est pas l'utilisateur courant
-        if (foundUser && foundUser.id !== currentUser.id) {
-            taggedUserIds.add(foundUser.id);
-        }
-    }
+          // 2. Chercher l'ID correspondant
+          const foundUser = allUsers.find(u => {
+              // FIX CRUCIAL: Normaliser les deux chaînes avant la comparaison
+              const normalizedDbName = normalizeName(u.full_name);
+              const normalizedCapturedName = normalizeName(taggedName);
+              
+              return normalizedDbName === normalizedCapturedName;
+          });
+          
+          // Ajouter l'ID s'il est trouvé et n'est pas l'utilisateur courant
+          if (foundUser && foundUser.id !== currentUser.id) {
+              taggedUserIds.add(foundUser.id);
+          }
+      }
 
-    if (taggedUserIds.size === 0) return;
-    
-    // 4. Préparer et insérer les notifications
-    const senderName = currentUser.full_name || currentUser.email;
-    const notificationMessage = message.substring(0, 100) + (message.length > 100 ? '...' : '');
+      if (taggedUserIds.size === 0) return;
+      
+      // 4. Préparer et insérer les notifications
+      const senderName = currentUser.full_name || currentUser.email;
+      const notificationMessage = message.substring(0, 100) + (message.length > 100 ? '...' : '');
 
-    const notificationsToInsert = Array.from(taggedUserIds).map(userId => ({
-        user_id_target: userId,
-        title: `Vous avez été mentionné par ${senderName}`,
-        message: notificationMessage,
-        type: 'mention',
-        link_to: `/journal`, 
-        is_read: false
-    }));
+      const notificationsToInsert = Array.from(taggedUserIds).map(userId => ({
+          user_id_target: userId,
+          title: `Vous avez été mentionné par ${senderName}`,
+          message: notificationMessage,
+          type: 'mention',
+          link_to: `/journal`, 
+          is_read: false
+      }));
 
-    // Insérer dans Supabase
-    const { error } = await supabase
-        .from('notifications')
-        .insert(notificationsToInsert);
+      const { error } = await supabase
+          .from('notifications')
+          .insert(notificationsToInsert);
 
-    if (error) {
-        console.error("Erreur insertion notifications:", error);
-    }
-}
-  // --- FIN NOUVEAU : Logique d'Auto-Complétion et de Tagging ---
+      if (error) {
+          console.error("Erreur insertion notifications:", error);
+      }
+  }
+  // --- FIN NOUVEAU : Fonction de traitement des tags et de notification ---
 
 
   // --- ACTIONS ---
@@ -290,7 +282,6 @@ async function processTagsAndNotify(message) {
       let attachmentPath = null;
       let attachmentType = null;
       if (newFile) {
-        // ... (Upload de fichier) ...
         const ext = newFile.name.split('.').pop();
         const fileName = `journal/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
         const { error: upError } = await supabase.storage.from('documents').upload(fileName, newFile);
