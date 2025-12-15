@@ -224,7 +224,7 @@
         }
         if (leaveError) {
             console.error("Erreur chargement congés:", leaveError);
-            toast.push({ message: "Erreur lors du chargement des demandes de congés.", type: "error" });
+            toast.error("Erreur lors du chargement des demandes de congés."); // CORRECTION
         }
         
         // 2. Charger tous les profils pour les anniversaires
@@ -271,7 +271,7 @@
 
     async function saveLeave() {
         if (!user || !currentLeave.start_date || !currentLeave.end_date) {
-            toast.push({ message: "Veuillez remplir toutes les dates requises.", type: "error" });
+            toast.error("Veuillez remplir toutes les dates requises."); // CORRECTION
             return;
         }
         
@@ -304,7 +304,7 @@
                         end_date: currentLeave.end_date,
                         type: currentLeave.type,
                         reason: currentLeave.reason,
-                        status: 'APPROVED' // Par défaut en attente
+                        status: 'PENDING' // Par défaut en attente
                     });
     
                 if (error) throw error;
@@ -313,11 +313,11 @@
     
             await loadPlanningData(); 
             closeModal();
-            toast.push({ message: successMessage, type: "success" });
+            toast.success(successMessage); // CORRECTION
             
         } catch (e) {
             console.error("Erreur lors de l'opération de congé:", e);
-            toast.push({ message: `Échec de l'opération. ${e.message ? '(' + e.message + ')' : ''}`, type: "error" });
+            toast.error(`Échec de l'opération. ${e.message ? '(' + e.message + ')' : ''}`); // CORRECTION
         } finally {
             isSubmitting = false;
         }
@@ -346,11 +346,11 @@
             if (error) throw error;
 
             await loadPlanningData();
-            toast.push({ message: "Demande de congé supprimée avec succès.", type: "success" });
+            toast.success("Demande de congé supprimée avec succès."); // CORRECTION
             
         } catch (e) {
             console.error("Erreur lors de la suppression:", e);
-            toast.push({ message: `Échec de la suppression : ${e.message}`, type: "error" });
+            toast.error(`Échec de la suppression : ${e.message}`); // CORRECTION
         }
     }
     
@@ -376,11 +376,11 @@
             
             days = generateCalendarDays(displayedYear, displayedMonth);
 
-            toast.push({ message: `Statut de votre demande mis à jour à "${STATUS_MAP[newStatus]}".`, type: "success" });
+            toast.success(`Statut de votre demande mis à jour à "${STATUS_MAP[newStatus]}."`); // CORRECTION
             
         } catch (e) {
             console.error("Erreur mise à jour statut:", e);
-            toast.push({ message: `Échec de la mise à jour du statut : ${e.message}`, type: "error" });
+            toast.error(`Échec de la mise à jour du statut : ${e.message}`); // CORRECTION
         }
     }
 
@@ -400,11 +400,7 @@
         const bdays = day.birthdays.length > 0 ? `\n\n🎂 Anniversaire(s) : ${day.birthdays.join(', ')}` : '';
         
         if (leaves || bdays) {
-            toast.push({ 
-                message: `Congés le ${day.date.toLocaleDateString('fr-FR')}:\n${leaves}${bdays}`,
-                type: 'info',
-                duration: 5000 
-            });
+            toast.info(`Congés le ${day.date.toLocaleDateString('fr-FR')}:\n${leaves}${bdays}`, 5000); // CORRECTION (garder duration)
         }
     }
 </script>
