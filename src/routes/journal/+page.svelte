@@ -21,6 +21,10 @@
   let currentUser = null;
   let userRole = 'user'; // 'user', 'moderator', 'admin'
 
+  // --- NOUVEAU : Utilisateurs pour le tagging ---
+  let allUsers = []; 
+  // --- FIN NOUVEAU ---
+
   // Filtres
   let selectedAuthor = "all";
   let selectedDate = "";
@@ -40,7 +44,8 @@
 
   onMount(async () => {
     await loadUserAndRole();
-    await Promise.all([loadAuthors(), loadLogs(true)]);
+    // MODIFIÉ : Chargement de tous les profils pour le tagging et le filtre
+    await Promise.all([loadAllProfiles(), loadLogs(true)]);
   });
 
   // --- AUTH & RÔLES ---
@@ -52,10 +57,14 @@
     if (user) {
       const { data: profile } = await supabase
         .from('profiles')
-        .select('role')
+        .select('role, full_name, email')
         .eq('id', user.id)
         .single();
-      if (profile) userRole = profile.role || 'user';
+      if (profile) {
+        userRole = profile.role || 'user';
+        // Mettre à jour currentUser avec le nom et l'email pour le toast/notification
+        currentUser = { ...user, ...profile };
+      }
     }
   }
 
@@ -64,12 +73,16 @@
     // L'auteur, ou un admin/modérateur peut modifier/supprimer
     return entry.user_id === currentUser.id || ['admin', 'moderator'].includes(userRole);
   }
-
+  
   // --- CHARGEMENT ---
-
-  async function loadAuthors() {
-    const { data } = await supabase.from('profiles').select('id, full_name').order('full_name');
-    if (data) authors = data;
+  
+  // MODIFIÉ : Nouvelle fonction pour charger tous les profils (pour le filtre et le tagging)
+  async function loadAllProfiles() {
+    const { data } = await supabase.from('profiles').select('id, full_name, email').order('full_name');
+    if (data) {
+      allUsers = data; // Pour la détection de tags
+      authors = data;  // Pour le filtre (conserve la compatibilité)
+    }
   }
 
   async function loadLogs(reset = false) {
@@ -124,6 +137,55 @@
     isLoading = false;
   }
 
+  // --- NOUVEAU : Fonction de traitement des tags et de notification ---
+  async function processTagsAndNotify(message) {
+      if (!message || !currentUser) return;
+
+      // Regex pour détecter '@' suivi de mots (Lettres, espaces)
+      // Ceci est simple et peut nécessiter le nom complet exact pour fonctionner
+      const tagRegex = /@([a-zA-ZÀ-ÿ\s]+)/g; 
+      let match;
+      const taggedUserIds = new Set();
+      
+      // 1. Détecter les tags
+      while ((match = tagRegex.exec(message)) !== null) {
+          const taggedName = match[1].trim(); 
+
+          // 2. Chercher l'ID correspondant (correspondance sur full_name insensible à la casse)
+          const foundUser = allUsers.find(u => u.full_name?.toLowerCase() === taggedName.toLowerCase());
+          
+          // 3. Ajouter l'ID s'il est trouvé et n'est pas l'utilisateur courant
+          if (foundUser && foundUser.id !== currentUser.id) {
+              taggedUserIds.add(foundUser.id);
+          }
+      }
+
+      if (taggedUserIds.size === 0) return;
+      
+      // 4. Préparer et insérer les notifications
+      const senderName = currentUser.full_name || currentUser.email;
+      const notificationMessage = message.substring(0, 100) + (message.length > 100 ? '...' : '');
+
+      const notificationsToInsert = Array.from(taggedUserIds).map(userId => ({
+          user_id_target: userId,
+          title: `Vous avez été mentionné par ${senderName}`,
+          message: notificationMessage,
+          type: 'mention',
+          link_to: `/journal`, 
+          is_read: false
+      }));
+
+      const { error } = await supabase
+          .from('notifications')
+          .insert(notificationsToInsert);
+
+      if (error) {
+          console.error("Erreur insertion notifications:", error);
+      }
+  }
+  // --- FIN NOUVEAU ---
+
+
   // --- ACTIONS ---
 
   async function handlePost() {
@@ -138,6 +200,7 @@
       let attachmentPath = null;
       let attachmentType = null;
       if (newFile) {
+        // ... (Upload de fichier) ...
         const ext = newFile.name.split('.').pop();
         const fileName = `journal/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${ext}`;
         const { error: upError } = await supabase.storage.from('documents').upload(fileName, newFile);
@@ -156,6 +219,9 @@
       });
       if (error) throw error;
 
+      // NOUVEAU: Traiter les tags après la publication réussie
+      await processTagsAndNotify(newMessage);
+      
       newMessage = "";
       isUrgent = false;
       newFile = null;
@@ -175,6 +241,7 @@
   }
 
 async function saveEditedEntry() {
+    // ... (Logique saveEditedEntry existante) ...
     if (!editingLog.message_content.trim()) return;
     isSubmitting = true;
     try {
@@ -202,7 +269,7 @@ async function saveEditedEntry() {
       isSubmitting = false;
     }
   }
-
+  
  // Fonction qui exécute la suppression après confirmation
   function executeDeleteLog(id) {
     return async () => {
@@ -302,7 +369,7 @@ async function saveEditedEntry() {
         bind:value={newMessage} 
         rows="3" 
         class="w-full bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none text-base placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-white transition-colors" 
-        placeholder="Quoi de neuf aujourd'hui ?"
+        placeholder="Quoi de neuf aujourd'hui ? (Utilisez @Nom Prénom pour taguer un utilisateur, ex: @Jean Dupont)"
       ></textarea>
       
       {#if newFile}
