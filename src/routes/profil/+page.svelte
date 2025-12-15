@@ -309,7 +309,7 @@
                   <label class={labelClass}>Fonction</label>
                   <div class="relative">
                     <Tag size={16} class="absolute left-3 top-3.5 text-gray-400" />
-                    <input type="text" value={profileData.fonction.toUpperCase() || 'N/A'} class="{inputClass} pl-10" disabled={!isMyProfile && !isAdmin}>
+                    <input type="text" value={(profileData.fonction || 'N/A').toUpperCase()} class="{inputClass} pl-10" disabled={!isMyProfile && !isAdmin}>
                   </div>
                 </div>
                 <div>

@@ -24,15 +24,15 @@
     let currentLeave = {
         start_date: '',
         end_date: '',
-        type: 'PAID',
+        type: 'CN',
         reason: ''
     };
 
     const LEAVE_TYPES = [
-        { value: 'PAID', label: 'Congé Payé (CP)' },
-        { value: 'UNPAID', label: 'Congé sans Solde (CSS)' },
-        { value: 'RTT', label: 'RTT' },
-        { value: 'SICK', label: 'Arrêt Maladie (à titre indicatif)' },
+        { value: 'CN', label: 'CN' },
+        { value: 'JC', label: 'JC' },
+        { value: 'ZM', label: 'Arrêt Maladie' },
+        { value: 'BT', label: 'Blessé' },
     ];
 
     // --- COULEURS ET UTILITAIRES DE PLANIFICATION ---
@@ -202,7 +202,7 @@
 
     // Ouvre le formulaire en mode Création
     function handleNewRequest() {
-        currentLeave = { start_date: '', end_date: '', type: 'PAID', reason: '' };
+        currentLeave = { start_date: '', end_date: '', type: 'CN', reason: '' };
         modalState = { isOpen: true, isEditing: false, leaveId: null };
     }
 
@@ -437,7 +437,7 @@
                 </div>
                 
                 <p class="text-sm text-gray-500 dark:text-gray-400 pt-4 border-t dark:border-gray-700/50">
-                    *Toutes les demandes de congés sont automatiquement approuvées et affichées. Les congés sont colorés par utilisateur.
+                    *Toutes les demandes de congés sont automatiquement approuvées et affichées sur BACO mais pas forcément acceptées par le planner.
                 </p>
             </div>
         </div>
@@ -505,7 +505,7 @@
                     bind:value={currentLeave.reason} 
                     rows="3"
                     class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
-                    placeholder="Ex: Voyage familial, RTT imposée, etc."
+                    placeholder="Ex: CN/Long terme..."
                 ></textarea>
             </div>
 
