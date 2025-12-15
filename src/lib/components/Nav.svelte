@@ -9,11 +9,11 @@
     Shield, Accessibility, ChevronDown, Combine, Users, BookUser, 
     Bus, Car, Database, Train, Tag, Map, Folder, BookCopy, 
     ClipboardPaste, Search, CalendarDays, Bell, UserCog, 
-    ShieldCheck, BarChart2, History, LogOut, Menu, X, ChevronLeft, ChevronRight
+    ShieldCheck, BarChart2, History, LogOut, Menu, X, ChevronLeft, ChevronRight, 
+    Cake // <-- AJOUTER CAKE POUR LE THÈME DE NOËL
   } from 'lucide-svelte';
   export let user; // Reçu depuis +layout.svelte
 
-  let isChristmasTheme = true;
   let isMobileMenuOpen = false;
   let activeDropdown = null;
   let userProfile = null;
@@ -22,10 +22,10 @@
   let notificationsCount = 0;
   let notifications = [];
   
-  // --- GESTION DU POLLING (NOUVEAU) ---
-  let notificationInterval; // Variable pour stocker l'ID de l'intervalle de rafraîchissement
-  // --- FIN GESTION DU POLLING ---
-  
+  // --- THÈME DE NOËL & PERSISTENCE (MODIFIÉ) ---
+  let isChristmasTheme = false;
+  // --- FIN THÈME DE NOËL ---
+
   // Nouvelle variable d'état pour la liste des notifications
   // --- NOUVEAUX ÉTATS POUR LE CALENDRIER ---
   // Date actuellement affichée dans le widget (initialisée au 1er du mois actuel)
@@ -45,38 +45,30 @@
   // --- RÉACTIVITÉ CRUCIALE POUR L'AVATAR ---
   $: if (user) loadUserProfile();
   
-  // --- GESTION DU POLLING (NOUVEAU) ---
+  // MODIFIÉ: Charger le thème de Noël depuis localStorage
   onMount(() => {
-    // Nettoyage de l'intervalle lorsque le composant est détruit
-    return () => {
-        if (notificationInterval) {
-            clearInterval(notificationInterval);
-        }
-    };
-  });
-
-  // Gérer le polling des notifications (Toutes les 30 secondes)
-  $: if (user) {
-    if (!notificationInterval) {
-        // Démarrer le polling. L'appel initial est fait par $: if (user) loadUserProfile();
-        notificationInterval = setInterval(loadUserProfile, 30000); 
+    if (typeof localStorage !== 'undefined') {
+        const savedState = localStorage.getItem('bacoChristmasTheme');
+        // Initialiser à true si non défini, ou si 'true'
+        isChristmasTheme = savedState !== 'false'; 
     }
-  } else {
-    // Arrêter le polling à la déconnexion
-    if (notificationInterval) {
-        clearInterval(notificationInterval);
-        notificationInterval = null;
-        notificationsCount = 0;
-        notifications = [];
+    // Le calendrier se génère automatiquement via le bloc réactif ci-dessus
+  });
+  
+  // NOUVEAU: Fonction pour basculer le thème de Noël
+  function toggleChristmasTheme() {
+    activeDropdown = null; // Fermer tout autre dropdown
+    isChristmasTheme = !isChristmasTheme;
+    if (typeof localStorage !== 'undefined') {
+        localStorage.setItem('bacoChristmasTheme', isChristmasTheme.toString());
     }
   }
-  // --- FIN GESTION DU POLLING ---
-  
+
   async function loadUserProfile() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('avatar_url, role, full_name')
+        .select('avatar_url, role, full_name, fonction')
         .eq('id', user.id)
         .single();
     if (data) {
@@ -109,7 +101,7 @@
     }
   }
 
-  // --- FONCTIONS CALENDRIER ---
+  // --- FONCTIONS CALENDRIER (inchangées) ---
   
   // Fonction pour calculer le numéro de semaine ISO 8601
   function getWeekNumber(d) {
@@ -243,6 +235,7 @@
 <svelte:window on:click={closeDropdowns} />
 
 <nav class="bg-gray-900 text-white shadow-lg relative z-50 {isChristmasTheme ? 'christmas-nav' : ''}">
+  
   {#if isChristmasTheme}
     <div class="garland">
       <div class="garland-lights"></div>
@@ -332,77 +325,88 @@ text-gray-300 hover:bg-gray-700 hover:text-white"><Car class="w-4 h-4"/> Taxi</a
         <a href="/journal" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('journal')}">
             <BookCopy class="w-4 h-4" /><span>Journal</span>
         </a>
-        
-        <a href="/planning" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('planning')}">
-          <CalendarDays class="w-4 h-4" /><span>Planning</span>
+        <a href="/planning" class="flex 
+items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('planning')}">
+            <CalendarDays class="w-4 h-4" /><span>Planning</span> 
         </a>
-        
-   
+     
+    {#if isAdmin || isModerator}
+           {/if}
       </div>
 
       <div class="flex flex-col md:flex-row items-start md:items-center gap-4 mt-4 md:mt-0 border-t border-gray-700 pt-4 md:border-none md:pt-0">
         
         <button on:click={handleGlobalSearch} class="px-3 py-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 hidden md:flex items-center gap-2">
             <Search class="w-5 h-5" />
-            <span 
-class="font-mono text-xs text-gray-400 
+            <span class="font-mono text-xs text-gray-400 
 bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5">Ctrl+K</span>
+ 
         </button>
 
         <ThemeToggle />
-
+        
+        <button 
+            on:click={toggleChristmasTheme} 
+            class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative"
+            title={isChristmasTheme ? 'Désactiver le thème de Noël' : 'Activer le thème de Noël'}
+        >
+            <Cake class="w-5 h-5 {isChristmasTheme ? 'text-red-500 fill-current' : 'text-gray-400'}" />
+        </button>
         <div class="relative">
             <button on:click={(e) => toggleDropdown('calendar', e)} 
                     class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative">
                 <CalendarDays class="w-5 h-5" />
-     
-      </button>
+        
+      
+ </button>
             
             {#if activeDropdown === 'calendar'}
                 <div class="absolute top-full right-0 mt-2 w-[340px] bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-3 text-sm text-gray-400">
                     
-              
-  <div class="flex justify-between items-center mb-3">
+                   
+  <div class="flex 
+justify-between items-center mb-3">
                         <button on:click|stopPropagation={goToPreviousMonth} class="p-1 rounded-full hover:bg-gray-700 text-white">
                             <ChevronLeft class="w-5 h-5" />
                         </button>
-     
-              <span class="text-white font-bold text-lg cursor-pointer hover:text-blue-400" on:click={goToToday}>
+           
+   
+            <span class="text-white font-bold text-lg cursor-pointer hover:text-blue-400" on:click={goToToday}>
                             {monthNames[displayedMonth]} {displayedYear}
                         </span>
-                     
-    <button on:click|stopPropagation={goToNextMonth} class="p-1 rounded-full 
+                        <button on:click|stopPropagation={goToNextMonth} class="p-1 rounded-full 
 hover:bg-gray-700 text-white">
+ 
                             <ChevronRight class="w-5 h-5" />
                         </button>
                     </div>
 
-                 
-    <div class="grid grid-cols-8 gap-1 
+                    <div class="grid grid-cols-8 gap-1 
 text-center">
-                        <div class="text-xs font-semibold text-gray-500">S</div> 
+  
+                       <div class="text-xs font-semibold text-gray-500">S</div> 
                         
                         {#each dayNames as day}
-              
-        
-            <div class="text-xs font-semibold text-gray-500">{day}</div>
+                     
+  
+           <div class="text-xs font-semibold text-gray-500">{day}</div>
                         {/each}
 
                         {#each days as day}
-                           
-  {#if day.isStartOfWeek}
-          
+                            {#if day.isStartOfWeek}
+       
+    
                           <div class="text-xs text-gray-500 pt-1 border-r border-gray-700/50">
                                     {day.weekNumber}
-                     
-            </div>
+                              
+   </div>
      
                          {/if}
 
                             <button
-                               
-  on:click|stopPropagation
-                 
+                                on:click|stopPropagation
+        
+          
                 class="w-full h-7 rounded text-xs font-medium 
                                 {day.isCurrentMonth ?
 '' : 'text-gray-600 dark:text-gray-600'}
