@@ -19,7 +19,13 @@
   let isAdmin = false;
   let isModerator = false;
   let notificationsCount = 0;
-  let notifications = []; // Nouvelle variable d'état pour la liste des notifications
+  let notifications = [];
+  
+  // --- GESTION DU POLLING (NOUVEAU) ---
+  let notificationInterval; // Variable pour stocker l'ID de l'intervalle de rafraîchissement
+  // --- FIN GESTION DU POLLING ---
+  
+  // Nouvelle variable d'état pour la liste des notifications
   // --- NOUVEAUX ÉTATS POUR LE CALENDRIER ---
   // Date actuellement affichée dans le widget (initialisée au 1er du mois actuel)
   let currentDate = new Date();
@@ -37,17 +43,42 @@
 
   // --- RÉACTIVITÉ CRUCIALE POUR L'AVATAR ---
   $: if (user) loadUserProfile();
+  
+  // --- GESTION DU POLLING (NOUVEAU) ---
   onMount(() => {
-    // Le calendrier se génère automatiquement via le bloc réactif ci-dessus
+    // Nettoyage de l'intervalle lorsque le composant est détruit
+    return () => {
+        if (notificationInterval) {
+            clearInterval(notificationInterval);
+        }
+    };
   });
+
+  // Gérer le polling des notifications (Toutes les 30 secondes)
+  $: if (user) {
+    if (!notificationInterval) {
+        // Démarrer le polling. L'appel initial est fait par $: if (user) loadUserProfile();
+        notificationInterval = setInterval(loadUserProfile, 30000); 
+    }
+  } else {
+    // Arrêter le polling à la déconnexion
+    if (notificationInterval) {
+        clearInterval(notificationInterval);
+        notificationInterval = null;
+        notificationsCount = 0;
+        notifications = [];
+    }
+  }
+  // --- FIN GESTION DU POLLING ---
+  
   async function loadUserProfile() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('avatar_url, role, full_name, fonction')
+        .select('avatar_url, role, full_name')
         .eq('id', user.id)
         .single();
-      if (data) {
+    if (data) {
         userProfile = data;
         isAdmin = data.role === 'admin';
         isModerator = data.role === 'moderator';
@@ -60,17 +91,16 @@
         .eq('user_id_target', user.id)
         .order('is_read', { ascending: true }) // Non lues en priorité
         .order('created_at', { ascending: false })
+ 
         .limit(5);
 
       notifications = notifs || [];
-
-      // 2. Récupérer le compte des notifications non lues
+    // 2. Récupérer le compte des notifications non lues
       const { count } = await supabase
         .from('notifications')
         .select('*', { count: 'exact', head: true })
         .eq('user_id_target', user.id)
         .eq('is_read', false);
-        
       notificationsCount = count || 0;
 
     } catch (err) {
@@ -161,12 +191,10 @@
   // Fonction pour marquer les notifications affichées comme lues
   async function markNotificationsAsRead() {
     if (!user || notifications.length === 0 || notificationsCount === 0) return;
-    
     // Récupérer les IDs des notifications non lues actuellement affichées
     const unreadIds = notifications
       .filter(n => !n.is_read)
       .map(n => n.id);
-      
     if (unreadIds.length > 0) {
       try {
         // Mettre à jour la DB
@@ -174,7 +202,6 @@
           .from('notifications')
           .update({ is_read: true })
           .in('id', unreadIds);
-          
         // Mettre à jour l'état local
         notificationsCount = 0;
         notifications = notifications.map(n => ({ ...n, is_read: true }));
@@ -196,7 +223,7 @@
 
     if (name === 'notifications' && isOpening) {
       // Marquer les notifications comme lues peu après l'ouverture du panneau
-      setTimeout(markNotificationsAsRead, 300); 
+      setTimeout(markNotificationsAsRead, 300);
     }
   }
 
@@ -226,7 +253,8 @@
         on:click|stopPropagation={() => isMobileMenuOpen = !isMobileMenuOpen}
         class="md:hidden p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700"
       >
-        {#if isMobileMenuOpen}<X class="w-6 h-6" />{:else}<Menu class="w-6 h-6" />{/if}
+  
+      {#if isMobileMenuOpen}<X class="w-6 h-6" />{:else}<Menu class="w-6 h-6" />{/if}
       </button>
     </div>
 
@@ -287,7 +315,7 @@ text-gray-300 hover:bg-gray-700 hover:text-white"><Car class="w-4 h-4"/> Taxi</a
                 <a href="/ebp" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"><Database class="w-4 h-4"/> EBP</a>
                 <a href="/carte-pn" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-gray-300 hover:bg-gray-700 hover:text-white"><Map class="w-4 h-4"/> Carte</a>
               </div>
-           
+          
   {/if}
           </div>
 
@@ -298,19 +326,20 @@ text-gray-300 hover:bg-gray-700 hover:text-white"><Car class="w-4 h-4"/> Taxi</a
         <a href="/journal" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('journal')}">
             <BookCopy class="w-4 h-4" /><span>Journal</span>
         </a>
-<a href="/planning" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('planning')}">
-            <CalendarDays class="w-4 h-4" /><span>Planning/Congés</span> 
+        
+        <a href="/planning" class="flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium hover:bg-gray-700 {isActive('planning')}">
+          <CalendarDays class="w-4 h-4" /><span>Planning</span>
         </a>
-     
-    {#if isAdmin || isModerator}
-           {/if}
+        
+   
       </div>
 
       <div class="flex flex-col md:flex-row items-start md:items-center gap-4 mt-4 md:mt-0 border-t border-gray-700 pt-4 md:border-none md:pt-0">
         
         <button on:click={handleGlobalSearch} class="px-3 py-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 hidden md:flex items-center gap-2">
             <Search class="w-5 h-5" />
-            <span class="font-mono text-xs text-gray-400 
+            <span 
+class="font-mono text-xs text-gray-400 
 bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5">Ctrl+K</span>
         </button>
 
@@ -320,47 +349,53 @@ bg-gray-800 border border-gray-700 rounded px-1.5 py-0.5">Ctrl+K</span>
             <button on:click={(e) => toggleDropdown('calendar', e)} 
                     class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative">
                 <CalendarDays class="w-5 h-5" />
-        
+     
       </button>
             
             {#if activeDropdown === 'calendar'}
                 <div class="absolute top-full right-0 mt-2 w-[340px] bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-3 text-sm text-gray-400">
                     
-                   
+              
   <div class="flex justify-between items-center mb-3">
                         <button on:click|stopPropagation={goToPreviousMonth} class="p-1 rounded-full hover:bg-gray-700 text-white">
                             <ChevronLeft class="w-5 h-5" />
                         </button>
-           
+     
               <span class="text-white font-bold text-lg cursor-pointer hover:text-blue-400" on:click={goToToday}>
                             {monthNames[displayedMonth]} {displayedYear}
                         </span>
-                        <button on:click|stopPropagation={goToNextMonth} class="p-1 rounded-full 
+                     
+    <button on:click|stopPropagation={goToNextMonth} class="p-1 rounded-full 
 hover:bg-gray-700 text-white">
                             <ChevronRight class="w-5 h-5" />
                         </button>
                     </div>
 
-                    <div class="grid grid-cols-8 gap-1 
+                 
+    <div class="grid grid-cols-8 gap-1 
 text-center">
                         <div class="text-xs font-semibold text-gray-500">S</div> 
                         
                         {#each dayNames as day}
-                     
+              
+        
             <div class="text-xs font-semibold text-gray-500">{day}</div>
                         {/each}
 
                         {#each days as day}
-                            {#if day.isStartOfWeek}
+                           
+  {#if day.isStartOfWeek}
           
                           <div class="text-xs text-gray-500 pt-1 border-r border-gray-700/50">
                                     {day.weekNumber}
-                                </div>
+                     
+            </div>
      
                          {/if}
 
                             <button
-                                on:click|stopPropagation
+                               
+  on:click|stopPropagation
                  
                 class="w-full h-7 rounded text-xs font-medium 
                                 {day.isCurrentMonth ?
@@ -376,7 +411,8 @@ text-center">
                             {day.dayOfMonth}
                             </button>
                         {/each}
-                    </div>
+                    
+ </div>
   
                 </div>
             {/if}
@@ -384,68 +420,85 @@ text-center">
         <div class="relative">
             <button on:click={(e) => toggleDropdown('notifications', e)} class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative">
                 <Bell class="w-5 h-5" />
-                
+            
+     
                 {#if notificationsCount > 0}
                     <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">{notificationsCount}</span>
                 {/if}
             </button>
             {#if activeDropdown === 'notifications'}
+ 
                 <div class="absolute top-full right-0 mt-2 
 w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-2 text-sm text-gray-400">
                     {#if notifications.length === 0}
                         <div class="px-2 py-4 text-center">
-                            Aucune notification.
+                     
+        Aucune notification.
                         </div>
                     {:else}
                         <div class="space-y-2 max-h-64 overflow-y-auto">
                             {#each notifications as notif (notif.id)}
-                                <div class="flex items-start gap-3 p-2 rounded-lg transition-colors duration-200
+            
+                            <div class="flex items-start gap-3 p-2 rounded-lg transition-colors duration-200
                                     {notif.is_read ? 'hover:bg-gray-700' : 'bg-gray-700/50 hover:bg-gray-700 text-gray-200'}">
-                                    
+                               
+      
                                     {#if notif.type === 'procedure'}
                                         <ClipboardPaste class="w-4 h-4 mt-1 flex-shrink-0 text-blue-400" />
-                                    {:else if notif.type === 'system'}
+          
+                           {:else if notif.type === 'system'}
                                         <ShieldCheck class="w-4 h-4 mt-1 flex-shrink-0 text-yellow-400" />
-                                    {:else}
+                        
+             {:else}
                                         <Bell class="w-4 h-4 mt-1 flex-shrink-0" />
                                     {/if}
 
-                                    <div class="flex-grow min-w-0">
-                                        <p class="font-semibold truncate" title={notif.title}>{notif.title || 'Notification'}</p>
-                                        <p class="text-xs text-gray-400 line-clamp-2" title={notif.message}>{notif.message || 'Détails non disponibles.'}</p>
+       
+                              <div class="flex-grow min-w-0">
+                                        <p class="font-semibold truncate" title={notif.title}>{notif.title ||
+'Notification'}</p>
+                                        <p class="text-xs text-gray-400 line-clamp-2" title={notif.message}>{notif.message ||
+'Détails non disponibles.'}</p>
                                         <p class="text-xs mt-1 text-gray-500">
                                             {new Date(notif.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+    
                                         </p>
                                     </div>
-                                </div>
+                            
+     </div>
                             {/each}
                         </div>
                         <a href="/notifications" class="block text-center w-full px-3 py-2 text-xs font-medium text-blue-400 hover:bg-gray-700 rounded-lg mt-2 border-t border-gray-700/50 pt-2">
-                            Voir toutes les notifications
+     
+                        Voir toutes les notifications
                         </a>
                     {/if}
                 </div>
             {/if}
-        </div>
+  
+       </div>
 
         <div class="relative">
             <div class="relative rounded-full {isAdmin ? 'p-[2px] bg-gradient-to-r from-blue-500 to-pink-500' : ''}">
                 <button on:click={(e) => toggleDropdown('profile', e)} class="block rounded-full focus:outline-none">
                     <img 
      
-                    src={userProfile?.avatar_url} 
+              
+       src={userProfile?.avatar_url} 
                       alt="Avatar" 
                       class="w-10 h-10 rounded-full object-cover border-2 border-gray-700"
                     >
             
           </button>
-            </div>
+ 
+           </div>
             
             {#if activeDropdown === 'profile'}
                 <div class="absolute top-full right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50">
                     <div class="p-2">
          
-                        <div class="px-3 py-2 text-sm text-gray-400 border-b border-gray-700 mb-1">
+     
+                    <div class="px-3 py-2 text-sm text-gray-400 border-b border-gray-700 mb-1">
                           {userProfile?.full_name ||
 'Utilisateur'}
                         </div>
@@ -454,11 +507,13 @@ w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-2 text-sm te
              
                           <hr class="border-gray-700 my-2">
                             <a href="/admin" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-yellow-400 hover:bg-gray-700"><ShieldCheck class="w-4 h-4"/> Admin</a>
-                            <a href="/audit" class="flex items-center gap-3 w-full px-3 py-2 text-sm text-yellow-400 hover:bg-gray-700"><ShieldCheck class="w-4 h-4"/> Audit 
+                            <a href="/audit" class="flex 
+items-center gap-3 w-full px-3 py-2 text-sm text-yellow-400 hover:bg-gray-700"><ShieldCheck class="w-4 h-4"/> Audit 
 Log</a>
                             {/if}
                         <button on:click={handleLogout} class="flex items-center gap-3 w-full px-3 py-2 text-sm text-red-400 hover:bg-red-900/30 rounded mt-1">
-                            <LogOut class="w-4 h-4"/> Déconnexion
+                         
+    <LogOut class="w-4 h-4"/> Déconnexion
      
                         </button>
                     </div>
@@ -467,6 +522,7 @@ Log</a>
         </div>
 
       </div>
-    </div>
+   
+  </div>
   </div>
 </nav>
