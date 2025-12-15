@@ -244,6 +244,7 @@ async function loadTargetProfile() {
     }
   }
 
+
   // --- UI HELPERS ---
   const inputClass = "block w-full rounded-2xl border-gray-200 bg-white p-3 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 transition-shadow shadow-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 disabled:text-gray-500";
   const labelClass = "block text-xs font-extrabold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide";
@@ -258,7 +259,7 @@ async function loadTargetProfile() {
         {#if isMyProfile} Mon Profil {:else} Profil de {profileData.full_name || 'Utilisateur'} {/if}
         {#if profileData.role === 'admin'}
           <span class="inline-flex items-center gap-1 px-3 py-1 bg-blue-600 text-white text-xs font-bold rounded-full uppercase shadow-sm">
-            <Shield size={12} /> Admin
+            <Shield size={12} /> Admin.
           </span>
         {/if}
       </h1>
