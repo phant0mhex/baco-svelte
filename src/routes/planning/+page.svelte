@@ -278,25 +278,24 @@
                                 {day.dayOfMonth}
                             </span>
                             
-                          <div class="absolute bottom-0 left-0 right-0 p-[2px] space-y-[1px]">
-    {#each day.leaves as leave, i (leave.id)}
-        
-        {#if i >= 3}
-            {@break}
-        {/if}
-        
-        <div 
-            class="h-3.5 w-full rounded-sm text-center font-bold overflow-hidden text-white transition-opacity duration-300 {getUserColor(leave.user_id)}"
-            class:opacity-50={leave.status !== 'APPROVED'} 
-            title="{leave.profiles?.full_name || 'Inconnu'} - {leave.type} (Statut: {leave.status})"
-        >
-            <span class="text-[8px] leading-3 whitespace-nowrap overflow-hidden">
-                {leave.profiles?.full_name.substring(0, 1) || '?'}{day.leaves.length > 1 && i === 2 ? '+' : ''}
-            </span>
-        </div>
-        
-    {/each}
-</div>
+                            <div class="absolute bottom-0 left-0 right-0 p-[2px] space-y-[1px]">
+                                {#each day.leaves as leave (leave.id)}
+                                    <div 
+                                        class="h-3.5 w-full rounded-sm text-center font-bold overflow-hidden text-white transition-opacity duration-300 {getUserColor(leave.user_id)}"
+                                        class:opacity-50={leave.status !== 'APPROVED'} 
+                                        title="{leave.profiles?.full_name || 'Inconnu'} - {leave.type} (Statut: {leave.status})"
+                                    >
+                                        <span class="text-[8px] leading-3 whitespace-nowrap overflow-hidden">
+                                            {leave.profiles?.full_name.substring(0, 1) || '?'}{day.leaves.length > 1 ? '+' : ''}
+                                        </span>
+                                    </div>
+                                    
+                                   
+                                {/each}
+                            </div>
+                        </div>
+                    {/each}
+                </div>
                 
                 <p class="text-sm text-gray-500 dark:text-gray-400 pt-4 border-t dark:border-gray-700/50">
                     *Les congés sont colorés et affichent la première lettre du nom de l'utilisateur. Les demandes **en attente/refusées** sont affichées avec une **opacité réduite** pour les distinguer des demandes **approuvées** (couleur pleine). Cliquez sur un jour marqué pour voir les détails.
