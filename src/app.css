@@ -92,3 +92,32 @@
     @apply text-red-300; 
 }
 /* --- FIN AJOUT SPÉCIFIQUE DU THÈME NOËL --- */
+
+/* --- AJOUT SPÉCIFIQUE DES RENNES VOLANTS --- */
+
+/* La silhouette du traîneau/rennes. Le contenu est généré par CSS (idéalement, utiliser une image SVG pour un vrai projet) */
+.sleigh-reindeer {
+    position: fixed; /* Reste visible même en scrollant */
+    top: 5px; /* Légèrement sous la guirlande */
+    left: -350px; /* Commence hors écran à gauche */
+    width: 300px;
+    height: 50px;
+    z-index: 70; /* Au-dessus de la nav et de la guirlande */
+    opacity: 0.9;
+    /* Remplacer le contenu ci-dessous par une image SVG si possible */
+    background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 50"><text x="0" y="45" style="font-family: Arial, sans-serif; font-size: 40px; fill: white; text-shadow: 1px 1px 2px black;">🦌🦌🦌🛷🎅</text></svg>') no-repeat center center;
+    background-size: contain;
+    filter: drop-shadow(0 0 5px rgba(255, 255, 255, 0.8));
+    animation: fly-across 30s linear infinite;
+}
+
+@keyframes fly-across {
+    0% {
+        transform: translateX(0);
+    }
+    100% {
+        transform: translateX(calc(100vw + 350px)); /* Traverse l'écran */
+    }
+}
+
+/* --- FIN AJOUT SPÉCIFIQUE DES RENNES VOLANTS --- */

@@ -240,6 +240,7 @@
     <div class="garland">
       <div class="garland-lights"></div>
     </div>
+    <div class="sleigh-reindeer"></div>
   {/if}
   <div class="container mx-auto px-6 py-3">
     
