@@ -2,16 +2,19 @@
     import { onMount } from 'svelte';
     import { supabase } from '$lib/supabase';
     import { fade } from 'svelte/transition';
-    import { toast } from '$lib/stores/toast'; // Import du store Toast
+    import { toast } from '$lib/stores/toast'; 
     
     // Import des icônes
-    import { CalendarDays, Plus, Loader2, ChevronLeft, ChevronRight, Users, Edit, Trash2, X, Save } from 'lucide-svelte';
+    import { 
+        CalendarDays, Plus, Loader2, ChevronLeft, ChevronRight, Users, 
+        Edit, Trash2, X, Save, Shield, ListTodo 
+    } from 'lucide-svelte';
     
     // --- ÉTATS GLOBAUX ---
     let isLoading = true;
     let isSubmitting = false;
     let user = null;
-    let leaveRequests = []; // Toutes les demandes de congés (Maintenant toutes APPROUVÉES)
+    let leaveRequests = []; 
 
     // --- ÉTATS DU FORMULAIRE ET MODALE ---
     
@@ -30,10 +33,18 @@
 
     const LEAVE_TYPES = [
         { value: 'CN', label: 'CN' },
-        { value: 'JC', label: 'JC' },
-        { value: 'ZM', label: 'Arrêt Maladie' },
+        { value: 'UNPAID', label: 'JC' },
+        { value: 'ZM', label: 'ZM' },
         { value: 'BT', label: 'Blessé' },
     ];
+    
+    // Mapping des statuts pour l'affichage
+    const STATUS_MAP = {
+        'APPROVED': 'Approuvée',
+        'REJECTED': 'Refusée',
+        'PENDING': 'En attente'
+    };
+
 
     // --- COULEURS ET UTILITAIRES DE PLANIFICATION ---
     
@@ -65,7 +76,7 @@
     }
 
     /**
-     * Vérifie si un jour donné fait partie d'une demande de congé.
+     * Vérifie si un jour donné fait partie d'une demande de congé (tous statuts).
      * @param {Date} date - Le jour à vérifier.
      * @returns {Array} - Les demandes de congé qui tombent ce jour-là.
      */
@@ -80,12 +91,12 @@
             end.setHours(0, 0, 0, 0);
             current.setHours(0, 0, 0, 0);
 
-            // Comme toutes les demandes sont APPROUVÉES, on n'a plus besoin de vérifier le statut.
+            // Inclure toutes les demandes, peu importe le statut
             return current >= start && current <= end;
         });
     }
 
-    // --- LOGIQUE CALENDRIER ---
+    // --- LOGIQUE CALENDRIER (Fonctions inchangées) ---
     
     let currentDate = new Date();
     currentDate.setDate(1); 
@@ -96,7 +107,6 @@
     const monthNames = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
     const dayNames = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
     
-    // (Fonctions getWeekNumber, generateCalendarDays, goToPreviousMonth, goToNextMonth inchangées)
     function getWeekNumber(d) {
         d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -137,7 +147,6 @@
             if(calendarDays.length > 0) {
                 lastDate.setDate(lastDate.getDate() + 1);
             } else {
-                // S'assurer qu'on ne boucle pas si la date de départ est en fin de mois précédent
                 lastDate.setDate(lastDate.getDate()); 
             }
             
@@ -176,6 +185,8 @@
         const { data: { user: sessionUser } } = await supabase.auth.getUser();
         user = sessionUser;
         
+        // Pas de chargement du rôle admin
+        
         await loadLeaveRequests();
         
         isLoading = false;
@@ -202,7 +213,7 @@
 
     // Ouvre le formulaire en mode Création
     function handleNewRequest() {
-        currentLeave = { start_date: '', end_date: '', type: 'CN', reason: '' };
+        currentLeave = { start_date: '', end_date: '', type: 'PAID', reason: '' };
         modalState = { isOpen: true, isEditing: false, leaveId: null };
     }
 
@@ -247,7 +258,7 @@
                         type: currentLeave.type,
                         reason: currentLeave.reason,
                     })
-                    .match({ id: modalState.leaveId, user_id: user.id }); // Seul l'utilisateur peut modifier sa demande
+                    .match({ id: modalState.leaveId, user_id: user.id }); 
     
                 if (error) throw error;
                 successMessage = "Demande de congé modifiée avec succès !";
@@ -262,11 +273,11 @@
                         end_date: currentLeave.end_date,
                         type: currentLeave.type,
                         reason: currentLeave.reason,
-                        status: 'APPROVED' // AUTOMATIC APPROVAL
+                        status: 'APPROVED' // Par défaut en attente
                     });
     
                 if (error) throw error;
-                successMessage = "Demande de congé soumise et APPROUVÉE automatiquement !";
+                successMessage = "Demande de congé soumise et en attente d'approbation.";
             }
     
             await loadLeaveRequests(); 
@@ -290,7 +301,7 @@
             const { error } = await supabase
                 .from('leave_requests')
                 .delete()
-                .match({ id: id, user_id: user.id }); // Seul l'utilisateur peut supprimer sa demande
+                .match({ id: id, user_id: user.id }); 
 
             if (error) throw error;
 
@@ -303,6 +314,38 @@
         }
     }
     
+    // Nouvelle fonction de gestion du statut par l'utilisateur (NOUVEAU)
+    async function handleStatusChange(id, newStatus) {
+        if (!user) return; // Sécurité
+
+        try {
+            const { error } = await supabase
+                .from('leave_requests')
+                .update({ status: newStatus })
+                .match({ id: id, user_id: user.id }); // Crucial : SEULEMENT L'UTILISATEUR PEUT CHANGER SON STATUT
+
+            if (error) throw error;
+
+            // Mise à jour de l'état local
+            leaveRequests = leaveRequests.map(req => {
+                if (req.id === id) {
+                    return { ...req, status: newStatus };
+                }
+                return req;
+            });
+            
+            // Recharger les jours du calendrier après la mise à jour des requêtes
+            days = generateCalendarDays(displayedYear, displayedMonth);
+
+            toast.push({ message: `Statut de votre demande mis à jour à "${STATUS_MAP[newStatus]}".`, type: "success" });
+            
+        } catch (e) {
+            console.error("Erreur mise à jour statut:", e);
+            toast.push({ message: `Échec de la mise à jour du statut : ${e.message}`, type: "error" });
+        }
+    }
+
+
     // --- UTILITAIRES D'AFFICHAGE ---
 
     /** Renvoie les demandes de l'utilisateur actuel. */
@@ -312,7 +355,7 @@
     function showLeaveDetails(day) {
         const leaves = day.leaves.map(l => {
             const name = l.profiles?.full_name || 'Inconnu';
-            return `- ${name} : ${l.type}`; // Pas besoin de statut, car tout est approuvé
+            return `- ${name} : ${l.type} (Statut: ${STATUS_MAP[l.status] || l.status})`;
         }).join('\n');
         if (leaves) {
             toast.push({ 
@@ -347,16 +390,27 @@
                 
                 <ul class="space-y-2">
                     {#each myLeaveRequests as request (request.id)}
-                        <li class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 bg-blue-500/10 dark:bg-blue-900/20 rounded-lg text-sm border-l-4 border-blue-500">
+                        <li class="flex flex-col sm:flex-row justify-between items-start sm:items-center p-3 rounded-lg text-sm border-l-4 
+                                {request.status === 'APPROVED' ? 'bg-green-500/10 dark:bg-green-900/20 border-green-500' : ''}
+                                {request.status === 'REJECTED' ? 'bg-red-500/10 dark:bg-red-900/20 border-red-500' : ''}
+                                {request.status === 'PENDING' ? 'bg-yellow-500/10 dark:bg-yellow-900/20 border-yellow-500' : ''}"
+                        >
                             <span class="font-medium text-gray-800 dark:text-gray-200">
                                 {request.profiles?.full_name || 'Moi'} ({request.type}) :
                                 Du {new Date(request.start_date).toLocaleDateString('fr-FR')} 
                                 au {new Date(request.end_date).toLocaleDateString('fr-FR')}
                             </span>
                             <div class="flex items-center gap-2 mt-2 sm:mt-0">
-                                <span class="text-xs px-2 py-0.5 bg-green-600 text-white rounded-full font-bold uppercase">
-                                    Approuvée
-                                </span>
+                                
+                                <select 
+                                    on:change={(e) => handleStatusChange(request.id, e.target.value)}
+                                    class="p-1 border border-gray-300 rounded text-sm bg-white dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                                    value={request.status}
+                                >
+                                    <option value="APPROVED">Approuvée</option>
+                                    <option value="REJECTED">Refusée</option>
+                                    <option value="PENDING">En attente</option>
+                                </select>
                                 <button on:click={() => handleEditRequest(request)} class="p-1 rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-gray-700 transition-colors" title="Modifier">
                                     <Edit class="w-4 h-4" />
                                 </button>
@@ -374,7 +428,7 @@
             </div>
 
             <hr class="border-gray-200 dark:border-gray-700">
-
+            
             <div class="space-y-4">
                 <h2 class="text-xl font-semibold dark:text-white flex items-center gap-2">
                     <Users class="w-5 h-5 text-blue-500" /> Calendrier de l'Équipe
@@ -419,11 +473,12 @@
                             
                             <div class="absolute bottom-0 left-0 right-0 p-[2px] space-y-[1px]">
                                 {#each day.leaves as leave, i (leave.id)}
-                                   
+                                  
 
                                     <div 
                                         class="h-3.5 w-full rounded-sm text-center font-bold overflow-hidden text-white transition-opacity duration-300 {getUserColor(leave.user_id)}"
-                                        title="{leave.profiles?.full_name || 'Inconnu'} - {leave.type} (Approuvé)"
+                                        class:opacity-50={leave.status !== 'APPROVED'} 
+                                        title="{leave.profiles?.full_name || 'Inconnu'} - {leave.type} (Statut: {STATUS_MAP[leave.status]})"
                                     >
                                         <span class="text-[8px] leading-3 whitespace-nowrap overflow-hidden">
                                             {leave.profiles?.full_name.substring(0, 1) || '?'}{day.leaves.length > 3 && i === 2 ? '+' : ''}
@@ -437,7 +492,7 @@
                 </div>
                 
                 <p class="text-sm text-gray-500 dark:text-gray-400 pt-4 border-t dark:border-gray-700/50">
-                    *Toutes les demandes de congés sont automatiquement approuvées et affichées sur BACO mais pas forcément acceptées par le planner.
+                    *Les demandes de congés **approuvées** (couleur pleine) et **en attente/refusées** (opacité réduite) sont affichées sur le calendrier.
                 </p>
             </div>
         </div>
@@ -505,7 +560,7 @@
                     bind:value={currentLeave.reason} 
                     rows="3"
                     class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
-                    placeholder="Ex: CN/Long terme..."
+                    placeholder="Ex: CN, longs termes, JC..."
                 ></textarea>
             </div>
 
