@@ -35,10 +35,7 @@
   let trustColor = "bg-green-500";
   let trustLabel = "Chargement...";
 
-
-  $: profileKey = targetUserId;
-
-
+  
   onMount(async () => {
     // 1. Charger l'utilisateur courant (seul onMount doit faire ceci)
     const { data: { user } } = await supabase.auth.getUser();
@@ -57,22 +54,21 @@
     // dès que $page et currentUser sont définis.
   });
 
-// ------------------------------------------------------------------
-// --- LOGIQUE RÉACTIVE POUR LES CHANGEMENTS D'URL (Robuste V3) ---
-// ------------------------------------------------------------------
+// --- LOGIQUE RÉACTIVE QUI OBSERVE L'URL ET LANCE LE CHARGEMENT ---
+$: if ($page.url.searchParams && currentUser) {
+    const urlParams = $page.url.searchParams;
+    const paramId = urlParams.get('id');
 
-$: {
-    if ($page.url && currentUser) {
-        const urlParams = $page.url.searchParams;
-        const paramId = urlParams.get('id');
-        
-        const newTargetUserId = paramId || currentUser.id;
+    // Déterminer le nouvel ID cible (soit l'ID du paramètre, soit l'ID de l'utilisateur courant)
+    const newTargetUserId = (paramId && paramId !== currentUser.id) ? paramId : currentUser.id;
 
-        // Mise à jour de l'ID cible et des drapeaux
+    // Si l'ID cible a changé ou si c'est la première exécution
+    if (newTargetUserId !== targetUserId) {
         targetUserId = newTargetUserId;
         isMyProfile = targetUserId === currentUser.id;
         
-        // Note: loadProfileData est retiré ici. Le bloc {#key} le déclenchera implicitement.
+        // Charger les données pour le nouvel utilisateur
+        loadProfileData(); 
     }
 }
 
@@ -254,11 +250,6 @@ async function loadTargetProfile() {
   const inputClass = "block w-full rounded-2xl border-gray-200 bg-white p-3 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 transition-shadow shadow-sm disabled:bg-gray-100 dark:disabled:bg-gray-700/50 disabled:text-gray-500";
   const labelClass = "block text-xs font-extrabold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide";
 </script>
-
-<svelte:head>
-  <title>{isMyProfile ? 'Mon Profil' : profileData.full_name || 'Chargement...'} - BACO</title>
-</svelte:head>
-
 
 <div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-10">
   
