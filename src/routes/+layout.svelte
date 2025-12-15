@@ -56,9 +56,7 @@ let isChristmasTheme = false;
   {#if !isLoginPage}
     <Nav {user} />
     <GlobalSearch />
-    {#if isChristmasTheme}
-        <div class="snowfall-effect"></div>
-    {/if}
+    
   {/if}
 
   <main class="flex-grow {isLoginPage ? '' : 'container mx-auto px-4 py-8'}">
