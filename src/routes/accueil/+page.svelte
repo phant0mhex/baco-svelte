@@ -171,7 +171,7 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
   // Fonction placeholder pour la recherche (à connecter plus tard au store global)
   function handleSearch() {
     console.log("Ouvrir recherche globale");
-    // window.dispatchEvent(new CustomEvent('openGlobalSearch'));
+    window.dispatchEvent(new CustomEvent('openGlobalSearch'));
   }
 </script>
 
