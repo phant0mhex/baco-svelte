@@ -428,66 +428,68 @@ text-center">
                 </div>
             {/if}
         </div>
-        <div class="relative">
-            <button on:click={(e) => toggleDropdown('notifications', e)} class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative">
-                <Bell class="w-5 h-5" />
-            
-     
-                {#if notificationsCount > 0}
-                    <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">{notificationsCount}</span>
-                {/if}
-            </button>
-            {#if activeDropdown === 'notifications'}
- 
-                <div class="absolute top-full right-0 mt-2 
-w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-2 text-sm text-gray-400">
-                    {#if notifications.length === 0}
-                        <div class="px-2 py-4 text-center">
-                     
-        Aucune notification.
-                        </div>
-                    {:else}
-                        <div class="space-y-2 max-h-64 overflow-y-auto">
-                            {#each notifications as notif (notif.id)}
-            
-                            <div class="flex items-start gap-3 p-2 rounded-lg transition-colors duration-200
-                                    {notif.is_read ? 'hover:bg-gray-700' : 'bg-gray-700/50 hover:bg-gray-700 text-gray-200'}">
-                               
-      
-                                    {#if notif.type === 'procedure'}
-                                        <ClipboardPaste class="w-4 h-4 mt-1 flex-shrink-0 text-blue-400" />
-          
-                           {:else if notif.type === 'system'}
-                                        <ShieldCheck class="w-4 h-4 mt-1 flex-shrink-0 text-yellow-400" />
-                        
-             {:else}
-                                        <Bell class="w-4 h-4 mt-1 flex-shrink-0" />
-                                    {/if}
-
-       
-                              <div class="flex-grow min-w-0">
-                                        <p class="font-semibold truncate" title={notif.title}>{notif.title ||
-'Notification'}</p>
-                                        <p class="text-xs text-gray-400 line-clamp-2" title={notif.message}>{notif.message ||
-'Détails non disponibles.'}</p>
-                                        <p class="text-xs mt-1 text-gray-500">
-                                            {new Date(notif.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+      <div class="relative">
+    <button on:click={(e) => toggleDropdown('notifications', e)} class="p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-700 relative">
+        <Bell class="w-5 h-5" />
     
-                                        </p>
-                                    </div>
-                            
-     </div>
-                            {/each}
-                        </div>
-                        <a href="/notifications" class="block text-center w-full px-3 py-2 text-xs font-medium text-blue-400 hover:bg-gray-700 rounded-lg mt-2 border-t border-gray-700/50 pt-2">
-     
-                        Voir toutes les notifications
-                        </a>
-                    {/if}
+        {#if notificationsCount > 0}
+            <span class="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-600 text-xs font-bold text-white">{notificationsCount}</span>
+        {/if}
+    </button>
+    {#if activeDropdown === 'notifications'}
+
+        <div class="absolute top-full right-0 mt-2 
+w-72 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 p-2 text-sm text-gray-400">
+            {#if notifications.length === 0}
+                <div class="px-2 py-4 text-center">
+             
+    Aucune notification.
                 </div>
+            {:else}
+                <div class="space-y-2 max-h-64 overflow-y-auto">
+                    {#each notifications as notif (notif.id)}
+    
+                    <a 
+                        href={notif.link_to || '#'} 
+                        on:click={closeDropdowns} 
+                        class="flex items-start gap-3 p-2 rounded-lg transition-colors duration-200 cursor-pointer
+                                {notif.is_read ? 'hover:bg-gray-700' : 'bg-gray-700/50 hover:bg-gray-700 text-gray-200'}">
+                       
+          
+                            {#if notif.type === 'procedure'}
+                                <ClipboardPaste class="w-4 h-4 mt-1 flex-shrink-0 text-blue-400" />
+      
+                       {:else if notif.type === 'system'}
+                                <ShieldCheck class="w-4 h-4 mt-1 flex-shrink-0 text-yellow-400" />
+                    
+                 {:else}
+                                <Bell class="w-4 h-4 mt-1 flex-shrink-0" />
+                            {/if}
+
+   
+                          <div class="flex-grow min-w-0">
+                                <p class="font-semibold truncate" title={notif.title}>{notif.title ||
+'Notification'}</p>
+                                <p class="text-xs text-gray-400 line-clamp-2" title={notif.message}>{notif.message ||
+'Détails non disponibles.'}</p>
+                                <p class="text-xs mt-1 text-gray-500">
+                                    {new Date(notif.created_at).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+
+                                </p>
+                            </div>
+                    
+ </a>
+                    {/each}
+                </div>
+                <a href="/notifications" class="block text-center w-full px-3 py-2 text-xs font-medium text-blue-400 hover:bg-gray-700 rounded-lg mt-2 border-t border-gray-700/50 pt-2">
+ 
+                Voir toutes les notifications
+                </a>
             {/if}
-  
-       </div>
+        </div>
+    {/if}
+
+</div>
 
         <div class="relative">
             <div class="relative rounded-full {isAdmin ? 'p-[2px] bg-gradient-to-r from-blue-500 to-pink-500' : ''}">
