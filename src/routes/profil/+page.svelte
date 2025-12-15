@@ -35,6 +35,10 @@
   let trustColor = "bg-green-500";
   let trustLabel = "Chargement...";
 
+
+  $: profileKey = targetUserId;
+
+
   onMount(async () => {
     // 1. Charger l'utilisateur courant (seul onMount doit faire ceci)
     const { data: { user } } = await supabase.auth.getUser();
@@ -53,21 +57,22 @@
     // dès que $page et currentUser sont définis.
   });
 
-// --- LOGIQUE RÉACTIVE QUI OBSERVE L'URL ET LANCE LE CHARGEMENT ---
-$: if ($page.url.searchParams && currentUser) {
-    const urlParams = $page.url.searchParams;
-    const paramId = urlParams.get('id');
+// ------------------------------------------------------------------
+// --- LOGIQUE RÉACTIVE POUR LES CHANGEMENTS D'URL (Robuste V3) ---
+// ------------------------------------------------------------------
 
-    // Déterminer le nouvel ID cible (soit l'ID du paramètre, soit l'ID de l'utilisateur courant)
-    const newTargetUserId = (paramId && paramId !== currentUser.id) ? paramId : currentUser.id;
+$: {
+    if ($page.url && currentUser) {
+        const urlParams = $page.url.searchParams;
+        const paramId = urlParams.get('id');
+        
+        const newTargetUserId = paramId || currentUser.id;
 
-    // Si l'ID cible a changé ou si c'est la première exécution
-    if (newTargetUserId !== targetUserId) {
+        // Mise à jour de l'ID cible et des drapeaux
         targetUserId = newTargetUserId;
         isMyProfile = targetUserId === currentUser.id;
         
-        // Charger les données pour le nouvel utilisateur
-        loadProfileData(); 
+        // Note: loadProfileData est retiré ici. Le bloc {#key} le déclenchera implicitement.
     }
 }
 
@@ -250,6 +255,11 @@ async function loadTargetProfile() {
   const labelClass = "block text-xs font-extrabold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide";
 </script>
 
+<svelte:head>
+  <title>{isMyProfile ? 'Mon Profil' : profileData.full_name || 'Chargement...'} - BACO</title>
+</svelte:head>
+
+{#key profileKey}
 <div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-10">
   
   <main class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -460,3 +470,5 @@ async function loadTargetProfile() {
     {/if}
   </main>
 </div>
+
+{/key}
