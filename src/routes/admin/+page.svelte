@@ -3,7 +3,6 @@
   import { goto } from '$app/navigation';
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast.js';
-  import { goto } from '$app/navigation';
   import { page } from '$app/stores'; // <-- UTILISÉ POUR LIRE L'URL
   import { openConfirmModal } from '$lib/stores/modal.js';
 
