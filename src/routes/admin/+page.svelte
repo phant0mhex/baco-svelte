@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast.js';
+  import { goto } from '$app/navigation';
   import { page } from '$app/stores'; // <-- UTILISÉ POUR LIRE L'URL
   import { openConfirmModal } from '$lib/stores/modal.js';
 
@@ -589,19 +590,19 @@ async function pardonInfraction(infractionId) {
                   
                   <td class="px-6 py-4 whitespace-nowrap">
                     <button 
-                        on:click={() => handleViewEdit(user.email)} 
-                        disabled={user.user_id === currentAdminId}
-                        class="flex items-center gap-4 w-full text-left 
-                               {user.user_id !== currentAdminId ? 'cursor-pointer hover:text-blue-500' : 'cursor-default opacity-80'}
-                               focus:outline-none"
-                        title={user.user_id !== currentAdminId ? "Éditer le profil" : "Votre profil"}
-                    >
-                      <img class="h-10 w-10 rounded-full object-cover border border-gray-200 dark:border-gray-600 shadow-sm flex-shrink-0" src={user.avatar_url} alt="">
-                      <div>
-                        <div class="text-sm font-bold {user.user_id !== currentAdminId ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}">{user.full_name || user.email}</div>
-                        <div class="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
-                      </div>
-                    </button>
+    on:click={() => goto(`/profil?id=${user.user_id}`)} 
+    disabled={user.user_id === currentAdminId}
+    class="flex items-center gap-4 w-full text-left 
+   {user.user_id !== currentAdminId ? 'cursor-pointer hover:text-blue-500' : 'cursor-default opacity-80'}
+    focus:outline-none"
+    title={user.user_id !== currentAdminId ? "Éditer le profil" : "Votre profil"}
+>
+  <img class="h-10 w-10 rounded-full object-cover border border-gray-200 dark:border-gray-600 shadow-sm flex-shrink-0" src={user.avatar_url} alt="">
+  <div>
+    <div class="text-sm font-bold {user.user_id !== currentAdminId ? 'text-gray-900 dark:text-white' : 'text-gray-700 dark:text-gray-300'}">{user.full_name || user.email}</div>
+    <div class="text-xs text-gray-500 dark:text-gray-400">{user.email}</div>
+  </div>
+</button>
                   </td>
 
                   <td class="px-6 py-4 whitespace-nowrap">
