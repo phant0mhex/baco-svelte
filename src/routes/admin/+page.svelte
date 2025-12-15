@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { goto } from '$app/navigation';
   import { supabase } from '$lib/supabase';
+  import { toast } from '$lib/stores/toast.js';
   import { page } from '$app/stores'; // <-- UTILISÉ POUR LIRE L'URL
   import { 
     Shield, UserPlus, Search, User, UserX, UserCheck, 
@@ -64,7 +65,7 @@
       .eq('id', user.id)
       .single();
     if (profile?.role !== 'admin') {
-      alert("Accès refusé. Réservé aux administrateurs.");
+      toast.error("Accès refusé. Réservé aux administrateurs.");
       goto('/');
     }
   }
@@ -93,7 +94,7 @@
 
     } catch (e) {
       console.error("Erreur chargement users:", e);
-      alert("Erreur chargement utilisateurs: " + e.message);
+      toast.error("Erreur chargement utilisateurs: " + e.message);
     } finally {
       isLoading = false;
     }
@@ -141,7 +142,7 @@
       
       // Validation simple du rôle
       if (!['admin', 'moderator', 'user'].includes(form.role)) {
-          alert("Rôle invalide.");
+          toast.error("Rôle invalide.");
           isSaving = false;
           return;
       }
@@ -159,13 +160,13 @@
 
         if (error) throw error;
 
-        alert("Profil mis à jour avec succès !");
+        toast.success("Profil mis à jour avec succès !");
         
         loadUsers();
         goto('/admin'); 
 
       } catch (e) {
-          alert(`Erreur de sauvegarde: ${e.message}`);
+          toast.error(`Erreur de sauvegarde: ${e.message}`);
           console.error(e);
       } finally {
         isSaving = false;
@@ -211,13 +212,13 @@
       });
       if (restoreError) throw restoreError;
 
-      alert(`Utilisateur ${newUser.email} créé avec succès !`);
+      toast.success(`Utilisateur ${newUser.email} créé avec succès !`);
       newUser = { email: "", password: "", role: "user" };
       loadUsers();
 
     } catch (e) {
       console.error(e);
-      alert("Erreur création: " + e.message);
+      toast.error("Erreur création: " + e.message);
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) location.reload();
     } finally {
@@ -228,7 +229,7 @@
   // --- ACTIONS UTILISATEUR (unchanged) ---
 
   async function handleChangeRole(user, nextRole) {
-    if (user.user_id === currentAdminId) return alert("Impossible de modifier votre propre rôle.");
+    if (user.user_id === currentAdminId) return toast.error("Impossible de modifier votre propre rôle.");
     if (!confirm(`Passer cet utilisateur en ${nextRole.toUpperCase()} ?`)) return;
 
     try {
@@ -239,12 +240,12 @@
       if (error) throw error;
       loadUsers();
     } catch (e) {
-      alert("Erreur: " + e.message);
+      toast.error("Erreur: " + e.message);
     }
   }
 
   async function handleBanUser(user, shouldBan) {
-    if (user.user_id === currentAdminId) return alert("Impossible de vous bannir.");
+    if (user.user_id === currentAdminId) return toast.error("Impossible de vous bannir.");
     if (!confirm(shouldBan ? "Bannir cet utilisateur ?" : "Débannir cet utilisateur ?")) return;
     try {
       let banDate = null;
@@ -268,7 +269,7 @@
 
       loadUsers();
     } catch (e) {
-      alert("Erreur: " + e.message);
+      toast.error("Erreur: " + e.message);
     }
   }
 
@@ -281,7 +282,7 @@
   }
 
   async function submitInfraction() {
-    if (!infractionData.reason) return alert("La raison est requise.");
+    if (!infractionData.reason) return toast.error("La raison est requise.");
     try {
       const { error } = await supabase.rpc('admin_add_infraction', {
         target_user_id: selectedUser.user_id,
@@ -289,11 +290,11 @@
         p_reason: infractionData.reason
       });
       if (error) throw error;
-      alert(`Carton ${infractionData.type === 'yellow' ? 'Jaune' : 'Rouge'} ajouté !`);
+      toast.success(`Carton ${infractionData.type === 'yellow' ? 'Jaune' : 'Rouge'} ajouté !`);
       showInfractionModal = false;
       loadUsers();
     } catch (e) {
-      alert("Erreur: " + e.message);
+      toast.error("Erreur: " + e.message);
     }
   }
 
@@ -321,7 +322,7 @@
       if (error) throw error;
       await loadUsers();
       await openHistoryModal(selectedUser);
-    } catch (e) { alert("Erreur: " + e.message);
+    } catch (e) { toast.error("Erreur: " + e.message);
     }
   }
 
@@ -355,7 +356,7 @@
 
   function copyPassword() {
     navigator.clipboard.writeText(resetData.password);
-    alert("Mot de passe copié !");
+    toast.info("Mot de passe copié !");
   }
 
   // --- UI HELPERS (unchanged) ---
