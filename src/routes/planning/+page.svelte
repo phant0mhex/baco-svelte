@@ -7,8 +7,7 @@
     // Import des icônes
     import { 
         CalendarDays, Plus, Loader2, ChevronLeft, ChevronRight, Users, 
-        Edit, Trash2, X, Save, Shield, ListTodo,
-        Cake // <-- NOUVEAU : Import de Cake
+        Edit, Trash2, X, Save, Shield, ListTodo, Cake, Check, Ban 
     } from 'lucide-svelte';
     
     // --- ÉTATS GLOBAUX ---
@@ -16,7 +15,7 @@
     let isSubmitting = false;
     let user = null;
     let leaveRequests = []; 
-    let allProfiles = []; // <-- NOUVEAU : Pour stocker les anniversaires de tous les profils
+    let allProfiles = []; 
 
     // --- ÉTATS DU FORMULAIRE ET MODALE ---
     
@@ -37,7 +36,7 @@
         { value: 'CN', label: 'CN' },
         { value: 'JC', label: 'JC' },
         { value: 'ZM', label: 'ZM' },
-        { value: 'BT', label: 'Blessé' },
+        { value: 'BT', label: 'BT' },
     ];
     
     // Mapping des statuts pour l'affichage
@@ -47,6 +46,8 @@
         'PENDING': 'En attente'
     };
 
+    // --- NOUVEL ÉTAT DE CONFIRMATION DE SUPPRESSION ---
+    let confirmDeleteId = null; 
 
     // --- COULEURS ET UTILITAIRES DE PLANIFICATION ---
     
@@ -79,8 +80,6 @@
 
     /**
      * Vérifie si un jour donné fait partie d'une demande de congé (tous statuts).
-     * @param {Date} date - Le jour à vérifier.
-     * @returns {Array} - Les demandes de congé qui tombent ce jour-là.
      */
     function getLeavesForDay(date) {
         const dayString = date.toISOString().split('T')[0];
@@ -98,7 +97,7 @@
     }
 
     /**
-     * NOUVEAU : Vérifie si un jour donné est un anniversaire.
+     * Vérifie si un jour donné est un anniversaire.
      */
     function getBirthdaysForDay(dayDate) {
         const currentMonth = dayDate.getMonth();
@@ -107,15 +106,14 @@
         return allProfiles
             .filter(p => {
                 if (!p.birthday) return false;
-                // Créer une Date pour l'anniversaire à partir de la chaîne YYYY-MM-DD
-                const bday = new Date(p.birthday); 
-                // Assurez-vous d'ignorer l'année de naissance, en ne comparant que le jour et le mois
+                // Utiliser la fonction pour éviter les problèmes de fuseau horaire
+                const bday = new Date(p.birthday.replace(/-/g, '/')); 
                 return bday.getDate() === currentDay && bday.getMonth() === currentMonth;
             })
             .map(p => p.full_name);
     }
 
-    // --- LOGIQUE CALENDRIER (Fonctions inchangées, sauf generateCalendarDays) ---
+    // --- LOGIQUE CALENDRIER (Fonctions inchangées) ---
     
     let currentDate = new Date();
     currentDate.setDate(1); 
@@ -154,7 +152,7 @@
                 weekNumber: getWeekNumber(day),
                 isStartOfWeek: getISOWeekday(day) === 1,
                 leaves: getLeavesForDay(day),
-                birthdays: getBirthdaysForDay(day) // <-- AJOUT ANNIVERSAIRES
+                birthdays: getBirthdaysForDay(day)
             };
             calendarDays.push(dayData);
             
@@ -178,7 +176,7 @@
                 weekNumber: getWeekNumber(lastDate),
                 isStartOfWeek: getISOWeekday(lastDate) === 1,
                 leaves: getLeavesForDay(lastDate),
-                birthdays: getBirthdaysForDay(lastDate) // <-- AJOUT ANNIVERSAIRES
+                birthdays: getBirthdaysForDay(lastDate)
             };
             calendarDays.push(dayData);
         }
@@ -206,12 +204,12 @@
         const { data: { user: sessionUser } } = await supabase.auth.getUser();
         user = sessionUser;
         
-        await loadPlanningData(); // <-- Renommée de loadLeaveRequests
+        await loadPlanningData();
         
         isLoading = false;
     });
 
-    async function loadPlanningData() { // <-- Renommée de loadLeaveRequests
+    async function loadPlanningData() {
         // 1. Charger les demandes de congés
         const { data: leaves, error: leaveError } = await supabase
             .from('leave_requests')
@@ -229,10 +227,10 @@
             toast.push({ message: "Erreur lors du chargement des demandes de congés.", type: "error" });
         }
         
-        // 2. Charger tous les profils pour les anniversaires (NOUVEAU)
+        // 2. Charger tous les profils pour les anniversaires
         const { data: profiles, error: profileError } = await supabase
             .from('profiles')
-            .select('id, full_name, birthday'); // <-- Récupération de la date de naissance
+            .select('id, full_name, birthday');
         
         if (profiles) {
             allProfiles = profiles;
@@ -246,7 +244,7 @@
 
     // Ouvre le formulaire en mode Création
     function handleNewRequest() {
-        currentLeave = { start_date: '', end_date: '', type: 'PAID', reason: '' };
+        currentLeave = { start_date: '', end_date: '', type: 'CN', reason: '' };
         modalState = { isOpen: true, isEditing: false, leaveId: null };
     }
 
@@ -313,7 +311,7 @@
                 successMessage = "Demande de congé soumise et en attente d'approbation.";
             }
     
-            await loadPlanningData(); // <-- Appel mis à jour
+            await loadPlanningData(); 
             closeModal();
             toast.push({ message: successMessage, type: "success" });
             
@@ -325,10 +323,19 @@
         }
     }
 
-    async function deleteLeave(id) {
-        if (!confirm("Êtes-vous sûr de vouloir supprimer cette demande de congé ? Cette action est irréversible.")) {
-            return;
-        }
+    // Affiche le prompt de confirmation pour la suppression
+    function initiateDelete(id) {
+        confirmDeleteId = id;
+    }
+
+    // Annule la suppression
+    function cancelDelete() {
+        confirmDeleteId = null;
+    }
+
+    // Exécute la suppression (remplace le ancien code avec `confirm()`)
+    async function executeDelete(id) {
+        confirmDeleteId = null; // Cacher le prompt de confirmation
         
         try {
             const { error } = await supabase
@@ -338,7 +345,7 @@
 
             if (error) throw error;
 
-            await loadPlanningData(); // <-- Appel mis à jour
+            await loadPlanningData();
             toast.push({ message: "Demande de congé supprimée avec succès.", type: "success" });
             
         } catch (e) {
@@ -355,7 +362,7 @@
             const { error } = await supabase
                 .from('leave_requests')
                 .update({ status: newStatus })
-                .match({ id: id, user_id: user.id }); // Crucial : SEULEMENT L'UTILISATEUR PEUT CHANGER SON STATUT
+                .match({ id: id, user_id: user.id });
 
             if (error) throw error;
 
@@ -390,11 +397,11 @@
             return `- ${name} : ${l.type} (Statut: ${STATUS_MAP[l.status] || l.status})`;
         }).join('\n');
         
-        const bdays = day.birthdays.length > 0 ? `\n\n🎂 Anniversaire(s) : ${day.birthdays.join(', ')}` : ''; // <-- AJOUT ANNIVERSAIRES
+        const bdays = day.birthdays.length > 0 ? `\n\n🎂 Anniversaire(s) : ${day.birthdays.join(', ')}` : '';
         
         if (leaves || bdays) {
             toast.push({ 
-                message: `Congés le ${day.date.toLocaleDateString('fr-FR')}:\n${leaves}${bdays}`, // <-- AFFICHAGE FINAL
+                message: `Congés le ${day.date.toLocaleDateString('fr-FR')}:\n${leaves}${bdays}`,
                 type: 'info',
                 duration: 5000 
             });
@@ -449,9 +456,22 @@
                                 <button on:click={() => handleEditRequest(request)} class="p-1 rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-400 dark:hover:bg-gray-700 transition-colors" title="Modifier">
                                     <Edit class="w-4 h-4" />
                                 </button>
-                                <button on:click={() => deleteLeave(request.id)} class="p-1 rounded-full text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-gray-700 transition-colors" title="Supprimer">
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
+                                
+                                {#if confirmDeleteId === request.id}
+                                    <span class="text-xs font-bold text-red-600 dark:text-red-400 whitespace-nowrap">
+                                        Sûr?
+                                    </span>
+                                    <button on:click={() => executeDelete(request.id)} class="p-1 rounded-full bg-red-600 text-white hover:bg-red-700 transition-colors" title="Confirmer Suppression">
+                                        <Check class="w-4 h-4" />
+                                    </button>
+                                    <button on:click={cancelDelete} class="p-1 rounded-full text-gray-600 hover:bg-gray-200 dark:text-gray-400 dark:hover:bg-gray-700 transition-colors" title="Annuler">
+                                        <Ban class="w-4 h-4" />
+                                    </button>
+                                    {:else}
+                                    <button on:click={() => initiateDelete(request.id)} class="p-1 rounded-full text-red-600 hover:bg-red-100 dark:text-red-400 dark:hover:bg-gray-700 transition-colors" title="Supprimer">
+                                        <Trash2 class="w-4 h-4" />
+                                    </button>
+                                {/if}
                             </div>
                         </li>
                     {:else}
@@ -601,7 +621,7 @@
                     bind:value={currentLeave.reason} 
                     rows="3"
                     class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
-                    placeholder="Ex: CN, long terme, JC..."
+                    placeholder="Ex: CN,JC, Long terme..."
                 ></textarea>
             </div>
 
