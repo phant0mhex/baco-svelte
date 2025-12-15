@@ -7,6 +7,73 @@
   let isLoading = true;
   let user = null;
   let leaveRequests = []; // Toutes les demandes de congés (Approuvées et en attente)
+  let isFormOpen = false;
+  let isSubmitting = false;
+
+let newLeaveRequest = {
+    start_date: '',
+    end_date: '',
+    type: 'PAID', // Défaut: Congé Payé
+    reason: ''
+  };
+
+  const LEAVE_TYPES = [
+    { value: 'PAID', label: 'Congé Payé (CP)' },
+    { value: 'UNPAID', label: 'Congé sans Solde (CSS)' },
+    { value: 'RTT', label: 'RTT' },
+    { value: 'SICK', label: 'Arrêt Maladie' }, // Bien que rarement demandé via un formulaire...
+  ];
+
+  function handleNewRequest() {
+    isFormOpen = true; // Ouvre le formulaire
+  }
+  
+  function closeForm() {
+    isFormOpen = false;
+    // Réinitialiser le formulaire
+    newLeaveRequest = {
+        start_date: '',
+        end_date: '',
+        type: 'PAID',
+        reason: ''
+    };
+  }
+
+  // Nouvelle fonction pour soumettre la demande
+  async function submitNewLeave() {
+    if (!user || !newLeaveRequest.start_date || !newLeaveRequest.end_date) {
+      alert("Veuillez remplir toutes les dates requises.");
+      return;
+    }
+    
+    isSubmitting = true;
+
+    try {
+      const { error } = await supabase
+        .from('leave_requests')
+        .insert({
+          user_id: user.id,
+          start_date: newLeaveRequest.start_date,
+          end_date: newLeaveRequest.end_date,
+          type: newLeaveRequest.type,
+          reason: newLeaveRequest.reason,
+          status: 'PENDING' // Toujours PENDING à l'envoi
+        });
+
+      if (error) throw error;
+
+      // Succès: Recharge les demandes et ferme le formulaire
+      await loadLeaveRequests(); 
+      closeForm();
+      alert("Demande de congé envoyée avec succès et en attente d'approbation !");
+      
+    } catch (e) {
+      console.error("Erreur lors de l'envoi du congé:", e);
+      alert("Échec de l'envoi de la demande. Veuillez réessayer.");
+    } finally {
+      isSubmitting = false;
+    }
+  }
 
   // --- COULEURS ET UTILITAIRES DE PLANIFICATION ---
   
@@ -175,10 +242,6 @@
     days = generateCalendarDays(displayedYear, displayedMonth);
   }
 
-  function handleNewRequest() {
-    // Logique pour ouvrir une modale/formulaire
-    alert("Ouvrir la modale de nouvelle demande de congé");
-  }
 
   function showLeaveDetails(day) {
     // Cette fonction affiche les détails de toutes les demandes sur ce jour
@@ -303,4 +366,98 @@
             </div>
         </div>
     {/if}
+
+    {#if isFormOpen}
+<div class="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-4" transition:fade>
+    <div 
+        class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl max-w-lg w-full transform transition-all p-6 space-y-5"
+        role="dialog"
+        aria-modal="true"
+    >
+        <h3 class="text-xl font-bold dark:text-white">Soumettre une Demande de Congé</h3>
+
+        <form on:submit|preventDefault={submitNewLeave} class="space-y-4">
+            
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label for="start_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date de Début</label>
+                    <input 
+                        type="date" 
+                        id="start_date" 
+                        bind:value={newLeaveRequest.start_date} 
+                        required
+                        class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
+                    >
+                </div>
+                <div>
+                    <label for="end_date" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Date de Fin</label>
+                    <input 
+                        type="date" 
+                        id="end_date" 
+                        bind:value={newLeaveRequest.end_date} 
+                        required
+                        class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
+                    >
+                </div>
+            </div>
+
+            <div>
+                <label for="leave_type" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Type de Congé</label>
+                <select 
+                    id="leave_type" 
+                    bind:value={newLeaveRequest.type}
+                    class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
+                >
+                    {#each LEAVE_TYPES as type}
+                        <option value={type.value}>{type.label}</option>
+                    {/each}
+                </select>
+            </div>
+
+            <div>
+                <label for="reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Raison (Optionnel)</label>
+                <textarea 
+                    id="reason" 
+                    bind:value={newLeaveRequest.reason} 
+                    rows="3"
+                    class="w-full p-2 border border-gray-300 dark:border-gray-700 rounded-lg dark:bg-gray-800 dark:text-white"
+                ></textarea>
+            </div>
+
+            <div class="flex justify-end space-x-3 pt-2">
+                <button 
+                    type="button" 
+                    on:click={closeForm} 
+                    class="px-4 py-2 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700"
+                >
+                    Annuler
+                </button>
+                <button 
+                    type="submit" 
+                    disabled={isSubmitting}
+                    class="px-4 py-2 text-sm font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 flex items-center gap-2"
+                >
+                    {#if isSubmitting}
+                        <Loader2 class="w-4 h-4 animate-spin" /> Envoi en cours...
+                    {:else}
+                        <Plus class="w-4 h-4" /> Soumettre la Demande
+                    {/if}
+                </button>
+            </div>
+        </form>
+
+    </div>
+</div>
+{/if}
+
+<style>
+/* Pour les transitions Svelte (nécessite l'import de 'fade' si non fait) */
+</style>
+
+<script>
+// N'oubliez pas l'importation au début du fichier si elle n'est pas déjà présente :
+  import { fade } from 'svelte/transition';
+  import { Loader2, Plus } from 'lucide-svelte';
+// ...
+</script>
 </div>
