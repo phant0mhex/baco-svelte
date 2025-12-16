@@ -266,15 +266,37 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
           {:else}
             <ul class="space-y-2">
               {#each upcomingLeaves as leave}
-                <li class="flex justify-between p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg text-sm border-l-4 border-blue-500">
-                  <span class="font-medium text-gray-800 dark:text-gray-200">
-                    {leave.profiles?.full_name || 'Utilisateur'} ({leave.type})
-                  </span>
-                  <span class="text-xs text-gray-600 dark:text-gray-400">
-                    {new Date(leave.start_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                    →
-                    {new Date(leave.end_date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
-                  </span>
+               <li 
+                class="p-3 rounded-lg shadow-sm border 
+                {leave.status === 'approved' 
+                    ? 'bg-green-50 border-green-200 dark:bg-green-900/50 dark:border-green-700' 
+                    : 'bg-yellow-50 border-yellow-200 dark:bg-yellow-900/50 dark:border-yellow-700'} 
+                flex justify-between items-center"
+            >
+                <div>
+                    <span class="font-medium dark:text-gray-100">
+                        {leave.profiles.full_name}
+                    </span>
+                    <span class="text-sm text-gray-600 dark:text-gray-400">
+                        ({leave.type})
+                    </span>
+                </div>
+
+                 <div class="text-right">
+                    <span 
+                        class="text-xs font-bold uppercase tracking-wider px-2 py-0.5 rounded-full 
+                        {leave.status === 'approved' 
+                            ? 'text-green-700 bg-green-200 dark:text-green-300 dark:bg-green-700' 
+                            : 'text-yellow-700 bg-yellow-200 dark:text-yellow-300 dark:bg-yellow-700'}"
+                    >
+                        {leave.status === 'approved' ? 'Approuvé' : 'En Attente'} 
+                    </span>
+                    
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                        Du {new Date(leave.start_date).toLocaleDateString('fr-FR')} 
+                        au {new Date(leave.end_date).toLocaleDateString('fr-FR')}
+                    </p>
+                </div>
                 </li>
               {/each}
             </ul>
