@@ -3,7 +3,9 @@
     import { supabase } from '$lib/supabase';
     import { fade } from 'svelte/transition';
     import { toast } from '$lib/stores/toast'; 
-    
+    import { Download } from 'lucide-svelte';
+    import { jsPDF } from 'jspdf';
+    import html2canvas from 'html2canvas';
     // Import des icônes
     import { 
         CalendarDays, Plus, Loader2, ChevronLeft, ChevronRight, Users, 
@@ -403,6 +405,59 @@
             toast.info(`Congés le ${day.date.toLocaleDateString('fr-FR')}:\n${leaves}${bdays}`, 5000); // CORRECTION (garder duration)
         }
     }
+
+
+    // --- NOUVELLE FONCTION : EXPORT PDF ---
+    async function exportPlanningToPDF() {
+        if (!calendarContent) {
+            console.error("Élément du calendrier non trouvé.");
+            return;
+        }
+
+        const dateString = new Date().toLocaleDateString('fr-FR');
+        const monthYear = new Date(currentMonth).toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+
+        // 1. Désactiver temporairement les styles spécifiques au survol/impression
+        const originalBg = calendarContent.style.backgroundColor;
+        calendarContent.style.backgroundColor = '#ffffff'; // S'assurer que le fond est blanc pour le PDF
+
+        // 2. Capturer le contenu du calendrier en tant qu'image (canvas)
+        const canvas = await html2canvas(calendarContent, {
+            scale: 2, // Augmenter l'échelle pour une meilleure résolution dans le PDF
+            useCORS: true,
+            logging: false,
+        });
+
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('l', 'mm', 'a4'); // 'l' pour paysage (Landscape), A4
+
+        const imgWidth = 280; // Largeur A4 en mm (paysage) moins marges
+        const pageHeight = 210; // Hauteur A4 en mm
+        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+        let heightLeft = imgHeight;
+        let position = 10; // Marge supérieure
+
+        // 3. Ajouter un titre (facultatif mais recommandé)
+        pdf.setFontSize(16);
+        pdf.text(`Planning du mois de ${monthYear}`, 148.5, 15, { align: 'center' }); // Centre le titre
+        pdf.setFontSize(10);
+        pdf.text(`Exporté le ${dateString}`, 10, 20);
+
+        // 4. Ajouter l'image au PDF (avec gestion des pages si le calendrier est très long)
+        pdf.addImage(imgData, 'PNG', 10, position + 10, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        // Note: Pour un calendrier mensuel, il est peu probable que la pagination soit nécessaire,
+        // mais cette approche garantit que tout le contenu est capturé.
+
+        // 5. Réactiver les styles originaux
+        calendarContent.style.backgroundColor = originalBg;
+
+        // 6. Sauvegarder le fichier
+        pdf.save(`Planning_${monthYear.replace(' ', '_')}.pdf`);
+    }
+    // --- FIN NOUVELLE FONCTION ---
+
 </script>
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
@@ -411,6 +466,15 @@
             <CalendarDays class="w-6 h-6 text-blue-500" />
             Planning (Congés et Absences)
         </h1>
+        <button 
+        on:click={exportPlanningToPDF}
+        class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors shadow-md"
+        title="Exporter le mois actuel en PDF"
+    >
+        <Download class="w-4 h-4" />
+        Export PDF
+    </button>
+    
         <button on:click={handleNewRequest} class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
             <Plus class="w-4 h-4" /> Nouvelle Demande
         </button>
