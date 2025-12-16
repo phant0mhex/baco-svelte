@@ -2,9 +2,12 @@
     import { onMount } from 'svelte';
     import { supabase } from '$lib/supabase';
     import { toast } from '$lib/stores/toast';
+   import { jsPDF } from 'jspdf';
+    import html2canvas from 'html2canvas';
+    // --- FIN NOUVEAUX IMPORTS PDF ---
     import { 
         CheckSquare, Loader2, Calendar, Sun, Sunset, Moon, 
-        Bus, DollarSign, RotateCcw, Save, MessageSquare
+        Bus, DollarSign, RotateCcw, Save, MessageSquare, Shield, Download // AJOUT de Shield et Download
     } from 'lucide-svelte';
 
     // --- CONSTANTES ---
@@ -16,7 +19,7 @@
     let isLoading = true;
     let isSubmitting = false;
     let currentUser = null;
-    
+    let reportContent;
     // --- ÉTATS DU RAPPORT ---
     let selectedDate = new Date().toISOString().split('T')[0]; // Format YYYY-MM-DD
     let reportId = null; // ID du rapport Supabase s'il existe
@@ -170,6 +173,69 @@
         selectedDate = date.toISOString().split('T')[0];
     }
 
+// ... (à ajouter après la fonction saveReport) ...
+
+    // --- NOUVELLE FONCTION : EXPORT PDF du Rapport B201 ---
+    async function exportReportToPDF() {
+        if (!reportContent) {
+            toast.error("Le rapport n'est pas chargé.");
+            return;
+        }
+
+        let pdf;
+        const originalBg = reportContent.style.backgroundColor;
+        
+        // 1. Préparation de l'élément pour le PDF (assure fond blanc)
+        reportContent.style.backgroundColor = '#ffffff'; 
+
+        try {
+            const dateString = new Date().toLocaleDateString('fr-FR');
+            const reportDateFormatted = formatDate(selectedDate);
+            
+            // 2. Capturer le contenu du rapport en tant qu'image (canvas)
+            const canvas = await html2canvas(reportContent, {
+                scale: 2, // Haute résolution
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff'
+            });
+
+            const imgData = canvas.toDataURL('image/png');
+            pdf = new jsPDF('p', 'mm', 'a4'); // 'p' pour portrait, A4
+
+            const imgWidth = 190; // Largeur A4 en mm moins marges (210 - 20)
+            const pageHeight = 297; // Hauteur A4 en mm
+            let imgHeight = (canvas.height * imgWidth) / canvas.width;
+            let heightLeft = imgHeight;
+            let position = 10; // Marge supérieure
+
+            // 3. Ajouter le Titre
+            pdf.setFontSize(14);
+            pdf.text("Rapport Journalier de Remise de Service B201", 10, position);
+            position += 8;
+            pdf.setFontSize(10);
+            pdf.text(`Date du Rapport: ${reportDateFormatted}`, 10, position);
+            pdf.text(`Généré le: ${dateString}`, 10, position + 5);
+            position += 15; // Décalage pour le corps
+
+            // 4. Ajouter l'image au PDF (avec gestion des pages)
+            pdf.addImage(imgData, 'PNG', 10, position, imgWidth, imgHeight);
+            
+            // 5. Sauvegarder le fichier
+            pdf.save(`B201_Rapport_${selectedDate}.pdf`);
+
+            toast.success("Export PDF réussi !");
+
+        } catch (e) {
+            console.error("Erreur lors de l'export PDF:", e);
+            toast.error("Échec de l'export PDF. Vérifiez le format des données.");
+        } finally {
+            // 6. Réactiver les styles originaux
+            reportContent.style.backgroundColor = originalBg;
+        }
+    }
+    // --- FIN NOUVELLE FONCTION ---
+    
 </script>
 
 <svelte:head>
