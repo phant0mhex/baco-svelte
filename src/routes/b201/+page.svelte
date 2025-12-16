@@ -124,52 +124,76 @@
     isLoading = false;
 }
 
-    async function saveReport() {
-        if (!currentUser || isLoading) return;
+// src/routes/b201/+page.svelte (dans le bloc <script>)
 
-        isSubmitting = true;
-        let query;
-        let successMessage;
+async function saveReport() {
+    if (!currentUser || isLoading) return;
 
-        const reportObject = {
-            report_date: selectedDate,
-            report_data: reportData,
-        };
+    isSubmitting = true;
+    let query;
+    let successMessage;
 
-        try {
+    const reportObject = {
+        report_date: selectedDate,
+        report_data: reportData,
+    };
+
+    try {
+        if (reportId) {
+            // Mise à jour (UPDATE)
+            query = supabase
+                .from('b201_reports')
+                .update(reportObject)
+                .eq('id', reportId);
+            successMessage = "Rapport mis à jour avec succès !";
+        } else {
+            // Création (INSERT)
+            query = supabase
+                .from('b201_reports')
+                .insert({ ...reportObject, created_by: currentUser.id })
+                .select('id')
+                .single();
+            successMessage = "Rapport créé et enregistré !";
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        
+        if (data && !reportId) {
+            reportId = data.id; // Stocker le nouvel ID
+        }
+
+        toast.success(successMessage);
+        
+    } catch (e) {
+        if (e.code === '23505') {
+            // Cas d'erreur : Le rapport existe déjà (23505), mais nous n'avions pas l'ID.
+            console.warn("Rapport existant détecté sans ID local. Tentative de synchronisation...");
+            
+            // 1. Informer l'utilisateur et essayer de recharger
+            toast.warning("Le rapport existe déjà. Synchronisation en cours...", 2000);
+            
+            // 2. Charger le rapport pour obtenir l'ID
+            await loadReport(selectedDate);
+            
+            // 3. Si l'ID est maintenant défini, relancer la sauvegarde (cette fois en UPDATE)
             if (reportId) {
-                // Mise à jour (UPDATE)
-                query = supabase
-                    .from('b201_reports')
-                    .update(reportObject)
-                    .eq('id', reportId);
-                successMessage = "Rapport mis à jour avec succès !";
+                await saveReport(); // Appel récursif pour faire l'UPDATE
             } else {
-                // Création (INSERT)
-                query = supabase
-                    .from('b201_reports')
-                    .insert({ ...reportObject, created_by: currentUser.id })
-                    .select('id')
-                    .single();
-                successMessage = "Rapport créé et enregistré !";
-            }
-            
-            const { data, error } = await query;
-            
-            if (error) throw error;
-            
-            if (data && !reportId) {
-                reportId = data.id;
+                 // Échec de la récupération de l'ID (très improbable)
+                 toast.error("Erreur critique: Échec de la synchronisation de l'ID du rapport.");
             }
 
-            toast.success(successMessage);
-        } catch (e) {
+        } else {
+            // Autre erreur de base de données
             console.error("Erreur lors de l'enregistrement:", e);
             toast.error(`Échec de l'enregistrement. Code : ${e.code || ''}`);
-        } finally {
-            isSubmitting = false;
         }
+    } finally {
+        isSubmitting = false;
     }
+}
     
     // --- LOGIQUE D'AJOUT DE TRANSPORT ---
 
