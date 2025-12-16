@@ -111,7 +111,8 @@
         profiles ( full_name, avatar_url ),
         log_reactions ( user_id, emoji )
       `)
-      .order('created:at', { ascending: false })
+      // FIX: Remplacer 'created:at' par 'created_at'
+      .order('created_at', { ascending: false }) 
       .range(from, to);
 
     if (selectedAuthor !== 'all') query = query.eq('user_id', selectedAuthor);
@@ -185,7 +186,7 @@
     }
   }
 
-  // --- MODIFIÉ : Insère le tag formaté avec l'ID ---
+  // --- Insère le tag formaté avec l'ID ---
   function selectUser(user) {
     if (!textareaElement) return;
 
@@ -215,7 +216,7 @@
     showSuggestions = false;
   }
   
-  // --- MODIFIÉ : Détection des tags par ID ---
+  // --- Détection des tags par ID ---
   async function processTagsAndNotify(message) {
       if (!message || !currentUser) return;
 
@@ -258,7 +259,6 @@
           console.error("Erreur insertion notifications:", error);
       }
   }
-  // --- FIN MODIFICATIONS ---
 
 
   // --- ACTIONS ---
@@ -284,9 +284,8 @@
         'image' : 'file';
       }
 
-      // NOUVEAU FIX: Nettoyage du message pour l'affichage (enlève uniquement le |UUID|)
-      // Cela évite que la Regex complexe d'affichage n'interfère avec la variable 'newMessage' 
-      // utilisée pour la détection des notifications.
+      // FIX: Nettoyage du message pour l'affichage (enlève uniquement le |UUID|)
+      // On remplace le format interne (@|UUID|Nom Prénom) par le format affiché (@Nom Prénom)
       const displayMessage = newMessage.replace(/@\|[0-9a-fA-F-]{36}\|/g, "@");
       
       const { error } = await supabase.from('main_courante').insert({
@@ -298,8 +297,7 @@
       });
       if (error) throw error;
 
-      // Traiter les tags
-      // Ceci utilise le format brut (avec l'ID) stocké dans newMessage
+      // Traiter les tags (utilise le format brut avec l'ID)
       await processTagsAndNotify(newMessage);
       
       newMessage = "";
