@@ -93,10 +93,10 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
     const { data: leaves, error: leaveError } = await supabase
         .from('leave_requests')
         .select(`start_date, end_date, type, profiles(full_name)`)
-        .eq('status', ['APPROVED', 'PENDING'])
+        .in('status', ['APPROVED', 'PENDING'])
         .gte('end_date', todayString)
         .order('start_date', { ascending: true })
-        .limit(10); // Limiter l'affichage à 5 demandes
+        .limit(5); // Limiter l'affichage à 5 demandes
 
     if (!leaveError) {
         upcomingLeaves = leaves || [];
