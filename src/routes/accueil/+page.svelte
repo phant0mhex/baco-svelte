@@ -84,71 +84,26 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
   }
   
   // NOUVELLE FONCTION POUR CHARGER CONGÉS ET ANNIVERSAIRES
-  
-    async function loadPlanningWidgetsData() {
+  async function loadPlanningWidgetsData() {
     loadingPlanning = true;
     const today = new Date();
-    
-    // Date d'aujourd'hui au format YYYY-MM-DD
     const todayString = today.toISOString().split('T')[0];
 
-    // Calculer la fin de la fenêtre de 6 MOIS (pour les congés futurs)
-    const futureWindow = new Date(today);
-    // On ajoute 6 mois
-    futureWindow.setMonth(futureWindow.getMonth() + 6); 
-    const futureWindowString = futureWindow.toISOString().split('T')[0];
-
-    // 1. Congés à afficher : Statut 'pending' ou 'approved'.
-    // Critère de date pour inclure les congés ACTIFS ET FUTURS :
-    // Un congé doit satisfaire à l'une des deux conditions suivantes:
-    // A) Congés ACTIFS : La date de fin (end_date) est aujourd'hui ou dans le futur.
-    // B) Congés FUTURS : La date de début (start_date) est dans la fenêtre [Aujourd'hui, +6 mois].
-
+    // 1. Congés à venir (Approuvés, dans les 60 prochains jours)
     const { data: leaves, error: leaveError } = await supabase
         .from('leave_requests')
-        .select(`type, start_date, end_date, profiles(full_name)`)
-        .in('status', ['pending', 'approved'])
-        
-        // MODIFICATION CLÉ : On filtre sur la date de fin (end_date) pour ne voir que
-        // les congés qui NE SONT PAS TERMINÉS, que leur date de début soit passée ou non.
-        .gte('end_date', todayString) 
-        
-        // SÉCURITÉ : Bien que le filtre `end_date` inclue déjà les congés actifs,
-        // nous limitons la date de DEBUT pour éviter de charger des congés passés de très longue durée (ex: congé parental d'un an et demi)
-        // si la BDD est mal nettoyée. On s'assure que si le congé n'est pas terminé,
-        // sa date de DEBUT n'est pas trop ancienne (ici, pas plus de 6 mois dans le passé)
-        // OU que sa fin est dans le futur proche (6 mois)
-        
-        // Note: La BDD pourrait avoir besoin d'une clause OR plus complexe, mais pour un
-        // widget de "prochaines semaines", la clause end_date > today suffit souvent.
+        .select(`start_date, end_date, type, profiles(full_name)`)
+        .eq('status', 'APPROVED')
+        .gte('end_date', todayString)
+        .order('start_date', { ascending: true })
+        .limit(5); // Limiter l'affichage à 5 demandes
 
-        // Le filtre suivant n'est plus nécessaire si on utilise .gte('end_date', todayString)
-        // et qu'on fait confiance aux dates dans la BDD.
-        
-        // Si vous voulez VRAIMENT limiter la visibilité uniquement aux 6 prochains mois, 
-        // vous pouvez ajouter un filtre par OR (complexe en postgREST simple) ou un filtre JS :
-        
-        // Pour être simple et afficher TOUS les congés actifs ou futurs dans les 6 mois:
-        .order('start_date', { ascending: true }) // Trier du plus tôt au plus tard
-        .limit(5); 
-
-        console.log(leaves)
-        
     if (!leaveError) {
-        // Optionnel : Filtrer en JavaScript pour s'assurer que le congé se termine dans la fenêtre de 6 mois
-        const filteredLeaves = (leaves || []).filter(leave => {
-            const endDate = new Date(leave.end_date);
-            // S'assurer que la date de fin n'est pas APRÈS la fenêtre des 6 mois.
-            return endDate <= futureWindow;
-        });
-        
-        // Nous trions et limitons le résultat final filtré
-        upcomingLeaves = filteredLeaves.slice(0, 5); 
+        upcomingLeaves = leaves || [];
     } else {
         console.error("Erreur chargement congés:", leaveError);
     }
     
-
     // 2. Anniversaires (Charger tous les profils avec date de naissance)
     const { data: profiles, error: profileError } = await supabase
         .from('profiles')
@@ -293,7 +248,7 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
       >
         <span class="flex items-center gap-2">
           <ListTodo class="w-5 h-5 text-blue-500" />
-          <span>Congés à venir</span>
+          <span>Congés à venir (Approuvés)</span>
         </span>
         {#if isLeavesOpen}
           <ChevronUp class="w-5 h-5 text-gray-500 dark:text-gray-400" />
