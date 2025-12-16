@@ -234,14 +234,9 @@
 
 <svelte:window on:click={closeDropdowns} />
 
-<nav class="bg-gray-900 text-white shadow-lg relative z-50 {isChristmasTheme ? 'christmas-nav' : ''}">
+<nav class="sticky top-4 mx-4 rounded-2xl z-50 transition-all duration-300 glass-panel">
   
-  {#if isChristmasTheme}
-    <div class="garland">
-      <div class="garland-lights"></div>
-    </div>
-    <div class="sleigh-reindeer"></div>
-  {/if}
+
   <div class="container mx-auto px-6 py-3">
     
     <div class="flex justify-between items-center">

@@ -199,39 +199,55 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
     <h1 class="text-4xl font-bold text-gray-800 dark:text-gray-100 mb-2">Bienvenue sur BACO</h1>
   </header>
 
-  <div class="mb-10">
-    <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Accès Rapide</h2>
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      
-      <button 
-        on:click={handleSearch}
-        class="block h-full p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-blue-500 hover:shadow-md hover:-translate-y-0.5 transition-all text-left">
-        <h3 
-          class="flex items-center gap-3 text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <Search class="w-5 h-5 text-blue-600" />
-          <span>Rechercher</span>
-        </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 pl-8">Ouvrir la recherche globale (<kbd class="font-sans">Ctrl+K</kbd>).</p>
-      </button>
-      
-      <a href="/journal" class="block h-full p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-blue-500 hover:shadow-md hover:-translate-y-0.5 transition-all">
-        <h3 class="flex items-center 
-          gap-3 text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <BookCopy class="w-5 h-5 text-blue-600" />
-          <span>Nouvelle Entrée</span>
-        </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 pl-8">Ouvrir le journal pour poster une entrée.</p>
-      </a>
-
-      <a href="/planning" class="block h-full p-6 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm hover:border-blue-500 hover:shadow-md hover:-translate-y-0.5 transition-all">
-        <h3 class="flex items-center gap-3 text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          <CalendarDays class="w-5 h-5 text-blue-600" /> <span>Planning & Congés</span>
-        </h3>
-        <p class="text-sm text-gray-600 dark:text-gray-400 pl-8">Gérer et visualiser les demandes de congés de l'équipe.</p>
-      </a>
-      </div>
-  </div>
+<div class="mb-10">
+  <h2 class="text-xl font-semibold text-white/90 mb-4 pl-2 border-l-4 border-blue-500">Accès Rapide</h2>
   
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+    
+    <button 
+      on:click={handleSearch}
+      class="block h-full p-6 glass-panel glass-hover rounded-2xl text-left group">
+      <div class="flex items-center gap-4 mb-3">
+        <div class="p-3 rounded-full bg-blue-500/20 text-blue-300 group-hover:bg-blue-500 group-hover:text-white transition-colors">
+            <Search class="w-6 h-6" />
+        </div>
+        <h3 class="text-xl font-bold text-white">Rechercher</h3>
+      </div>
+      <p class="text-sm text-gray-300 pl-1">Accédez à tout instantanément (<kbd class="px-1 py-0.5 rounded bg-white/10 font-mono text-xs">Ctrl+K</kbd>).</p>
+    </button>
+    
+    <a href="/journal" class="block h-full p-6 glass-panel glass-hover rounded-2xl group">
+      <div class="flex items-center gap-4 mb-3">
+        <div class="p-3 rounded-full bg-yellow-500/20 text-yellow-300 group-hover:bg-yellow-500 group-hover:text-white transition-colors">
+            <BookCopy class="w-6 h-6" />
+        </div>
+        <h3 class="text-xl font-bold text-white">Nouvelle Entrée</h3>
+      </div>
+      <p class="text-sm text-gray-300 pl-1">Consigner un événement dans la main courante.</p>
+    </a>
+
+    <a href="/planning" class="block h-full p-6 glass-panel glass-hover rounded-2xl group">
+      <div class="flex items-center gap-4 mb-3">
+        <div class="p-3 rounded-full bg-pink-500/20 text-pink-300 group-hover:bg-pink-500 group-hover:text-white transition-colors">
+            <CalendarDays class="w-6 h-6" />
+        </div>
+        <h3 class="text-xl font-bold text-white">Planning</h3>
+      </div>
+      <p class="text-sm text-gray-300 pl-1">Gérer les congés et voir les présents.</p>
+    </a>
+
+  </div>
+</div>
+
+<div class="mb-10 glass-panel rounded-3xl p-6">
+    <button on:click={() => toggleWidget('pmr')} class="w-full flex ... text-white">
+        </button>
+    </div>
+  
+
+
+
+
   <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
     
  <div 
