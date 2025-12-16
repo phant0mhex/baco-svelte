@@ -92,11 +92,8 @@ const WIDGET_MAX_HEIGHT_CLOSED = 'max-h-[5rem]';
     // 1. Congés à venir (Approuvés, dans les 60 prochains jours)
     const { data: leaves, error: leaveError } = await supabase
         .from('leave_requests')
-        .select(`start_date, end_date, type, profiles(full_name)`)
-        .eq('status', 'APPROVED')
-        .gte('end_date', todayString)
-        .order('start_date', { ascending: true })
-        .limit(5); // Limiter l'affichage à 5 demandes
+        .select('*')
+        .in('status', ['pending', 'approved']);
 
     if (!leaveError) {
         upcomingLeaves = leaves || [];
