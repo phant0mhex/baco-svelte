@@ -18,6 +18,7 @@
     let user = null;
     let leaveRequests = []; 
     let allProfiles = []; 
+    let calendarContent;
 
     // --- ÉTATS DU FORMULAIRE ET MODALE ---
     
@@ -468,13 +469,13 @@
         </h1>
         <button 
         on:click={exportPlanningToPDF}
-        class="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors shadow-md"
+        class="fpx-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold shadow-md transition-colors flex items-center gap-2"
         title="Exporter le mois actuel en PDF"
     >
         <Download class="w-4 h-4" />
         Export PDF
     </button>
-    
+
         <button on:click={handleNewRequest} class="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-xl font-bold shadow-md transition-colors flex items-center gap-2">
             <Plus class="w-4 h-4" /> Nouvelle Demande
         </button>
