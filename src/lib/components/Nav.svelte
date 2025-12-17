@@ -277,9 +277,9 @@
 
         <div class="flex items-center gap-2">
             
-            <button on:click={handleGlobalSearch} class="{iconBtnClass} flex items-center gap-2 group" title="Rechercher (Ctrl+K)">
+            <button on:click={handleGlobalSearch} class="{iconBtnClass} flex items-center gap-2 group" title="Rechercher">
                 <Search class="w-5 h-5" />
-                <span class="hidden lg:inline-block absolute -bottom-3 left-1/2 -translate-x-1/2 text-[9px] font-mono opacity-0 group-hover:opacity-100 group-hover:bottom-[-18px] transition-all text-blue-300">Ctrl K</span>
+                
             </button>
 
             <button on:click={toggleChristmasTheme} class="{iconBtnClass} {isChristmasTheme ? 'text-red-400 hover:text-red-300 !border-red-500/20 !bg-red-500/10' : ''}">
