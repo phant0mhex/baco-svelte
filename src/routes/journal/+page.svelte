@@ -103,7 +103,7 @@ let flatpickrInstance;
       flatpickrInstance.destroy();
     }
   });
-  
+
   // --- AUTH & RÔLES ---
 
   async function loadUserAndRole() {
@@ -443,7 +443,7 @@ let flatpickrInstance;
         </div>
         <div>
           <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Journal</h1>
-          <p class="text-gray-500 text-sm mt-1">Main courante et actualités.</p>
+          <p class="text-gray-500 text-sm mt-1">Journal et actualités.</p>
         </div>
     </div>
     
