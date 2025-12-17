@@ -2,9 +2,10 @@
   import { onMount, tick } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
+  import { fade, fly } from 'svelte/transition';
   import { 
     Search, Loader2, FileText, Users, Tag, Car, Bus, 
-    BookUser, Shield, Train, File 
+    BookUser, Shield, Train, File, X
   } from 'lucide-svelte';
 
   // --- ÉTATS ---
@@ -17,7 +18,7 @@
   let inputElement;
   let resultsContainer;
   
-  // Si défini, on est en mode "Sélection" (retourne l'objet au lieu de naviguer)
+  // Mode "Sélection" (Callback) ou "Navigation" (Standard)
   let onSelectCallback = null; 
 
   // --- MAPPING ICÔNES ---
@@ -32,7 +33,7 @@
     'train': Train
   };
 
-  // --- GESTION OUVERTURE / FERMETURE ---
+  // --- GESTION ---
 
   function open(callback = null) {
     isOpen = true;
@@ -40,8 +41,6 @@
     results = [];
     selectedIndex = -1;
     onSelectCallback = callback;
-    
-    // Focus sur l'input après le rendu
     tick().then(() => inputElement?.focus());
   }
 
@@ -50,25 +49,19 @@
     onSelectCallback = null;
   }
 
-  // Écoute des événements globaux (Clavier + Custom Event du Nav)
   function handleWindowKeydown(e) {
-    // Raccourci Ctrl+K ou Shift+K
     if ((e.ctrlKey || e.metaKey || e.shiftKey) && e.key.toLowerCase() === 'k') {
       e.preventDefault();
       isOpen ? close() : open();
     }
-    // Fermer avec Escape
     if (e.key === 'Escape' && isOpen) {
       close();
     }
   }
 
-  // Écoute de l'événement déclenché par le bouton de la Nav
   onMount(() => {
     const openListener = (e) => open(e.detail?.callback);
     window.addEventListener('openGlobalSearch', openListener);
-    
-    // Rétro-compatibilité pour les scripts JS existants (window.showGlobalSearch)
     window.showGlobalSearch = (cb) => open(cb);
 
     return () => {
@@ -77,7 +70,7 @@
     };
   });
 
-  // --- LOGIQUE DE RECHERCHE ---
+  // --- RECHERCHE ---
 
   function handleInput() {
     clearTimeout(searchTimer);
@@ -86,8 +79,6 @@
       loading = false;
       return;
     }
-    
-    // Debounce 300ms
     searchTimer = setTimeout(executeSearch, 300);
   }
 
@@ -97,7 +88,7 @@
       const { data, error } = await supabase.rpc('global_search', { search_term: searchTerm });
       if (error) throw error;
       results = data || [];
-      selectedIndex = -1; // Réinitialiser la sélection
+      selectedIndex = -1;
     } catch (err) {
       console.error('Erreur recherche:', err);
       results = [];
@@ -106,7 +97,7 @@
     }
   }
 
-  // --- NAVIGATION ET SÉLECTION ---
+  // --- NAVIGATION ---
 
   function handleKeyNav(e) {
     if (!results.length) return;
@@ -136,7 +127,6 @@
   }
 
   function selectResult(result) {
-    // Construire l'objet normalisé
     const resultObject = {
       id: result.result_id,
       type: result.result_type_key,
@@ -146,14 +136,12 @@
     };
 
     if (onSelectCallback) {
-      // Mode Callback (Liaison)
       onSelectCallback(resultObject);
     } else {
-      // Mode Navigation standard
       if (result.result_type_key === 'document') {
         window.open(result.url, '_blank');
       } else {
-        goto(result.url); // Navigation SPA SvelteKit
+        goto(result.url);
       }
     }
     close();
@@ -164,15 +152,18 @@
 
 {#if isOpen}
   <div 
-    class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-start justify-center p-4 pt-[15vh] z-[1050]"
+    class="fixed inset-0 z-[100] flex items-start justify-center pt-[15vh] px-4 bg-black/60 backdrop-blur-sm transition-opacity"
+    transition:fade={{ duration: 150 }}
     on:click|self={close}
-    role="dialog"
-    aria-modal="true"
   >
-    <div class="bg-gray-800 text-gray-200 rounded-lg shadow-xl w-full max-w-2xl flex flex-col overflow-hidden transform transition-all">
+    
+    <div 
+      class="w-full max-w-2xl bg-[#0f1115]/90 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col transform transition-all ring-1 ring-white/5"
+      in:fly={{ y: -20, duration: 200 }}
+    >
       
-      <div class="relative flex items-center p-4 border-b border-gray-700">
-        <Search class="w-5 h-5 text-gray-400 absolute left-7" />
+      <div class="relative flex items-center p-4 border-b border-white/5 bg-white/[0.02]">
+        <Search class="w-5 h-5 text-gray-400 absolute left-5" />
         
         <input 
           bind:this={inputElement}
@@ -181,47 +172,60 @@
           on:keydown={handleKeyNav}
           type="text" 
           placeholder={onSelectCallback ? "Chercher un contenu à lier..." : "Chercher partout..."}
-          class="w-full bg-gray-800 border-0 text-lg text-white pl-10 pr-4 py-2 focus:outline-none placeholder-gray-500"
+          class="w-full bg-transparent border-0 text-lg text-gray-200 pl-10 pr-10 py-2 focus:outline-none placeholder-gray-500 font-medium"
           autocomplete="off"
         >
 
         {#if loading}
-          <Loader2 class="w-5 h-5 text-blue-500 animate-spin absolute right-7" />
+          <Loader2 class="w-5 h-5 text-blue-400 animate-spin absolute right-5" />
+        {:else if searchTerm}
+          <button on:click={() => { searchTerm = ''; inputElement.focus(); }} class="absolute right-5 text-gray-500 hover:text-white transition-colors">
+            <X class="w-5 h-5" />
+          </button>
         {/if}
       </div>
 
       <div 
         bind:this={resultsContainer}
-        class="p-2 overflow-y-auto max-h-[60vh]"
+        class="p-2 overflow-y-auto max-h-[60vh] custom-scrollbar space-y-1"
       >
         {#if searchTerm.length < 2}
-          <p class="text-center text-gray-500 p-6">Commencez à taper pour rechercher...</p>
+          <div class="text-center py-12 text-gray-500">
+            <Search class="w-8 h-8 mx-auto mb-3 opacity-20" />
+            <p class="text-sm">Commencez à taper pour rechercher...</p>
+          </div>
         
         {:else if !loading && results.length === 0}
-          <p class="text-center text-gray-500 p-6">Aucun résultat trouvé.</p>
+          <div class="text-center py-12 text-gray-500">
+            <p class="text-sm">Aucun résultat trouvé pour "{searchTerm}".</p>
+          </div>
         
         {:else}
           {#each results as result, index}
             <button
               on:click={() => selectResult(result)}
-              class="w-full flex items-center justify-between gap-4 p-3 rounded-md cursor-pointer text-left transition-colors {index === selectedIndex ? 'bg-gray-700' : 'hover:bg-gray-700'}"
+              class="w-full flex items-center justify-between gap-4 p-3 rounded-xl cursor-pointer text-left transition-all duration-150 group
+                     {index === selectedIndex ? 'bg-blue-600/20 shadow-[0_0_15px_rgba(59,130,246,0.15)] ring-1 ring-blue-500/30' : 'hover:bg-white/5 hover:text-gray-100'}"
             >
               <div class="flex items-center gap-4 overflow-hidden">
-                <svelte:component 
-                  this={iconMap[result.result_type_key] || File} 
-                  class="w-5 h-5 text-gray-400 flex-shrink-0" 
-                />
+                <div class="p-2 rounded-lg bg-white/5 border border-white/5 text-gray-400 group-hover:text-blue-300 group-hover:border-blue-500/30 transition-colors">
+                    <svelte:component 
+                      this={iconMap[result.result_type_key] || File} 
+                      class="w-5 h-5" 
+                    />
+                </div>
                 
                 <div class="overflow-hidden">
-                  <p class="text-base text-white font-medium truncate">
-                    {@html result.title} </p>
-                  <p class="text-sm text-gray-400 truncate">
+                  <p class="text-sm font-bold text-gray-200 truncate group-hover:text-white transition-colors">
+                    {@html result.title} 
+                  </p>
+                  <p class="text-xs text-gray-500 truncate mt-0.5 group-hover:text-gray-400 transition-colors">
                     {@html result.snippet}
                   </p>
                 </div>
               </div>
               
-              <span class="text-xs text-gray-400 bg-gray-900/50 border border-gray-600 px-2 py-0.5 rounded-full flex-shrink-0">
+              <span class="text-[10px] font-bold text-gray-500 bg-black/30 px-2 py-1 rounded border border-white/5 uppercase tracking-wide group-hover:text-gray-300 transition-colors">
                 {result.result_type}
               </span>
             </button>
@@ -229,9 +233,15 @@
         {/if}
       </div>
 
-      <div class="p-2 text-xs text-center text-gray-500 border-t border-gray-700">
-        Utilisez <kbd class="font-mono bg-gray-700 border border-gray-600 rounded px-1 text-gray-300">Cmd+K</kbd> pour fermer.
+      <div class="px-4 py-3 bg-white/[0.02] border-t border-white/5 flex justify-between items-center text-xs text-gray-500">
+        <span>Résultats : <strong class="text-gray-300">{results.length}</strong></span>
+        <div class="flex items-center gap-3">
+            <span class="flex items-center gap-1"><kbd class="font-mono bg-white/10 border border-white/10 rounded px-1.5 py-0.5 text-gray-300">↑↓</kbd> Naviguer</span>
+            <span class="flex items-center gap-1"><kbd class="font-mono bg-white/10 border border-white/10 rounded px-1.5 py-0.5 text-gray-300">↵</kbd> Ouvrir</span>
+            <span class="flex items-center gap-1"><kbd class="font-mono bg-white/10 border border-white/10 rounded px-1.5 py-0.5 text-gray-300">Esc</kbd> Fermer</span>
+        </div>
       </div>
+
     </div>
   </div>
 {/if}

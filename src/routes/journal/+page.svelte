@@ -1,11 +1,18 @@
+<svelte:head>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+  <script src="https://npmcdn.com/flatpickr/dist/l10n/fr.js"></script>
+</svelte:head>
+
 <script>
-  import { onMount } from 'svelte';
+  import { onMount, onDestroy } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast.js'; 
   import { openConfirmModal } from '$lib/stores/modal.js';
+  import { fly, fade } from 'svelte/transition';
   import { 
     Send, Paperclip, Search, Filter, AlertTriangle, BookCopy, 
-    Trash2, Pencil, FileText, Image, Loader2, X, Save 
+    Trash2, Pencil, FileText, Image, Loader2, X, Save, ThumbsUp, Eye, ChevronDown, Calendar, User
   } from 'lucide-svelte';
 
   // --- CONFIG ---
@@ -16,18 +23,18 @@
   let authors = [];
   let isLoading = true;
   let isSubmitting = false;
-  
+  let datePickerElement;
+let flatpickrInstance;
   // User & Rôles
   let currentUser = null;
-  let userRole = 'user'; // 'user', 'moderator', 'admin'
+  let userRole = 'user'; 
 
-  // --- Utilisateurs pour le tagging et l'Auto-Complétion ---
+  // Autocomplétion
   let allUsers = []; 
-  let textareaElement; // Référence à la zone de texte
+  let textareaElement;
   let showSuggestions = false;
   let filteredUsers = [];
   let tagSearchQuery = '';
-  // --- FIN NOUVEAU ---
 
   // Filtres
   let selectedAuthor = "all";
@@ -46,19 +53,57 @@
   // Édition
   let editingLog = null; 
 
-  // Fonction de normalisation (maintenue pour la recherche visuelle)
+  // Config Réactions
+  const reactionConfig = {
+    '👍': { 
+      icon: ThumbsUp, 
+      color: 'text-green-400', 
+      activeClass: 'bg-green-500/20 border-green-500/30 text-green-400 shadow-[0_0_10px_rgba(74,222,128,0.2)]' 
+    },
+    '👀': { 
+      icon: Eye, 
+      color: 'text-blue-400', 
+      activeClass: 'bg-blue-500/20 border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.2)]' 
+    },
+    '⚠️': { 
+      icon: AlertTriangle, 
+      color: 'text-amber-400', 
+      activeClass: 'bg-amber-500/20 border-amber-500/30 text-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.2)]' 
+    }
+  };
+
+  // Normalisation
   const normalizeName = (name) => {
     if (!name) return '';
     return name.trim().toLowerCase().replace(/\s+/g, ' ');
   };
 
-
   onMount(async () => {
     await loadUserAndRole();
-    // MODIFIÉ : Charger le username
     await Promise.all([loadAllProfiles(), loadLogs(true)]);
+
+   // CORRECTION ICI : On stocke l'instance dans la variable
+    if (typeof window !== 'undefined' && window.flatpickr && datePickerElement) {
+      flatpickrInstance = window.flatpickr(datePickerElement, {
+        locale: "fr",
+        dateFormat: "Y-m-d",
+        defaultDate: selectedDate,
+        disableMobile: "true",
+        onChange: (selectedDates, dateStr) => {
+          selectedDate = dateStr;
+          loadLogs(true);
+        }
+      });
+    }
   });
 
+  // 3. Ajouter cette fonction pour nettoyer le calendrier en quittant la page
+  onDestroy(() => {
+    if (flatpickrInstance) {
+      flatpickrInstance.destroy();
+    }
+  });
+  
   // --- AUTH & RÔLES ---
 
   async function loadUserAndRole() {
@@ -66,30 +111,37 @@
     currentUser = user;
 
     if (user) {
-      const { data: profile } = await supabase
+      const { data: profile, error } = await supabase
         .from('profiles')
-        .select('role, full_name, email')
+        .select('role, full_name')
         .eq('id', user.id)
         .single();
+      
       if (profile) {
-        userRole = profile.role || 'user';
+        userRole = (profile.role || 'user').toLowerCase();
         currentUser = { ...user, ...profile };
+      } else if (error) {
+        console.error("Erreur chargement profil:", error);
       }
     }
   }
 
-  function canEdit(entry) {
+  // Fonction réactive pour les permissions
+  function canEdit(entry, currentRole) {
     if (!currentUser) return false;
-    return entry.user_id === currentUser.id || ['admin', 'moderator'].includes(userRole);
+    // 1. C'est mon message
+    if (entry.user_id === currentUser.id) return true;
+    // 2. Je suis Admin ou Modérateur
+    const role = (currentRole || '').toLowerCase();
+    return ['admin', 'moderator'].includes(role);
   }
   
   // --- CHARGEMENT ---
   
   async function loadAllProfiles() {
-    // MODIFIÉ : Sélectionne 'username' en plus pour le tagging
     const { data } = await supabase.from('profiles').select('id, full_name, username, avatar_url').order('full_name', { ascending: true });
     if (data) {
-      allUsers = data.filter(u => u.username); // Filtre les profils sans username pour éviter les erreurs
+      allUsers = data.filter(u => u.username || u.full_name);
       authors = data;  
     }
   }
@@ -146,12 +198,11 @@
     isLoading = false;
   }
   
-  // --- LOGIQUE D'AUTO-COMPLÉTION ---
+  // --- AUTO-COMPLÉTION ---
 
   function handleInput(e) {
     const value = e.target.value;
     const cursor = e.target.selectionStart;
-
     const textBeforeCursor = value.substring(0, cursor);
     const lastAtIndex = textBeforeCursor.lastIndexOf('@');
 
@@ -162,29 +213,23 @@
 
     const query = textBeforeCursor.substring(lastAtIndex + 1); 
     
-    // MODIFIÉ : On bloque si un espace est tapé après le @
     if (query.includes('\n') || query.trim() !== query) {
         showSuggestions = false;
         return;
     }
     
     tagSearchQuery = query.trim();
-
     const lowerQuery = tagSearchQuery.toLowerCase();
     
-    // FIX: Filtrer par username (commence par) OU full_name (contient)
-    filteredUsers = allUsers.filter(user => 
-        (user.username && user.username.toLowerCase().startsWith(lowerQuery)) || 
-        (user.full_name && user.full_name.toLowerCase().includes(lowerQuery))
-    ).slice(0, 5); 
+    filteredUsers = allUsers.filter(user => {
+        const usernameMatch = user.username && user.username.toLowerCase().startsWith(lowerQuery);
+        const nameMatch = user.full_name && user.full_name.toLowerCase().includes(lowerQuery);
+        return usernameMatch || nameMatch;
+    }).slice(0, 5); 
 
-    const hasResults = filteredUsers.length > 0;
-    
-    // Afficher les suggestions si on a des résultats
-    showSuggestions = hasResults;
+    showSuggestions = filteredUsers.length > 0;
   }
 
-  // --- MODIFIÉ : Insère @username ---
   function selectUser(user) {
     if (!textareaElement) return;
 
@@ -192,17 +237,15 @@
     const cursor = textareaElement.selectionStart;
     const textBefore = value.substring(0, cursor);
     const lastAtIndex = textBefore.lastIndexOf('@');
+    const tagLabel = user.username || user.full_name.replace(/\s+/g, '.').toLowerCase();
 
-    if (lastAtIndex === -1 || !user.username) return;
+    if (lastAtIndex === -1) return;
 
     const startReplaceIndex = lastAtIndex;
-    
-    // NOUVEAU FORMAT : @username (simple et propre)
-    const tagToInsert = `@${user.username} `; 
-    
+    const tagToInsert = `@${tagLabel} `; 
     const newText = value.substring(0, startReplaceIndex) + tagToInsert + value.substring(cursor);
+    
     newMessage = newText;
-
     const newCursorPosition = startReplaceIndex + tagToInsert.length;
 
     setTimeout(() => {
@@ -214,25 +257,19 @@
     showSuggestions = false;
   }
   
-  // --- MODIFIÉ : Détection des tags par username ---
   async function processTagsAndNotify(message) {
       if (!message || !currentUser) return;
-
-      // NOUVELLE REGEX : Capture un mot (username) après le @
-      // Capturera : @thomas.buet
       const tagRegex = /@([a-zA-Z0-9._-]+)/g; 
       let match;
       const taggedUserIds = new Set();
       
       while ((match = tagRegex.exec(message)) !== null) {
-          const taggedUsername = match[1].trim().toLowerCase(); // Capture le username
-          
-          // 2. Chercher l'ID correspondant par Username
-          const foundUser = allUsers.find(u => 
-              u.username?.toLowerCase() === taggedUsername
-          );
-
-          // 3. Ajouter l'ID s'il est trouvé et n'est pas l'utilisateur courant
+          const taggedLabel = match[1].trim().toLowerCase();
+          const foundUser = allUsers.find(u => {
+             const uname = u.username?.toLowerCase();
+             const fname = u.full_name?.replace(/\s+/g, '.').toLowerCase();
+             return uname === taggedLabel || fname === taggedLabel;
+          });
           if (foundUser && foundUser.id !== currentUser.id) {
               taggedUserIds.add(foundUser.id);
           }
@@ -240,28 +277,20 @@
 
       if (taggedUserIds.size === 0) return;
       
-      // 4. Préparer et insérer les notifications
       const senderName = currentUser.full_name || currentUser.email;
       const notificationMessage = message.substring(0, 100) + (message.length > 100 ? '...' : '');
 
       const notificationsToInsert = Array.from(taggedUserIds).map(userId => ({
-          user_id_target: userId, // Utilisation de l'ID unique
-          title: `Vous avez été mentionné par ${senderName}`,
+          user_id_target: userId,
+          title: `Mentionné par ${senderName}`,
           message: notificationMessage,
           type: 'mention',
           link_to: `/journal`, 
           is_read: false
       }));
 
-      const { error } = await supabase
-          .from('notifications')
-          .insert(notificationsToInsert);
-
-      if (error) {
-          console.error("Erreur insertion notifications:", error);
-      }
+      await supabase.from('notifications').insert(notificationsToInsert);
   }
-
 
   // --- ACTIONS ---
 
@@ -282,13 +311,11 @@
         const { error: upError } = await supabase.storage.from('documents').upload(fileName, newFile);
         if (upError) throw upError;
         attachmentPath = fileName;
-        attachmentType = newFile.type.startsWith('image/') ?
-        'image' : 'file';
+        attachmentType = newFile.type.startsWith('image/') ? 'image' : 'file';
       }
       
-      // NOUVEAU : Pas de nettoyage nécessaire, le message est stocké tel quel (@username)
       const { error } = await supabase.from('main_courante').insert({
-        message_content: newMessage, // Stockage du message @username
+        message_content: newMessage,
         is_urgent: isUrgent,
         user_id: currentUser.id,
         attachment_path: attachmentPath,
@@ -296,7 +323,6 @@
       });
       if (error) throw error;
 
-      // Traiter les tags (utilise le format brut @username)
       await processTagsAndNotify(newMessage);
       
       newMessage = "";
@@ -304,16 +330,16 @@
       newFile = null;
       if (fileInput) fileInput.value = "";
       loadLogs(true);
-      toast.success("Le message a été publié avec succès.");
+      toast.success("Message publié.");
 
     } catch (e) {
-      toast.error("Erreur lors de la publication: " + e.message);
+      toast.error("Erreur : " + e.message);
     } finally {
       isSubmitting = false;
     }
   }
 
-async function saveEditedEntry() {
+  async function saveEditedEntry() {
     if (!editingLog.message_content.trim()) return;
     isSubmitting = true;
     try {
@@ -329,39 +355,52 @@ async function saveEditedEntry() {
 
       closeModal();
       loadLogs(true);
-      toast.success("Le message a été modifié avec succès.");
+      toast.success("Message modifié.");
 
     } catch (e) {
-      toast.error("Erreur lors de la modification: " + e.message);
+      toast.error("Erreur : " + e.message);
     } finally {
       isSubmitting = false;
     }
   }
   
- // Fonction qui exécute la suppression après confirmation
   function executeDeleteLog(id) {
     return async () => {
       const { error } = await supabase.from('main_courante').delete().eq('id', id);
-      
       if (!error) {
         loadLogs(true);
-        toast.success("Le message a été supprimé du journal.");
+        toast.success("Message supprimé.");
       } else {
-        toast.error("Erreur: " + error.message);
+        toast.error("Erreur : " + error.message);
       }
     };
   }
   
-  // Fonction qui appelle la modale de confirmation
   async function deleteLog(id) {
     openConfirmModal(
-        "Voulez-vous vraiment supprimer ce message du journal ? Cette action est irréversible.",
+        "Supprimer ce message définitivement ?",
         executeDeleteLog(id) 
     );
   }
 
   async function toggleReaction(logId, emoji, currentReaction) {
     if (!currentUser) return;
+
+    logs = logs.map(l => {
+        if (l.id === logId) {
+            const newMap = { ...l.reactionsMap };
+            if (l.myReaction === emoji) {
+                newMap[emoji] = Math.max(0, newMap[emoji] - 1);
+                return { ...l, myReaction: null, reactionsMap: newMap };
+            } else {
+                if (l.myReaction) newMap[l.myReaction] = Math.max(0, newMap[l.myReaction] - 1);
+                newMap[emoji] = (newMap[emoji] || 0) + 1;
+                return { ...l, myReaction: emoji, reactionsMap: newMap };
+            }
+        }
+        return l;
+    });
+
     if (currentReaction === emoji) {
       await supabase.from('log_reactions').delete().match({ log_id: logId, user_id: currentUser.id });
     } else {
@@ -370,17 +409,12 @@ async function saveEditedEntry() {
         { onConflict: 'log_id, user_id' }
       );
     }
-    loadLogs(true); 
   }
 
   // --- UI HELPERS ---
 
-  function openModal(log) {
-    editingLog = { ...log };
-  }
-  function closeModal() {
-    editingLog = null;
-  }
+  function openModal(log) { editingLog = { ...log }; }
+  function closeModal() { editingLog = null; }
 
   function getPublicUrl(path) {
     if (!path) return '';
@@ -398,85 +432,108 @@ async function saveEditedEntry() {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' 
     });
   }
-
-  // Styles CSS corrigés pour le mode sombre (Background explicite)
-  const inputClass = "block w-full rounded-2xl border-gray-200 bg-white p-3 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 transition-shadow shadow-sm";
-
 </script>
 
-<div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-10">
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
   
-  <header class="sticky top-0 z-30 w-full bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-b-3xl transition-colors duration-300">
-    <div class="max-w-3xl mx-auto px-6 h-20 flex items-center justify-between">
-      <h1 class="text-3xl font-bold text-gray-800 dark:text-gray-100 flex items-center gap-3">
-    <BookCopy class="w-8 h-8 text-blue-500" />
-    Journal
-</h1>
-      
-      <div class="flex items-center gap-2">
-        <div class="relative hidden sm:block">
-          <select bind:value={selectedAuthor} on:change={() => loadLogs(true)} class="pl-3 pr-8 py-1.5 text-xs rounded-xl bg-gray-100 dark:bg-gray-700 border-none focus:ring-2 focus:ring-blue-500 cursor-pointer text-gray-700 dark:text-gray-200">
-            <option value="all">Tous les auteurs</option>
-            {#each authors as author}
-              <option value={author.id}>{author.full_name}</option>
-            {/each}
-          </select>
+  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }}>
+    <div class="flex items-center gap-3">
+        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+          <BookCopy size={32} />
         </div>
-        <input type="date" bind:value={selectedDate} on:change={() => loadLogs(true)} class="py-1.5 px-3 text-xs rounded-xl bg-gray-100 dark:bg-gray-700 border-none focus:ring-2 focus:ring-blue-500 text-gray-700 dark:text-gray-200" />
+        <div>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Journal</h1>
+          <p class="text-gray-500 text-sm mt-1">Main courante et actualités.</p>
+        </div>
+    </div>
+    
+   <div class="flex items-center gap-3">
+      
+      <div class="relative hidden sm:block group">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-hover:text-blue-400 transition-colors">
+            <User size={14} />
+        </div>
+        <select 
+          bind:value={selectedAuthor} 
+          on:change={() => loadLogs(true)} 
+          class="appearance-none pl-9 pr-8 py-2 text-xs rounded-xl bg-black/20 border border-white/10 text-gray-300 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 hover:bg-white/5 transition-all cursor-pointer outline-none shadow-sm font-medium"
+        >
+          <option value="all" class="bg-gray-900 text-gray-300">Tous les auteurs</option>
+          {#each authors as author}
+            <option value={author.id} class="bg-gray-900 text-gray-300">{author.full_name}</option>
+          {/each}
+        </select>
+        <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover:text-blue-400 transition-colors">
+          <ChevronDown size={14} />
+        </div>
       </div>
+
+      <div class="relative group">
+        <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover:text-blue-400 transition-colors z-10">
+            <Calendar size={14} />
+        </div>
+        
+        <input 
+          bind:this={datePickerElement}
+          type="text" 
+          placeholder="Date..."
+          class="pl-9 pr-3 py-2 text-xs rounded-xl bg-black/30 border border-white/10 text-gray-300 placeholder-gray-500 focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/50 hover:bg-white/5 transition-all outline-none shadow-sm cursor-pointer w-32 font-medium" 
+        />
+      </div>
+
     </div>
   </header>
 
-  <main class="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-8">
+  <main class="max-w-3xl mx-auto space-y-8">
     
-    <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 p-4 transition-all focus-within:shadow-md focus-within:border-blue-300 relative">
+    <div class="bg-black/20 border border-white/5 rounded-3xl p-4 transition-all focus-within:bg-black/30 focus-within:border-white/10 relative shadow-sm" in:fly={{ y: 20, duration: 600, delay: 100 }}>
       <textarea 
         bind:value={newMessage} 
         bind:this={textareaElement}
         on:input={handleInput}
         rows="3" 
-        class="w-full bg-gray-50 dark:bg-gray-900/50 border border-gray-100 dark:border-gray-700 rounded-2xl p-3 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 resize-none text-base placeholder-gray-400 dark:placeholder-gray-500 text-gray-900 dark:text-white transition-colors" 
-        placeholder="Quoi de neuf aujourd'hui ? (Utilisez @username pour taguer un utilisateur, ex: @thomas.buet)"
+        class="w-full bg-transparent border-none p-2 focus:ring-0 resize-none text-base placeholder-gray-500 text-gray-200" 
+        placeholder="Quoi de neuf aujourd'hui ? (@username pour taguer)"
       ></textarea>
       
       {#if showSuggestions}
-        <div class="absolute z-40 top-[5.25rem] left-4 right-4 mt-1 bg-white dark:bg-gray-700 rounded-xl shadow-lg border border-gray-200 dark:border-gray-600 max-h-48 overflow-y-auto">
+        <div class="absolute z-40 top-[5.25rem] left-4 right-4 bg-[#0f1115] rounded-xl shadow-2xl border border-white/10 max-h-48 overflow-y-auto custom-scrollbar">
           {#each filteredUsers as user}
-            <button on:click={() => selectUser(user)} class="w-full text-left flex items-center gap-3 p-3 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors cursor-pointer">
+            <button on:click={() => selectUser(user)} class="w-full text-left flex items-center gap-3 p-3 hover:bg-white/5 transition-colors cursor-pointer">
               {#if user.avatar_url}
                 <img src={user.avatar_url} alt="avatar" class="w-6 h-6 rounded-full object-cover" />
               {:else}
-                <div class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-300 text-xs font-bold">
+                <div class="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 text-xs font-bold">
                   {user.full_name?.charAt(0) || '?'}
                 </div>
               {/if}
-              <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{user.full_name}</span>
-              <span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">@{user.username}</span>
+              <span class="text-sm font-medium text-gray-200">{user.full_name}</span>
+              <span class="text-xs text-gray-500 ml-auto">@{user.username}</span>
             </button>
           {:else}
-            <div class="p-3 text-sm text-gray-500 dark:text-gray-400">Aucun utilisateur trouvé.</div>
+            <div class="p-3 text-sm text-gray-500">Aucun utilisateur trouvé.</div>
           {/each}
         </div>
       {/if}
 
       {#if newFile}
-        <div class="flex items-center gap-2 mb-3 mt-3 bg-blue-50 dark:bg-blue-900/20 px-3 py-2 rounded-xl text-sm text-blue-700 dark:text-blue-300">
+        <div class="flex items-center gap-2 mb-3 mt-2 bg-blue-500/10 px-3 py-2 rounded-xl text-sm text-blue-300 border border-blue-500/20">
           <Paperclip size={14} /> 
           <span class="truncate max-w-xs">{newFile.name}</span>
-          <button on:click={() => { newFile = null; fileInput.value = ""; }} class="ml-auto text-blue-500 hover:text-blue-700"><X size={14}/></button>
+          <button on:click={() => { newFile = null; fileInput.value = ""; }} class="ml-auto text-blue-400 hover:text-white"><X size={14}/></button>
         </div>
       {/if}
 
-      <div class="flex items-center justify-between pt-3">
-        <div class="flex items-center gap-3">
-          <label class="p-2 text-gray-400 hover:text-blue-500 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full cursor-pointer transition-colors" title="Joindre un fichier">
+      <div class="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
+        <div class="flex items-center gap-2">
+          <label class="p-2 text-gray-400 hover:text-blue-400 hover:bg-white/5 rounded-full cursor-pointer transition-colors" title="Joindre un fichier">
             <Paperclip size={20} />
             <input type="file" class="hidden" bind:this={fileInput} on:change={handleFileSelect} />
           </label>
           
           <button 
             on:click={() => isUrgent = !isUrgent} 
-            class="p-2 rounded-full transition-colors {isUrgent ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-gray-400 hover:text-red-500 hover:bg-gray-100 dark:hover:bg-gray-700'}"
+            class="p-2 rounded-full transition-colors {isUrgent ? 'text-red-400 bg-red-500/10' : 'text-gray-400 hover:text-red-400 hover:bg-white/5'}"
             title="Marquer comme Urgent"
           >
             <AlertTriangle size={20} />
@@ -486,102 +543,113 @@ async function saveEditedEntry() {
         <button 
           on:click={handlePost} 
           disabled={isSubmitting || (!newMessage && !newFile)}
-          class="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-sm hover:shadow active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="inline-flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-white transition-all duration-300
+          bg-blue-600/80 hover:bg-blue-500 border border-blue-500/30 backdrop-blur-md
+          shadow-[0_0_15px_rgba(59,130,246,0.4)] hover:shadow-[0_0_25px_rgba(59,130,246,0.6)]
+          active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none disabled:bg-gray-500/20 group"
         >
           {#if isSubmitting}
-            <Loader2 size={18} class="animate-spin" />
+            <Loader2 size={18} class="animate-spin text-white/80" />
           {:else}
-            <span>Publier</span> <Send size={16} />
+            <span>Publier</span> 
+            <Send size={16} class="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
           {/if}
         </button>
       </div>
     </div>
 
-    <div class="space-y-4">
+    <div class="space-y-6">
       {#if isLoading && logs.length === 0}
         <div class="flex justify-center py-10"><Loader2 class="animate-spin text-blue-600" /></div>
       {:else if logs.length === 0}
-        <div class="text-center py-10 text-gray-500">Aucun message pour le moment.</div>
+        <div class="text-center py-12 text-gray-500 bg-black/20 rounded-3xl border border-dashed border-white/5">Aucun message pour le moment.</div>
       {:else}
-        {#each logs as log}
-          <div class="group bg-white dark:bg-gray-800 rounded-3xl p-5 border shadow-sm transition-all hover:shadow-md 
-            {log.is_urgent ? 'border-red-200 dark:border-red-900 bg-red-50/30 dark:bg-red-900/10' : 'border-gray-200 dark:border-gray-700'}">
+        {#each logs as log (log.id)}
+          <div class="group bg-black/20 rounded-3xl p-6 border transition-all hover:bg-black/30 
+            {log.is_urgent ? 'border-red-500/30 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-white/5'}"
+            in:fly={{ y: 20, duration: 400 }}>
             
-            <div class="flex justify-between items-start mb-3">
+            <div class="flex justify-between items-start mb-4">
               <div class="flex items-center gap-3">
                 {#if log.profiles?.avatar_url}
-                  <img src={log.profiles.avatar_url} alt="avatar" class="w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-600" />
+                  <img src={log.profiles.avatar_url} alt="avatar" class="w-10 h-10 rounded-full object-cover border border-white/10" />
                 {:else}
-                  <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-blue-600 dark:text-blue-300 font-bold">
+                  <div class="w-10 h-10 rounded-full bg-blue-500/20 flex items-center justify-center text-blue-300 font-bold border border-blue-500/10">
                     {log.profiles?.full_name?.charAt(0) || '?'}
                   </div>
                 {/if}
                 <div>
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-gray-900 dark:text-white">{log.profiles?.full_name || 'Inconnu'}</span>
+                    <span class="font-bold text-gray-200">{log.profiles?.full_name || 'Inconnu'}</span>
                     {#if log.is_urgent}
-                      <span class="px-2 py-0.5 rounded-full bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 text-[10px] font-extrabold uppercase animate-pulse">Urgent</span>
+                      <span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-extrabold uppercase animate-pulse">Urgent</span>
                     {/if}
                   </div>
-                  <span class="text-xs text-gray-500 dark:text-gray-400">
+                  <span class="text-xs text-gray-500">
                     {formatDate(log.created_at)}
-                    {#if log.updated_at} <span class="italic ml-1">(Modifié)</span> {/if}
+                    {#if log.updated_at} <span class="italic ml-1 opacity-50">(Modifié)</span> {/if}
                   </span>
                 </div>
               </div>
 
-              {#if canEdit(log)}
-                <div class="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button on:click={() => openModal(log)} class="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors">
+              {#if canEdit(log, userRole)}
+                <div class="flex gap-2">
+                  <button on:click={() => openModal(log)} class="p-2 text-gray-400 hover:text-blue-400 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5" title="Modifier">
                     <Pencil size={16} />
                   </button>
-                  <button on:click={() => deleteLog(log.id)} class="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors">
+                  <button on:click={() => deleteLog(log.id)} class="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5" title="Supprimer">
                     <Trash2 size={16} />
                   </button>
                 </div>
               {/if}
             </div>
 
-            <div class="text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed mb-3 pl-[3.25rem]">
+            <div class="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed mb-4 pl-[3.25rem]">
               {log.message_content}
             </div>
 
             {#if log.attachment_path}
               <div class="mb-4 pl-[3.25rem]">
                 {#if log.attachment_type === 'image'}
-                  <img src={getPublicUrl(log.attachment_path)} alt="Attachement" class="rounded-xl max-h-60 border border-gray-200 dark:border-gray-700" />
+                  <img src={getPublicUrl(log.attachment_path)} alt="Attachement" class="rounded-xl max-h-60 border border-white/10" />
                 {:else}
-                  <a href={getPublicUrl(log.attachment_path)} target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 dark:bg-gray-700 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors">
+                  <a href={getPublicUrl(log.attachment_path)} target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-sm font-medium hover:bg-white/10 transition-colors border border-white/5 text-gray-300">
                     <FileText size={16} /> Voir le fichier joint
                   </a>
                 {/if}
               </div>
             {/if}
 
-            <div class="flex gap-2 pt-2 border-t border-gray-100 dark:border-gray-700/50 pl-[3.25rem]">
-              {#each ['👍', '👀', '⚠️'] as emoji}
+            <div class="flex gap-2 pt-4 border-t border-white/5 pl-[3.25rem]">
+              {#each Object.entries(reactionConfig) as [emojiKey, config]}
                 <button 
-                  on:click={() => toggleReaction(log.id, emoji, log.myReaction)}
-                  class="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border
-                  {log.myReaction === emoji 
-                    ? 'bg-blue-100 border-blue-200 text-blue-700 dark:bg-blue-900/40 dark:border-blue-800 dark:text-blue-300' 
-                    : 'bg-transparent border-transparent text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-gray-200 dark:hover:border-gray-600'}"
+                  type="button" 
+                  on:click|preventDefault={() => toggleReaction(log.id, emojiKey, log.myReaction)}
+                  class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 border backdrop-blur-sm
+                  {log.myReaction === emojiKey 
+                    ? config.activeClass 
+                    : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300 hover:border-white/10'}"
+                  title={emojiKey === '👍' ? 'Approuver' : emojiKey === '👀' ? 'Vu' : 'Important'}
                 >
-                  <span>{emoji}</span>
-                  {#if log.reactionsMap[emoji] > 0}
-                    <span>{log.reactionsMap[emoji]}</span>
+                  <svelte:component 
+                    this={config.icon} 
+                    size={14} 
+                    class={log.myReaction === emojiKey ? 'scale-110 transition-transform' : ''} 
+                  />
+                  
+                  {#if log.reactionsMap[emojiKey] > 0}
+                    <span>{log.reactionsMap[emojiKey]}</span>
                   {/if}
                 </button>
               {/each}
             </div>
-
           </div>
         {/each}
       {/if}
 
       {#if hasMore}
         <div class="flex justify-center pt-4">
-          <button on:click={() => loadLogs()} disabled={isLoading} class="px-6 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full text-sm font-bold text-gray-600 dark:text-gray-300 shadow-sm hover:shadow hover:text-blue-600 dark:hover:text-blue-400 transition-all">
+          <button on:click={() => loadLogs()} disabled={isLoading} class="px-6 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all">
             {isLoading ? 'Chargement...' : 'Voir plus anciens'}
           </button>
         </div>
@@ -590,41 +658,69 @@ async function saveEditedEntry() {
   </main>
   
   {#if editingLog}
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-      <div class="absolute inset-0 bg-gray-900/60 backdrop-blur-md transition-opacity" on:click={closeModal}></div>
-      <div class="relative w-full max-w-lg bg-white dark:bg-gray-800 rounded-[2rem] shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in duration-200 border border-gray-200 dark:border-gray-700">
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
+      
+      <div 
+        class="w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10 ring-1 ring-white/5 
+        bg-gray-900/90 backdrop-blur-xl transition-all"
+        transition:fly={{ y: 20, duration: 300 }}
+      >
         
-        <div class="flex items-center justify-between px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 z-10">
-          <h2 class="text-xl font-bold text-gray-900 dark:text-white">Modifier le message</h2>
-          <button on:click={closeModal} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"><X size={24} /></button>
+        <div class="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/5">
+          <h2 class="text-xl font-bold text-gray-100 tracking-tight flex items-center gap-2">
+            <Pencil size={18} class="text-blue-400" /> Modifier le message
+          </h2>
+          <button on:click={closeModal} class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors">
+            <X size={20} />
+          </button>
         </div>
         
-        <div class="p-8 bg-gray-50/50 dark:bg-gray-900/50 space-y-4">
+        <div class="p-6 space-y-5">
           <div>
-            <label class="block text-xs font-extrabold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">Message</label>
+            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">Contenu</label>
             <textarea 
               rows="5" 
               bind:value={editingLog.message_content} 
-              class="{inputClass} resize-none" 
+              class="w-full rounded-xl border border-white/10 bg-black/40 p-4 text-sm font-medium text-gray-200 placeholder-gray-600 focus:border-blue-500/50 focus:ring-blue-500/50 focus:bg-black/60 transition-all outline-none resize-none shadow-inner" 
               placeholder="Votre message..."
             ></textarea>
           </div>
           
           <div>
-            <label class="flex items-center gap-3 p-3 border border-gray-200 dark:border-gray-700 rounded-2xl cursor-pointer hover:bg-white dark:hover:bg-gray-800 transition-colors bg-white/50 dark:bg-gray-800/50">
-              <input type="checkbox" bind:checked={editingLog.is_urgent} class="w-5 h-5 text-red-600 rounded-md border-gray-300 focus:ring-red-500" />
-              <span class="text-sm font-bold text-gray-700 dark:text-gray-300 flex items-center gap-2">
-                <AlertTriangle size={16} class={editingLog.is_urgent ? 'text-red-500' : 'text-gray-400'} />
-                Marquer comme Urgent
+            <label class="flex items-center gap-3 p-4 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition-all bg-black/40 group">
+              <div class="relative flex items-center">
+                <input type="checkbox" bind:checked={editingLog.is_urgent} class="peer sr-only" />
+                <div class="w-5 h-5 border-2 border-gray-500 rounded peer-checked:bg-red-500 peer-checked:border-red-500 transition-all"></div>
+                <AlertTriangle size={12} class="absolute top-1 left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+              </div>
+              <span class="text-sm font-bold text-gray-400 group-hover:text-gray-200 transition-colors">
+                Marquer comme <span class="{editingLog.is_urgent ? 'text-red-400' : ''}">Urgent</span>
               </span>
             </label>
           </div>
         </div>
 
-        <div class="px-8 py-5 bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 flex justify-end gap-3 z-10">
-          <button on:click={closeModal} class="px-6 py-3 text-sm font-bold text-gray-700 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-600 hover:shadow-sm transition-all">Annuler</button>
-          <button on:click={saveEditedEntry} disabled={isSubmitting} class="px-6 py-3 text-sm font-bold text-white bg-blue-600 rounded-xl hover:bg-blue-700 flex items-center gap-2 shadow-md hover:shadow-lg transition-all transform active:scale-95 disabled:opacity-50">
-            <Save size={18} /> Enregistrer
+        <div class="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3 relative overflow-hidden">
+          <div class="absolute inset-0 bg-gradient-to-t from-blue-500/5 to-transparent pointer-events-none"></div>
+
+          <button 
+            on:click={closeModal} 
+            class="px-5 py-2.5 text-sm font-medium text-gray-300 border border-white/10 rounded-xl bg-white/5 hover:bg-white/10 hover:text-white transition-all backdrop-blur-md"
+          >
+            Annuler
+          </button>
+          
+          <button 
+            on:click={saveEditedEntry} 
+            disabled={isSubmitting} 
+            class="px-5 py-2.5 text-sm font-bold text-white bg-blue-600/80 hover:bg-blue-500 border border-blue-500/30 rounded-xl shadow-[0_0_15px_rgba(59,130,246,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed backdrop-blur-md"
+          >
+            {#if isSubmitting}
+                <Loader2 size={16} class="animate-spin" />
+            {:else}
+                <Save size={16} /> 
+            {/if}
+            Enregistrer
           </button>
         </div>
 
@@ -632,3 +728,115 @@ async function saveEditedEntry() {
     </div>
   {/if}
 </div>
+
+<style>
+  /* --- CUSTOM FLATPICKR GLASSMORPHISM --- */
+  
+  /* Le conteneur principal du calendrier */
+  :global(.flatpickr-calendar) {
+    background: rgba(15, 23, 42, 0.85) !important; /* Fond sombre translucide */
+    backdrop-filter: blur(12px) !important; /* Flou d'arrière-plan */
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.1) !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5) !important;
+    border-radius: 16px !important;
+    color: #e2e8f0 !important;
+    font-family: inherit !important;
+  }
+
+  /* La flèche du haut */
+  :global(.flatpickr-calendar:before),
+  :global(.flatpickr-calendar:after) {
+    border-bottom-color: rgba(15, 23, 42, 0.85) !important;
+  }
+
+  /* En-tête (Mois / Année) */
+  :global(.flatpickr-months) {
+    background: transparent !important;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+    padding-top: 10px !important;
+  }
+  :global(.flatpickr-current-month .flatpickr-monthDropdown-months) {
+    background: transparent !important;
+    color: #fff !important;
+    font-weight: 700 !important;
+  }
+  :global(.flatpickr-current-month input.cur-year) {
+    color: #fff !important;
+    font-weight: 700 !important;
+  }
+  :global(.flatpickr-prev-month), :global(.flatpickr-next-month) {
+    fill: #94a3b8 !important; /* Gris clair */
+  }
+  :global(.flatpickr-prev-month:hover svg), :global(.flatpickr-next-month:hover svg) {
+    fill: #60a5fa !important; /* Bleu au survol */
+  }
+
+  /* Jours de la semaine (Lun, Mar...) */
+  :global(.flatpickr-weekdays) {
+    background: transparent !important;
+  }
+  :global(span.flatpickr-weekday) {
+    color: #64748b !important; /* Gris muet */
+    font-weight: 600 !important;
+  }
+
+  /* Les jours (chiffres) */
+  :global(.flatpickr-day) {
+    color: #cbd5e1 !important; /* Texte clair */
+    border-radius: 8px !important;
+    border: 1px solid transparent !important;
+    transition: all 0.2s ease !important;
+  }
+  :global(.flatpickr-day:hover) {
+    background: rgba(255, 255, 255, 0.1) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+  }
+
+  /* Jour sélectionné (Le Bleu Néon) */
+  :global(.flatpickr-day.selected), 
+  :global(.flatpickr-day.startRange), 
+  :global(.flatpickr-day.endRange), 
+  :global(.flatpickr-day.selected.inRange), 
+  :global(.flatpickr-day.startRange.inRange), 
+  :global(.flatpickr-day.endRange.inRange), 
+  :global(.flatpickr-day.selected:focus), 
+  :global(.flatpickr-day.startRange:focus), 
+  :global(.flatpickr-day.endRange:focus), 
+  :global(.flatpickr-day.selected:hover), 
+  :global(.flatpickr-day.startRange:hover), 
+  :global(.flatpickr-day.endRange:hover), 
+  :global(.flatpickr-day.selected.prevMonthDay), 
+  :global(.flatpickr-day.startRange.prevMonthDay), 
+  :global(.flatpickr-day.endRange.prevMonthDay), 
+  :global(.flatpickr-day.selected.nextMonthDay), 
+  :global(.flatpickr-day.startRange.nextMonthDay), 
+  :global(.flatpickr-day.endRange.nextMonthDay) {
+    background: rgba(37, 99, 235, 0.8) !important; /* Bleu-600 avec transparence */
+    box-shadow: 0 0 15px rgba(37, 99, 235, 0.5) !important; /* Lueur néon */
+    border-color: transparent !important;
+    color: #fff !important;
+    font-weight: bold !important;
+  }
+
+  /* Aujourd'hui */
+  :global(.flatpickr-day.today) {
+    border-color: rgba(96, 165, 250, 0.5) !important; /* Bordure bleu clair */
+    color: #60a5fa !important;
+  }
+  :global(.flatpickr-day.today:hover) {
+    background: rgba(96, 165, 250, 0.1) !important;
+    color: #fff !important;
+  }
+
+  /* Jours désactivés / autre mois */
+  :global(.flatpickr-day.flatpickr-disabled), 
+  :global(.flatpickr-day.flatpickr-disabled:hover), 
+  :global(.flatpickr-day.prevMonthDay), 
+  :global(.flatpickr-day.nextMonthDay), 
+  :global(.flatpickr-day.notAllowed), 
+  :global(.flatpickr-day.notAllowed.prevMonthDay), 
+  :global(.flatpickr-day.notAllowed.nextMonthDay) {
+    color: #475569 !important; /* Gris très foncé */
+  }
+</style>

@@ -1,12 +1,12 @@
 <script>
     import { confirmModal, closeConfirmModal } from '$lib/stores/modal.js';
     import { fly, fade } from 'svelte/transition';
-    import { AlertTriangle, X } from 'lucide-svelte'; // Icônes Lucide
+    import { AlertTriangle, X } from 'lucide-svelte';
 
     // Gère l'action de confirmation
     function handleConfirm() {
         if ($confirmModal.callback) {
-            $confirmModal.callback(); // Exécute la fonction demandée
+            $confirmModal.callback(); 
         }
         closeConfirmModal();
     }
@@ -21,8 +21,8 @@
 
 {#if $confirmModal.isOpen}
     <div 
-        class="fixed inset-0 z-[1010] bg-gray-900/75 dark:bg-gray-900/90 flex items-center justify-center p-4"
-        transition:fade|local
+        class="fixed inset-0 z-[1010] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4"
+        transition:fade|local={{ duration: 200 }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
@@ -31,39 +31,40 @@
         tabindex="-1"
     >
         <div 
-            class="bg-white dark:bg-gray-800 rounded-lg shadow-2xl max-w-sm w-full transform overflow-hidden"
-            transition:fly|local={{ y: 20, duration: 200 }}
+            class="bg-[#0f1115] border border-white/10 ring-1 ring-white/5 rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden transform transition-all"
+            transition:fly|local={{ y: 20, duration: 300 }}
         >
             <div class="p-6">
-                <div class="flex items-start">
-                    <div class="flex-shrink-0 mr-4 mt-1">
-                        <AlertTriangle class="h-6 w-6 text-yellow-500" aria-hidden="true" />
+                <div class="flex items-start gap-4">
+                    
+                    <div class="flex-shrink-0 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl">
+                        <AlertTriangle class="h-6 w-6 text-yellow-500 drop-shadow-[0_0_8px_rgba(234,179,8,0.5)]" aria-hidden="true" />
                     </div>
                     
-                    <div class="flex-grow">
-                        <h3 id="modal-title" class="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                    <div class="flex-grow pt-1">
+                        <h3 id="modal-title" class="text-lg font-bold text-gray-100 mb-2 leading-tight">
                             Confirmer l'Action
                         </h3>
-                        <p class="text-sm text-gray-600 dark:text-gray-400">
+                        <p class="text-sm text-gray-400 leading-relaxed">
                             {$confirmModal.message}
                         </p>
                     </div>
 
                     <button 
                         on:click={closeConfirmModal}
-                        class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors flex-shrink-0 ml-4"
+                        class="text-gray-500 hover:text-white transition-colors flex-shrink-0 -mt-2 -mr-2 p-2 hover:bg-white/5 rounded-lg"
                     >
                         <X class="h-5 w-5" />
                     </button>
                 </div>
             </div>
 
-            <div class="px-6 py-4 bg-gray-50 dark:bg-gray-900 flex justify-end space-x-3">
+            <div class="px-6 py-4 bg-white/[0.02] border-t border-white/10 flex justify-end gap-3">
                 
                 <button
                     on:click={closeConfirmModal}
                     type="button"
-                    class="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-200 dark:bg-gray-700 rounded-md hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    class="px-4 py-2 text-sm font-medium text-gray-400 border border-white/10 rounded-xl hover:bg-white/5 hover:text-white transition-all"
                 >
                     Annuler
                 </button>
@@ -71,7 +72,7 @@
                 <button
                     on:click={handleConfirm}
                     type="button"
-                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700 transition-colors shadow-md"
+                    class="px-4 py-2 text-sm font-bold text-white bg-red-600 hover:bg-red-500 border border-red-500/30 rounded-xl shadow-[0_0_15px_rgba(220,38,38,0.4)] transition-all hover:scale-105 active:scale-95"
                 >
                     Confirmer
                 </button>

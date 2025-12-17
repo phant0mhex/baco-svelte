@@ -1,11 +1,12 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { fly, fade, slide } from 'svelte/transition';
   import { 
     Search, User, Phone, Mail, LayoutGrid, List, 
     ArrowDownAZ, ArrowDownZA, Plus, FileText, 
     Pencil, Trash2, ChevronDown, CheckSquare, Square, 
-    Loader2, FolderOpen, UserX
+    Loader2, FolderOpen, UserX, Contact, Save, X 
   } from 'lucide-svelte';
   
   import jsPDF from 'jspdf';
@@ -48,11 +49,16 @@
     groupe: ''
   };
 
-  // Groupes ouverts (pour l'accordéon en mode grille)
+  const ZONES_AUTORISEES = {
+    'MIA': ['FBC','FCR', 'FMS', 'FTY'],
+    'DSE': ['FL', 'FNR', 'GV', 'LL', 'LRB', 'LT']
+  };
+
+
+  // Groupes ouverts
   let openGroups = {};
 
   onMount(async () => {
-    // 1. Auth & Prefs
     const { data: { session } } = await supabase.auth.getSession();
     user = session?.user;
     if (user) {
@@ -64,7 +70,6 @@
         viewMode = localStorage.getItem('baco-repertoire-view');
     }
 
-    // 2. Charger les filtres initiaux
     await loadCategories();
   });
 
@@ -79,29 +84,39 @@
     loadingCategories = false;
   }
 
-  // Réagir aux changements de filtres
   $: if (selectedCategories) handleCategoryChange();
   $: if (selectedCategories || selectedZones || searchTerm || sortOrder) loadContacts();
 
   async function handleCategoryChange() {
-    const zonable = ['MIA', 'DSE'];
-    const needsZones = selectedCategories.some(cat => zonable.includes(cat));
+    // 1. On regarde quelles catégories "zonables" sont sélectionnées
+    const activeZonableCats = selectedCategories.filter(cat => ['MIA', 'DSE'].includes(cat));
     
-    if (needsZones && !showZoneFilters) {
+    if (activeZonableCats.length > 0) {
       showZoneFilters = true;
-      // Charger les zones si pas encore fait
-      if (zones.length === 0) {
-        const { data } = await supabase.from('contacts_repertoire').select('zone').in('categorie_principale', zonable);
-        zones = [...new Set(data.map(i => i.zone))].filter(Boolean).sort();
-      }
-    } else if (!needsZones) {
+      
+      // 2. On construit la liste des zones à afficher selon les règles
+      let allowedZones = [];
+      activeZonableCats.forEach(cat => {
+        if (ZONES_AUTORISEES[cat]) {
+          allowedZones = [...allowedZones, ...ZONES_AUTORISEES[cat]];
+        }
+      });
+
+      // 3. On met à jour l'affichage des boutons (Unique et Trié)
+      zones = [...new Set(allowedZones)].sort();
+
+      // 4. Nettoyage : Si une zone était sélectionnée mais n'est plus autorisée (ex: switch MIA -> DSE), on la décoche
+      selectedZones = selectedZones.filter(z => zones.includes(z));
+
+    } else {
+      // Si ni MIA ni DSE ne sont cochés
       showZoneFilters = false;
-      selectedZones = []; // Reset zones si on décoche MIA/DSE
+      selectedZones = []; 
+      zones = [];
     }
   }
 
   async function loadContacts() {
-    // Ne rien charger si aucun filtre
     if (selectedCategories.length === 0 && !searchTerm) {
         displayedContacts = {};
         return;
@@ -113,22 +128,18 @@
         .select('*')
         .order('nom', { ascending: sortOrder === 'az' });
 
-    // Construction complexe du filtre OR (fidèle au JS original)
     const orFilters = [];
     const zonable = ['MIA', 'DSE'];
     
     const catsWithZones = selectedCategories.filter(c => zonable.includes(c));
     const catsWithoutZones = selectedCategories.filter(c => !zonable.includes(c));
 
-    // 1. Catégories sans zones (simple)
     catsWithoutZones.forEach(cat => orFilters.push(`categorie_principale.eq.${cat}`));
 
-    // 2. Catégories avec zones
     if (catsWithZones.length > 0) {
       if (selectedZones.length > 0) {
         selectedZones.forEach(zone => {
           if (zone === 'FTY') {
-             // Cas spécifique FTY (reproduit du script original)
              if (catsWithZones.includes('MIA')) orFilters.push(`and(categorie_principale.eq.MIA,zone.eq.FTY),and(categorie_principale.eq.MIA,zone.eq.FMS,groupe.eq.TL/MPI)`);
              if (catsWithZones.includes('DSE')) orFilters.push(`and(categorie_principale.eq.DSE,zone.eq.FTY)`);
           } else {
@@ -136,15 +147,12 @@
           }
         });
       } else {
-        // Si aucune zone cochée mais MIA/DSE coché -> tout prendre pour cette cat
         catsWithZones.forEach(cat => orFilters.push(`categorie_principale.eq.${cat}`));
       }
     }
 
-    // Appliquer filtres
     if (orFilters.length > 0) query = query.or(orFilters.join(','));
     
-    // Recherche textuelle
     if (searchTerm) {
       query = query.or(`nom.ilike.%${searchTerm}%,tel.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,groupe.ilike.%${searchTerm}%`);
     }
@@ -152,13 +160,12 @@
     const { data, error } = await query;
     if (error) { console.error(error); return; }
 
-    // Grouper les résultats
     const groups = {};
     (data || []).forEach(c => {
         const g = c.groupe || 'Autre';
         if (!groups[g]) {
             groups[g] = [];
-            openGroups[g] = true; // Ouvrir par défaut
+            openGroups[g] = true;
         }
         groups[g].push(c);
     });
@@ -198,7 +205,6 @@
   const formatPhone = (tel) => {
       if(!tel) return '';
       const cleaned = cleanPhone(tel);
-      // Format simple 04XX/XX.XX.XX ou 0X/XXX.XX.XX
       if (cleaned.length >= 10) {
           return cleaned.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, '$1/$2.$3.$4'); 
       }
@@ -257,7 +263,6 @@
 
   // --- EXPORT ---
   function exportData(type) {
-    // Aplatir les données affichées
     const flatData = Object.values(displayedContacts).flat().map(c => ({
         "Nom": c.nom,
         "Groupe": c.groupe,
@@ -286,76 +291,90 @@
         doc.save("repertoire.pdf");
     }
   }
+
+  // Styles Inputs
+  const inputClass = "block w-full rounded-xl border-white/10 bg-black/40 p-3 text-sm font-medium text-white placeholder-gray-600 focus:border-blue-500/50 focus:ring-blue-500/50 transition-all outline-none";
+  const labelClass = "block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide";
 </script>
 
 <svelte:head>
   <title>Répertoire | BACO</title>
 </svelte:head>
 
-<div class="space-y-6">
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
 
-  <div class="flex flex-col md:flex-row justify-between items-center gap-4">
-    <h1 class="text-3xl font-bold text-gray-800 dark:text-white">Répertoire</h1>
+  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }}>
+    <div class="flex items-center gap-3">
+        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+          <Contact class="w-8 h-8" />
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Répertoire</h1>
+          <p class="text-gray-500 text-sm mt-1">Contacts internes et externes.</p>
+        </div>
+    </div>
     
-    <div class="flex items-center gap-4">
-      <div class="hidden md:flex bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <button on:click={() => switchView('grid')} class="p-2 {viewMode === 'grid' ? 'bg-gray-100 dark:bg-gray-700 text-blue-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+    <div class="flex items-center gap-3">
+      <div class="hidden md:flex bg-black/20 rounded-xl p-1 border border-white/5">
+        <button on:click={() => switchView('grid')} class="p-2 rounded-lg transition-all {viewMode === 'grid' ? 'bg-white/10 text-blue-300 shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}">
             <LayoutGrid class="w-5 h-5" />
         </button>
-        <button on:click={() => switchView('list')} class="p-2 {viewMode === 'list' ? 'bg-gray-100 dark:bg-gray-700 text-blue-600' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}">
+        <button on:click={() => switchView('list')} class="p-2 rounded-lg transition-all {viewMode === 'list' ? 'bg-white/10 text-blue-300 shadow-sm' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'}">
             <List class="w-5 h-5" />
         </button>
       </div>
 
       <div class="flex gap-2">
         {#if Object.keys(displayedContacts).length > 0}
-            <button on:click={() => exportData('pdf')} class="p-2 bg-red-600 text-white rounded-lg hover:bg-red-700 shadow"><FileText class="w-5 h-5"/></button>
+            <button on:click={() => exportData('pdf')} class="p-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl transition-all" title="Export PDF"><FileText class="w-5 h-5"/></button>
         {/if}
         {#if isAdmin}
-            <button on:click={() => openModal()} class="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700">
-                <Plus class="w-5 h-5" /> <span class="hidden sm:inline">Ajouter</span>
+            <button on:click={() => openModal()} class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-100 border border-blue-500/30 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all hover:scale-105 shadow-lg shadow-blue-900/10">
+                <Plus class="w-5 h-5" /> <span class="hidden sm:inline font-bold">Ajouter</span>
             </button>
         {/if}
       </div>
     </div>
-  </div>
+  </header>
 
-  <div class="flex flex-col md:flex-row gap-4">
+  <div class="flex flex-col md:flex-row gap-4" in:fly={{ y: 20, duration: 600, delay: 100 }}>
     <div class="relative flex-grow">
-        <Search class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+        <Search class="absolute left-3 top-3 h-5 w-5 text-gray-500" />
         <input 
             type="search" 
             bind:value={searchTerm} 
             placeholder="Rechercher (Nom, Tel, Groupe...)" 
-            class="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-blue-500"
+            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 text-gray-200 placeholder-gray-600 focus:ring-2 focus:ring-blue-500/30 focus:border-transparent outline-none transition-all"
         >
     </div>
     
-    <div class="flex rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-        <button on:click={() => sortOrder = 'az'} class="px-3 py-2 flex items-center gap-2 {sortOrder === 'az' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'text-gray-600 dark:text-gray-300'} border-r dark:border-gray-700 rounded-l-lg">
+    <div class="flex rounded-xl shadow-sm border border-white/10 bg-black/20 overflow-hidden">
+        <button on:click={() => sortOrder = 'az'} class="px-4 py-2 flex items-center gap-2 {sortOrder === 'az' ? 'bg-blue-500/20 text-blue-300' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'} border-r border-white/5 transition-colors">
             <ArrowDownAZ class="w-4 h-4"/> A-Z
         </button>
-        <button on:click={() => sortOrder = 'za'} class="px-3 py-2 flex items-center gap-2 {sortOrder === 'za' ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600' : 'text-gray-600 dark:text-gray-300'} rounded-r-lg">
+        <button on:click={() => sortOrder = 'za'} class="px-4 py-2 flex items-center gap-2 {sortOrder === 'za' ? 'bg-blue-500/20 text-blue-300' : 'text-gray-500 hover:text-gray-300 hover:bg-white/5'} transition-colors">
             <ArrowDownZA class="w-4 h-4"/> Z-A
         </button>
     </div>
   </div>
 
-  <div class="bg-white dark:bg-gray-800 p-5 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 space-y-4">
+  <div class="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-6" in:fly={{ y: 20, duration: 600, delay: 200 }}>
     
     <div>
-        <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">1. Catégories</h3>
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+            <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div> Catégories
+        </h3>
         {#if loadingCategories}
-            <div class="text-sm text-gray-500">Chargement...</div>
+            <div class="text-sm text-gray-500 flex items-center gap-2"><Loader2 class="w-4 h-4 animate-spin"/> Chargement...</div>
         {:else}
             <div class="flex flex-wrap gap-2">
                 {#each categories as cat}
                     <button 
                         on:click={() => toggleCategory(cat)}
-                        class="flex items-center space-x-2 px-3 py-1.5 border rounded-full text-sm transition-all shadow-sm 
+                        class="flex items-center space-x-2 px-3 py-1.5 border rounded-full text-xs font-medium uppercase tracking-wide transition-all shadow-sm 
                         {selectedCategories.includes(cat) 
-                            ? 'bg-blue-100 border-blue-500 text-blue-800 dark:bg-blue-900 dark:border-blue-400 dark:text-blue-100' 
-                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}"
+                            ? 'bg-blue-500/20 border-blue-500/40 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.2)]' 
+                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white hover:border-white/20'}"
                     >
                         {#if selectedCategories.includes(cat)}<CheckSquare class="w-3.5 h-3.5" />{:else}<Square class="w-3.5 h-3.5" />{/if}
                         <span>{cat}</span>
@@ -366,16 +385,18 @@
     </div>
 
     {#if showZoneFilters}
-        <div class="pt-4 border-t border-gray-100 dark:border-gray-700 animate-fade-in">
-            <h3 class="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">2. Zones</h3>
+        <div class="pt-4 border-t border-white/5" transition:slide>
+            <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <div class="w-1.5 h-1.5 rounded-full bg-purple-500"></div> Zones
+            </h3>
             <div class="flex flex-wrap gap-2">
                 {#each zones as zone}
                     <button 
                         on:click={() => toggleZone(zone)}
-                        class="flex items-center space-x-2 px-3 py-1.5 border rounded-full text-sm transition-all shadow-sm 
+                        class="flex items-center space-x-2 px-3 py-1.5 border rounded-full text-xs font-medium uppercase tracking-wide transition-all shadow-sm 
                         {selectedZones.includes(zone) 
-                            ? 'bg-purple-100 border-purple-500 text-purple-800 dark:bg-purple-900 dark:border-purple-400 dark:text-purple-100' 
-                            : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}"
+                            ? 'bg-purple-500/20 border-purple-500/40 text-purple-300 shadow-[0_0_10px_rgba(168,85,247,0.2)]' 
+                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white hover:border-white/20'}"
                     >
                         {#if selectedZones.includes(zone)}<CheckSquare class="w-3.5 h-3.5" />{:else}<Square class="w-3.5 h-3.5" />{/if}
                         <span>{zone}</span>
@@ -386,53 +407,53 @@
     {/if}
   </div>
 
-  <div class="mt-8">
+  <div class="mt-8 min-h-[300px]">
     {#if loading}
-        <div class="flex justify-center py-12"><Loader2 class="w-10 h-10 animate-spin text-blue-500"/></div>
+        <div class="flex justify-center py-20 text-gray-500"><Loader2 class="w-10 h-10 animate-spin text-blue-500/50"/></div>
     
     {:else if Object.keys(displayedContacts).length === 0}
-        <div class="text-center py-16 bg-white dark:bg-gray-800 rounded-lg border border-dashed border-gray-300 dark:border-gray-700">
-            <UserX class="w-12 h-12 mx-auto text-gray-300 mb-3" />
-            <p class="text-gray-500 dark:text-gray-400">
+        <div class="text-center py-20 bg-black/20 rounded-2xl border border-dashed border-white/10" in:fade>
+            <UserX class="w-12 h-12 mx-auto text-gray-600 mb-4" />
+            <p class="text-gray-400 font-medium">
                 {selectedCategories.length === 0 && !searchTerm ? 'Sélectionnez une catégorie pour commencer.' : 'Aucun contact trouvé.'}
             </p>
         </div>
 
     {:else}
-        <div class="{viewMode === 'list' ? 'space-y-6' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start'}">
+        <div class="{viewMode === 'list' ? 'space-y-6' : 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 items-start'}" in:fade>
             {#each Object.keys(displayedContacts).sort() as group}
-                <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+                <div class="bg-black/20 rounded-2xl shadow-sm border border-white/5 overflow-hidden hover:border-white/10 transition-colors">
                     
                     <button 
                         on:click={() => viewMode === 'grid' && toggleGroupAccordion(group)}
-                        class="w-full flex justify-between items-center p-4 bg-gray-50 dark:bg-gray-900/50 border-b border-gray-100 dark:border-gray-700 text-left {viewMode === 'list' ? 'cursor-default' : 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-800'}"
+                        class="w-full flex justify-between items-center p-4 bg-white/[0.02] border-b border-white/5 text-left {viewMode === 'list' ? 'cursor-default' : 'cursor-pointer hover:bg-white/5'}"
                     >
-                        <h3 class="font-bold text-gray-800 dark:text-white flex items-center gap-2">
-                            <FolderOpen class="w-4 h-4 text-blue-500" /> {group} 
-                            <span class="text-xs font-normal text-gray-500 bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded-full">{displayedContacts[group].length}</span>
+                        <h3 class="font-bold text-gray-200 flex items-center gap-2">
+                            <FolderOpen class="w-4 h-4 text-blue-400" /> {group} 
+                            <span class="text-[10px] font-bold text-gray-400 bg-white/10 px-2 py-0.5 rounded-full border border-white/5">{displayedContacts[group].length}</span>
                         </h3>
                         {#if viewMode === 'grid'}
-                            <ChevronDown class="w-5 h-5 text-gray-400 transition-transform {openGroups[group] ? 'rotate-180' : ''}" />
+                            <ChevronDown class="w-5 h-5 text-gray-500 transition-transform {openGroups[group] ? 'rotate-180' : ''}" />
                         {/if}
                     </button>
 
                     {#if viewMode === 'list' || openGroups[group]}
-                        <div class="divide-y divide-gray-100 dark:divide-gray-700">
+                        <div class="divide-y divide-white/5" transition:slide>
                             {#each displayedContacts[group] as contact}
-                                <div class="p-3 hover:bg-gray-50 dark:hover:bg-gray-700/30 flex items-center justify-between group/item">
+                                <div class="p-4 hover:bg-white/5 flex items-center justify-between group/item transition-colors">
                                     
-                                    <div class="min-w-0">
-                                        <div class="font-medium text-gray-900 dark:text-gray-100 truncate" title={contact.nom}>
+                                    <div class="min-w-0 pr-4">
+                                        <div class="font-bold text-gray-300 truncate text-sm" title={contact.nom}>
                                             {contact.nom}
                                         </div>
-                                        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-sm">
+                                        <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs">
                                             {#if contact.tel}
-                                                <a href="etrali:{cleanPhone(contact.tel)}" class="flex items-center gap-1 text-blue-600 dark:text-blue-400 hover:underline font-mono">
+                                                <a href="tel:{cleanPhone(contact.tel)}" class="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 hover:underline font-mono bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                                                     <Phone class="w-3 h-3" /> {formatPhone(contact.tel)}
                                                 </a>
                                             {/if}
                                             {#if contact.email}
-                                                <a href="mailto:{contact.email}" class="flex items-center gap-1 text-gray-500 dark:text-gray-400 hover:text-blue-600 truncate">
+                                                <a href="mailto:{contact.email}" class="flex items-center gap-1.5 text-gray-500 hover:text-gray-300 truncate">
                                                     <Mail class="w-3 h-3" /> {contact.email}
                                                 </a>
                                             {/if}
@@ -441,8 +462,8 @@
 
                                     {#if isAdmin}
                                         <div class="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity">
-                                            <button on:click={() => openModal(contact)} class="p-1.5 text-blue-600 bg-blue-50 dark:bg-blue-900/20 hover:bg-blue-100 rounded"><Pencil class="w-3.5 h-3.5" /></button>
-                                            <button on:click={() => deleteContact(contact.id)} class="p-1.5 text-red-600 bg-red-50 dark:bg-red-900/20 hover:bg-red-100 rounded"><Trash2 class="w-3.5 h-3.5" /></button>
+                                            <button on:click={() => openModal(contact)} class="p-1.5 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 rounded-lg transition-colors"><Pencil class="w-3.5 h-3.5" /></button>
+                                            <button on:click={() => deleteContact(contact.id)} class="p-1.5 text-red-400 bg-red-500/10 hover:bg-red-500/20 rounded-lg transition-colors"><Trash2 class="w-3.5 h-3.5" /></button>
                                         </div>
                                     {/if}
 
@@ -459,41 +480,58 @@
 </div>
 
 {#if showModal}
-  <div class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg p-6">
-        <h3 class="text-xl font-bold mb-4 dark:text-white">{isEditMode ? 'Modifier' : 'Ajouter'}</h3>
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
+    <div 
+        class="bg-[#0f1115] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-white/10 ring-1 ring-white/5"
+        transition:fly={{ y: 20, duration: 300 }}
+    >
+        <div class="flex justify-between items-center px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+            <h3 class="text-xl font-bold text-gray-200">
+                {isEditMode ? 'Modifier' : 'Ajouter'} un contact
+            </h3>
+            <button on:click={() => showModal = false} class="text-gray-500 hover:text-gray-300 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <X class="w-5 h-5" />
+            </button>
+        </div>
         
-        <div class="grid grid-cols-2 gap-4">
-            <div class="col-span-2">
-                <label class="block text-sm mb-1 dark:text-gray-300">Nom</label>
-                <input bind:value={modalForm.nom} class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            </div>
-            <div>
-                <label class="block text-sm mb-1 dark:text-gray-300">Téléphone</label>
-                <input bind:value={modalForm.tel} class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            </div>
-            <div>
-                <label class="block text-sm mb-1 dark:text-gray-300">Email</label>
-                <input bind:value={modalForm.email} type="email" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            </div>
-            <div>
-                <label class="block text-sm mb-1 dark:text-gray-300">Catégorie</label>
-                <input bind:value={modalForm.categorie} placeholder="MIA, DSE..." class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            </div>
-            <div>
-                <label class="block text-sm mb-1 dark:text-gray-300">Zone</label>
-                <input bind:value={modalForm.zone} placeholder="FMS, FTY..." class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
-            </div>
-            <div class="col-span-2">
-                <label class="block text-sm mb-1 dark:text-gray-300">Groupe</label>
-                <input bind:value={modalForm.groupe} placeholder="SPI, PACO..." class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white">
+        <div class="p-6 overflow-y-auto space-y-5 flex-grow custom-scrollbar">
+            <div class="grid grid-cols-2 gap-4">
+                <div class="col-span-2">
+                    <label class={labelClass}>Nom</label>
+                    <input bind:value={modalForm.nom} class={inputClass} placeholder="Nom du contact">
+                </div>
+                <div>
+                    <label class={labelClass}>Téléphone</label>
+                    <input bind:value={modalForm.tel} class={inputClass} placeholder="04...">
+                </div>
+                <div>
+                    <label class={labelClass}>Email</label>
+                    <input bind:value={modalForm.email} type="email" class={inputClass} placeholder="@...">
+                </div>
+                <div>
+                    <label class={labelClass}>Catégorie</label>
+                    <input bind:value={modalForm.categorie} placeholder="MIA, DSE..." class={inputClass}>
+                </div>
+                <div>
+                    <label class={labelClass}>Zone</label>
+                    <input bind:value={modalForm.zone} placeholder="FMS, FTY..." class={inputClass}>
+                </div>
+                <div class="col-span-2">
+                    <label class={labelClass}>Groupe</label>
+                    <input bind:value={modalForm.groupe} placeholder="SPI, PACO..." class={inputClass}>
+                </div>
             </div>
         </div>
 
-        <div class="flex justify-end gap-2 mt-6">
-            <button on:click={() => showModal = false} class="px-4 py-2 border rounded dark:text-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Annuler</button>
-            <button on:click={handleSubmit} disabled={modalLoading} class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
-                {modalLoading ? '...' : 'Enregistrer'}
+        <div class="flex justify-end items-center px-6 py-4 bg-white/[0.02] border-t border-white/10 gap-3 relative">
+            <div class="absolute inset-0 bg-gradient-to-t from-blue-500/5 to-transparent pointer-events-none"></div>
+
+            <button on:click={() => showModal = false} class="px-4 py-2 bg-white/5 border border-white/10 text-gray-300 rounded-xl hover:bg-white/10 hover:text-white transition-all">
+                Annuler
+            </button>
+            <button on:click={handleSubmit} disabled={modalLoading} class="px-4 py-2 bg-blue-600/80 text-white rounded-xl hover:bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.3)] flex items-center transition-all disabled:opacity-50 group">
+                {#if modalLoading}<Loader2 class="w-4 h-4 animate-spin mr-2"/>{/if}
+                <Save class="w-4 h-4 mr-2 group-hover:scale-110 transition-transform"/> Enregistrer
             </button>
         </div>
     </div>

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast.js';
+  import { fly, fade } from 'svelte/transition';
   import { 
     Bell, Mail, MailOpen, Trash2, Loader2, Filter, 
     CheckCheck, ShieldCheck, ClipboardPaste, X
@@ -32,7 +33,6 @@
       .eq('user_id_target', user.id)
       .order('created_at', { ascending: false });
 
-    // Appliquer le filtre
     if (filterBy === 'unread') {
       query = query.eq('is_read', false);
     }
@@ -57,9 +57,7 @@
     if (error) {
       toast.error("Erreur de mise à jour.");
     } else {
-      // Recharger pour mettre à jour la liste et le compteur dans la navigation
       await loadNotifications();
-      // On déclenche un événement factice pour forcer la mise à jour du Nav.svelte
       window.dispatchEvent(new CustomEvent('notificationStatusChanged'));
     }
   }
@@ -84,7 +82,6 @@
   async function markAllAsRead() {
     if (notifications.filter(n => !n.is_read).length === 0) return;
 
-    // Met à jour toutes les notifications non lues pour l'utilisateur
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -107,27 +104,19 @@
 
   function getIcon(type) {
     switch(type) {
-      case 'mention':
-        return Bell;
-      case 'system':
-        return ShieldCheck;
-      case 'procedure':
-        return ClipboardPaste;
-      default:
-        return Mail;
+      case 'mention': return Bell;
+      case 'system': return ShieldCheck;
+      case 'procedure': return ClipboardPaste;
+      default: return Mail;
     }
   }
 
   function getIconColor(type) {
     switch(type) {
-      case 'mention':
-        return 'text-blue-500';
-      case 'system':
-        return 'text-yellow-500';
-      case 'procedure':
-        return 'text-green-500';
-      default:
-        return 'text-gray-400';
+      case 'mention': return 'text-blue-400';
+      case 'system': return 'text-yellow-400';
+      case 'procedure': return 'text-green-400';
+      default: return 'text-gray-400';
     }
   }
 
@@ -137,7 +126,6 @@
     });
   }
 
-  // Quand le filtre change, on recharge les notifications
   $: if (filterBy) {
     loadNotifications();
   }
@@ -147,21 +135,27 @@
     <title>Notifications - BACO</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-10">
-    <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
-        
-        <header class="flex items-center gap-4 border-b pb-4 border-gray-200 dark:border-gray-700">
-            <Bell class="w-8 h-8 text-blue-600"/>
-            <h1 class="text-3xl font-bold tracking-tight text-gray-800 dark:text-gray-100">Centre de Notifications</h1>
-        </header>
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
+    
+    <header class="flex items-center gap-4 pb-6 border-b border-white/5" in:fly={{ y: -20, duration: 600 }}>
+        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+            <Bell class="w-8 h-8"/>
+        </div>
+        <div>
+            <h1 class="text-3xl font-bold tracking-tight text-gray-200">Centre de Notifications</h1>
+            <p class="text-gray-500 text-sm mt-1">Vos alertes et messages importants.</p>
+        </div>
+    </header>
 
-        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
+    <main class="max-w-4xl mx-auto space-y-6">
+        
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 p-4 bg-black/20 rounded-2xl border border-white/5 shadow-sm" in:fly={{ y: 20, duration: 600, delay: 100 }}>
             
             <div class="flex items-center gap-2">
                 <Filter class="w-4 h-4 text-gray-500" />
-                <select bind:value={filterBy} class="bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-xl text-sm py-1.5 px-3">
-                    <option value="all">Toutes</option>
-                    <option value="unread">Non Lues</option>
+                <select bind:value={filterBy} class="bg-black/30 border border-white/10 rounded-xl text-sm py-2 px-3 text-gray-300 focus:ring-2 focus:ring-blue-500/30 outline-none cursor-pointer hover:bg-white/5 transition-all">
+                    <option value="all" class="bg-gray-900">Toutes</option>
+                    <option value="unread" class="bg-gray-900">Non Lues</option>
                 </select>
             </div>
             
@@ -169,7 +163,7 @@
                 <button 
                     on:click={markAllAsRead} 
                     disabled={isLoading || notifications.filter(n => !n.is_read).length === 0}
-                    class="flex items-center gap-2 px-4 py-2 text-sm bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-xl font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors disabled:opacity-50"
+                    class="flex items-center gap-2 px-4 py-2 text-sm bg-white/5 border border-white/10 text-gray-300 rounded-xl font-medium hover:bg-white/10 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     <CheckCheck class="w-4 h-4" />
                     Marquer tout lu
@@ -179,38 +173,40 @@
 
         <div class="space-y-3">
             {#if isLoading}
-                <div class="flex justify-center py-20"><Loader2 class="animate-spin text-blue-600" /></div>
+                <div class="flex justify-center py-20"><Loader2 class="animate-spin text-blue-500/50 w-10 h-10" /></div>
             {:else if notifications.length === 0}
-                <div class="text-center py-10 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700">
+                <div class="text-center py-12 text-gray-500 bg-black/20 rounded-2xl border border-dashed border-white/5">
                     <p>Aucune notification {filterBy === 'unread' ? 'non lue' : 'à afficher'} !</p>
                 </div>
             {:else}
                 {#each notifications as notif (notif.id)}
-                    <a 
-                        href={notif.link_to || '#'} 
-                        on:click|preventDefault={() => { 
+                    <div 
+                        on:click={() => { 
                             if (notif.link_to) {
                                 window.location.href = notif.link_to;
                             }
-                            // Marquer lu uniquement si elle ne l'est pas
                             if (!notif.is_read) {
                                 toggleReadStatus(notif.id, notif.is_read);
                             }
                         }}
-                        class="flex items-start gap-4 p-4 rounded-2xl border transition-all duration-200 group
+                        class="flex items-start gap-4 p-4 rounded-2xl border transition-all duration-200 group cursor-pointer relative overflow-hidden
                                 {notif.is_read 
-                                    ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md' 
-                                    : 'bg-blue-50/50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800/50 shadow-md hover:bg-blue-100/50 dark:hover:bg-blue-900/30'}"
+                                    ? 'bg-black/20 border-white/5 hover:bg-black/30 opacity-70 hover:opacity-100' 
+                                    : 'bg-blue-500/10 border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.1)] hover:bg-blue-500/15'}"
+                        in:fly={{ x: 20, duration: 400 }}
                     >
+                        {#if !notif.is_read}
+                            <div class="absolute left-0 top-0 bottom-0 w-1 bg-blue-500 shadow-[0_0_10px_#3b82f6]"></div>
+                        {/if}
                         
-                        <div class="flex-shrink-0 pt-1">
+                        <div class="flex-shrink-0 pt-1 pl-2">
                             <svelte:component this={getIcon(notif.type)} class="w-5 h-5 {getIconColor(notif.type)}" />
                         </div>
 
                         <div class="flex-grow min-w-0">
-                            <p class="font-semibold text-gray-900 dark:text-gray-100 truncate">{notif.title || 'Notification'}</p>
-                            <p class="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">{notif.message || 'Détails non disponibles.'}</p>
-                            <p class="text-xs mt-1 text-gray-500 dark:text-gray-400">{formatDate(notif.created_at)}</p>
+                            <p class="font-bold text-gray-200 truncate">{notif.title || 'Notification'}</p>
+                            <p class="text-sm text-gray-400 line-clamp-2 mt-0.5">{notif.message || 'Détails non disponibles.'}</p>
+                            <p class="text-[10px] mt-2 text-gray-500 font-mono">{formatDate(notif.created_at)}</p>
                         </div>
                         
                         <div class="flex-shrink-0 flex gap-2 pt-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -218,9 +214,9 @@
                             <button 
                                 on:click|stopPropagation={() => toggleReadStatus(notif.id, notif.is_read)} 
                                 title={notif.is_read ? 'Marquer Non Lu' : 'Marquer Lu'}
-                                class="p-1.5 rounded-full transition-colors {notif.is_read 
-                                    ? 'text-gray-500 hover:text-blue-600 hover:bg-gray-100 dark:hover:bg-gray-700' 
-                                    : 'text-blue-600 bg-blue-100 hover:bg-blue-200 dark:bg-blue-800/40 dark:hover:bg-blue-800/60'}"
+                                class="p-2 rounded-xl transition-colors border border-white/5 {notif.is_read 
+                                    ? 'text-gray-500 hover:text-blue-400 hover:bg-white/5' 
+                                    : 'text-blue-400 bg-blue-500/10 hover:bg-blue-500/20 border-blue-500/20'}"
                             >
                                 {#if notif.is_read}
                                     <MailOpen class="w-4 h-4" />
@@ -232,12 +228,12 @@
                             <button 
                                 on:click|stopPropagation={() => deleteNotification(notif.id)} 
                                 title="Supprimer"
-                                class="p-1.5 rounded-full text-gray-500 hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
+                                class="p-2 rounded-xl text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
                             >
                                 <Trash2 class="w-4 h-4" />
                             </button>
                         </div>
-                    </a>
+                    </div>
                 {/each}
             {/if}
         </div>

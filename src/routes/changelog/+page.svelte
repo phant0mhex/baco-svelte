@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { marked } from 'marked'; // Assurez-vous d'avoir fait: npm install marked
+  import { marked } from 'marked';
+  import { fly, fade } from 'svelte/transition';
   import { 
     Sparkles, Plus, Trash2, Calendar, User, 
     ArrowLeft, ArrowRight, Loader2, X, Save, 
@@ -53,7 +54,6 @@
   async function loadChangelog() {
     isLoading = true;
     try {
-      // 1. Compter le total
       const { count, error: countError } = await supabase
         .from('changelog')
         .select('*', { count: 'exact', head: true });
@@ -61,7 +61,6 @@
       if (countError) throw countError;
       totalRows = count || 0;
 
-      // 2. Récupérer les données
       const from = (currentPage - 1) * ROWS_PER_PAGE;
       const to = from + ROWS_PER_PAGE - 1;
 
@@ -91,7 +90,7 @@
       const payload = {
         title: newEntry.title,
         type: newEntry.type,
-        content: newEntry.content, // Markdown brut
+        content: newEntry.content, 
         user_id: currentUser.id
       };
 
@@ -99,7 +98,7 @@
       if (error) throw error;
 
       closeModal();
-      currentPage = 1; // Retour à la première page
+      currentPage = 1; 
       loadChangelog();
 
     } catch (e) {
@@ -145,106 +144,103 @@
   function getBadgeStyle(type) {
     switch (type) {
       case 'Nouveau': return { 
-        class: 'bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-200 dark:border-green-800', 
+        class: 'bg-green-500/20 text-green-400 border-green-500/30 shadow-[0_0_10px_rgba(74,222,128,0.2)]', 
         icon: Star 
       };
       case 'Corrigé': return { 
-        class: 'bg-red-100 text-red-800 border-red-200 dark:bg-red-900/50 dark:text-red-200 dark:border-red-800', 
+        class: 'bg-red-500/20 text-red-400 border-red-500/30 shadow-[0_0_10px_rgba(248,113,113,0.2)]', 
         icon: Bug 
       };
       default: return { 
-        class: 'bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/50 dark:text-blue-200 dark:border-blue-800', 
+        class: 'bg-blue-500/20 text-blue-400 border-blue-500/30 shadow-[0_0_10px_rgba(96,165,250,0.2)]', 
         icon: Zap 
       };
     }
   }
 
-  // Styles CSS
-  const inputClass = "block w-full rounded-xl border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm focus:ring-blue-500 focus:border-blue-500 dark:text-white p-2.5";
-  const labelClass = "block mb-1 text-sm font-medium text-gray-700 dark:text-gray-300";
+  const inputClass = "block w-full rounded-xl border-white/10 bg-black/40 p-3 text-sm font-medium text-white placeholder-gray-600 focus:border-blue-500/50 focus:ring-blue-500/50 transition-all outline-none resize-none";
+  const labelClass = "block text-xs font-bold text-gray-500 uppercase tracking-wide mb-1.5 ml-1";
 
 </script>
 
-<div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-20">
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
   
-  <header class="sticky top-0 z-30 w-full bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-b-3xl transition-colors duration-300">
-    <div class="max-w-4xl mx-auto px-6 h-20 flex items-center justify-between">
-      <div class="flex items-center gap-3">
-        <div class="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
-          <Sparkles size={24} />
+  <header class="flex items-center justify-between pb-6 border-b border-white/5" in:fly={{ y: -20, duration: 600 }}>
+    <div class="flex items-center gap-3">
+        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+          <Sparkles size={32} />
         </div>
         <div>
-          <h1 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">Nouveautés</h1>
-          <p class="text-xs text-gray-500 dark:text-gray-400 font-medium hidden sm:block">Historique des mises à jour</p>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Nouveautés</h1>
+          <p class="text-gray-500 text-sm mt-1">Historique des mises à jour et correctifs.</p>
         </div>
-      </div>
-      
-      {#if canManage}
-        <button on:click={openModal} class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-all shadow-sm hover:shadow active:scale-95 text-sm">
-          <Plus size={18} /> <span class="hidden sm:inline">Ajouter</span>
-        </button>
-      {/if}
     </div>
+    
+    {#if canManage}
+        <button on:click={openModal} class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-100 border border-blue-500/30 px-5 py-2.5 rounded-xl flex items-center gap-2 transition-all hover:scale-105 shadow-lg shadow-blue-900/10">
+            <Plus size={18} /> <span class="hidden sm:inline font-bold">Ajouter</span>
+        </button>
+    {/if}
   </header>
 
-  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-8">
+  <main class="py-4">
     
     {#if isLoading && entries.length === 0}
-      <div class="flex justify-center py-20"><Loader2 class="animate-spin text-blue-500" /></div>
+      <div class="flex justify-center py-20"><Loader2 class="animate-spin w-10 h-10 text-blue-500/50" /></div>
     {:else if entries.length === 0}
-      <div class="text-center py-20 text-gray-500 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
-        <Sparkles size={48} class="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
+      <div class="text-center py-20 text-gray-500 bg-black/20 rounded-3xl border border-dashed border-white/10">
+        <Sparkles size={48} class="mx-auto mb-4 opacity-50" />
         <p>Aucune note de mise à jour pour le moment.</p>
       </div>
     {:else}
       
-      <div class="space-y-8 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:ml-5 before:h-full before:w-0.5 before:bg-gray-200 dark:before:bg-gray-700">
+      <div class="space-y-12 relative before:absolute before:inset-0 before:ml-6 md:before:ml-6 before:h-full before:w-0.5 before:bg-white/5 before:-translate-x-px">
         
-        {#each entries as entry}
+        {#each entries as entry (entry.id)}
           {@const style = getBadgeStyle(entry.type)}
           {@const author = entry.profiles}
           
-          <div class="relative pl-12 md:pl-12 group animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <div class="relative pl-16 md:pl-16 group" in:fly={{ y: 20, duration: 600 }}>
             
-            <div class="absolute left-0 top-6 w-10 h-10 rounded-full border-4 border-white dark:border-gray-900 bg-white dark:bg-gray-800 flex items-center justify-center shadow-sm z-10">
-              <svelte:component this={style.icon} size={18} class={style.class.split(' ')[1]} />
+            <div class="absolute left-0 top-0 w-12 h-12 rounded-full border-4 border-[#0f1115] bg-black/40 flex items-center justify-center shadow-lg z-10 backdrop-blur-md">
+              <svelte:component this={style.icon} size={20} class={style.class.split(' ')[1]} />
             </div>
 
-            <div class="bg-white dark:bg-gray-800 rounded-3xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+            <div class="bg-black/20 border border-white/5 rounded-3xl overflow-hidden hover:border-white/10 transition-all hover:bg-white/[0.02]">
               
-              <div class="p-6 border-b border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-gray-900/20">
-                <div class="flex flex-wrap justify-between items-start gap-4 mb-3">
+              <div class="p-6 border-b border-white/5 bg-white/[0.02]">
+                <div class="flex flex-wrap justify-between items-start gap-4 mb-4">
                   <div class="flex items-center gap-3">
-                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border uppercase tracking-wider {style.class}">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border uppercase tracking-wider {style.class} backdrop-blur-sm">
                       {entry.type}
                     </span>
-                    <span class="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
+                    <span class="text-sm text-gray-500 flex items-center gap-1.5 font-mono">
                       <Calendar size={14} /> {formatDate(entry.created_at)}
                     </span>
                   </div>
                   
                   {#if canManage}
-                    <button on:click={() => deleteEntry(entry.id)} class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Supprimer">
+                    <button on:click={() => deleteEntry(entry.id)} class="p-2 text-gray-500 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20" title="Supprimer">
                       <Trash2 size={16} />
                     </button>
                   {/if}
                 </div>
                 
-                <h2 class="text-xl font-bold text-gray-900 dark:text-white mb-2">{entry.title}</h2>
+                <h2 class="text-2xl font-bold text-gray-100 mb-3 tracking-tight">{entry.title}</h2>
                 
                 <div class="flex items-center gap-2">
                   {#if author?.avatar_url}
-                    <img src={author.avatar_url} alt="" class="w-5 h-5 rounded-full object-cover">
+                    <img src={author.avatar_url} alt="" class="w-6 h-6 rounded-full object-cover border border-white/10">
                   {:else}
-                    <div class="w-5 h-5 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center text-[10px] text-gray-500">?</div>
+                    <div class="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-[10px] text-gray-400 border border-white/5">?</div>
                   {/if}
-                  <span class="text-xs font-medium text-gray-600 dark:text-gray-400">
-                    Par {author?.full_name || 'Inconnu'}
+                  <span class="text-xs font-medium text-gray-500">
+                    Par <span class="text-gray-300">{author?.full_name || 'Inconnu'}</span>
                   </span>
                 </div>
               </div>
 
-              <div class="p-6 prose prose-sm dark:prose-invert max-w-none text-gray-700 dark:text-gray-300">
+              <div class="p-6 prose prose-invert prose-sm max-w-none text-gray-300 prose-headings:text-gray-100 prose-a:text-blue-400">
                 {@html marked.parse(entry.content || '')}
               </div>
 
@@ -255,15 +251,15 @@
       </div>
 
       {#if totalRows > ROWS_PER_PAGE}
-        <div class="flex justify-between items-center pt-6 pl-12">
-          <div class="text-sm text-gray-500 dark:text-gray-400">
-            Page {currentPage} / {Math.ceil(totalRows / ROWS_PER_PAGE)}
+        <div class="flex justify-between items-center pt-8 pl-16">
+          <div class="text-sm text-gray-500">
+            Page <span class="text-gray-300 font-bold">{currentPage}</span> / {Math.ceil(totalRows / ROWS_PER_PAGE)}
           </div>
           <div class="flex gap-2">
-            <button on:click={() => changePage(currentPage - 1)} disabled={currentPage === 1} class="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            <button on:click={() => changePage(currentPage - 1)} disabled={currentPage === 1} class="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
               <ArrowLeft size={20} />
             </button>
-            <button on:click={() => changePage(currentPage + 1)} disabled={currentPage * ROWS_PER_PAGE >= totalRows} class="p-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors">
+            <button on:click={() => changePage(currentPage + 1)} disabled={currentPage * ROWS_PER_PAGE >= totalRows} class="p-3 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white text-gray-400 disabled:opacity-30 disabled:cursor-not-allowed transition-all">
               <ArrowRight size={20} />
             </button>
           </div>
@@ -275,14 +271,17 @@
   </main>
 
   {#if isModalOpen}
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div class="bg-white dark:bg-gray-800 rounded-2xl w-full max-w-lg p-6 shadow-xl border border-gray-200 dark:border-gray-700">
-        <div class="flex justify-between items-center mb-6">
-          <h3 class="text-lg font-bold text-gray-900 dark:text-white">Ajouter une entrée</h3>
-          <button on:click={closeModal} class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-full"><X size={20}/></button>
+    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
+      <div 
+        class="bg-[#0f1115] w-full max-w-lg rounded-2xl p-6 shadow-2xl border border-white/10 ring-1 ring-white/5 flex flex-col"
+        transition:fly={{ y: 20, duration: 300 }}
+      >
+        <div class="flex justify-between items-center mb-6 border-b border-white/10 pb-4">
+          <h3 class="text-xl font-bold text-gray-100">Ajouter une entrée</h3>
+          <button on:click={closeModal} class="text-gray-500 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors"><X size={20}/></button>
         </div>
         
-        <div class="space-y-4">
+        <div class="space-y-5">
           <div class="grid grid-cols-2 gap-4">
             <div>
               <label class={labelClass}>Titre</label>
@@ -290,7 +289,7 @@
             </div>
             <div>
               <label class={labelClass}>Type</label>
-              <select bind:value={newEntry.type} class={inputClass}>
+              <select bind:value={newEntry.type} class="{inputClass} bg-[#0f1115]">
                 <option value="Amélioré">Amélioré</option>
                 <option value="Nouveau">Nouveau</option>
                 <option value="Corrigé">Corrigé</option>
@@ -299,25 +298,24 @@
           </div>
           
           <div>
-            <label class={labelClass}>Contenu (Markdown supporté)</label>
+            <label class={labelClass}>Contenu (Markdown)</label>
             <textarea 
               rows="6" 
               bind:value={newEntry.content} 
-              class="{inputClass} font-mono resize-none" 
+              class="{inputClass} font-mono text-xs leading-relaxed" 
               placeholder="- Liste des changements..."
             ></textarea>
-            <p class="text-xs text-gray-500 mt-1 text-right">Supporte **gras**, *italique*, - listes</p>
+            <p class="text-[10px] text-gray-500 mt-2 text-right italic">Supporte **gras**, *italique*, - listes</p>
           </div>
         </div>
 
-        <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-100 dark:border-gray-700">
-          <button on:click={closeModal} class="px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-bold">Annuler</button>
-          <button on:click={saveEntry} disabled={isSaving} class="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-bold flex items-center gap-2 disabled:opacity-50">
+        <div class="flex justify-end gap-3 mt-6 pt-4 border-t border-white/10">
+          <button on:click={closeModal} class="px-4 py-2 text-gray-400 hover:text-white hover:bg-white/5 border border-white/10 rounded-xl transition-all text-sm font-medium">Annuler</button>
+          <button on:click={saveEntry} disabled={isSaving} class="px-4 py-2 bg-blue-600/80 hover:bg-blue-500 text-white rounded-xl text-sm font-bold flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-blue-900/20 transition-all border border-blue-500/30">
             {#if isSaving} <Loader2 class="animate-spin" size={16}/> {:else} <Save size={16}/> {/if} Publier
           </button>
         </div>
       </div>
     </div>
   {/if}
-
 </div>

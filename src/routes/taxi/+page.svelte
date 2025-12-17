@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { fly, fade } from 'svelte/transition';
   import { 
     Car, MapPin, Phone, Search, Plus, FileText, 
     Pencil, Trash2, X, CheckSquare, Square, Loader2, RefreshCw, 
@@ -32,7 +33,7 @@
     societe: '',
     lieux: '', 
     contacts: '',
-    mail: '',      // NOUVEAU
+    mail: '',
     adresse: '',   
     remarques: ''  
   };
@@ -93,10 +94,9 @@
       taxis = (data || []).map(t => ({
         ...t,
         societe: t.nom,
-        // Sécurisation des tableaux pour l'affichage
         lieux: t.lieux || [],
         contacts: t.contacts || [],
-        mail: t.mail || [], // NOUVEAU
+        mail: t.mail || [],
         adresse: t.adresse || [],
         remarques: t.remarques || []
       }));
@@ -136,7 +136,7 @@
         societe: taxi.societe,
         lieux: joinArray(taxi.lieux).replace(/\n/g, ', '), 
         contacts: joinArray(taxi.contacts),
-        mail: joinArray(taxi.mail),           // NOUVEAU
+        mail: joinArray(taxi.mail),
         adresse: joinArray(taxi.adresse),     
         remarques: joinArray(taxi.remarques)  
       };
@@ -158,7 +158,6 @@
     if (!modalForm.societe) return alert("Le nom est requis.");
     modalLoading = true;
 
-    // Conversion String -> Tableau pour la DB
     const lieuxArray = modalForm.lieux.split(',').map(l => l.trim()).filter(Boolean);
     
     if (lieuxArray.length === 0) {
@@ -171,7 +170,7 @@
       nom: modalForm.societe,
       lieux: lieuxArray,
       contacts: splitString(modalForm.contacts),
-      mail: splitString(modalForm.mail),           // NOUVEAU
+      mail: splitString(modalForm.mail),
       adresse: splitString(modalForm.adresse),     
       remarques: splitString(modalForm.remarques)  
     };
@@ -213,7 +212,7 @@
       t.societe,
       t.lieux.join(', '),
       t.contacts.join('\n'),
-      t.mail.join('\n'), // NOUVEAU
+      t.mail.join('\n'),
       t.adresse.join('\n'),
       t.remarques.join('\n')
     ]);
@@ -227,63 +226,79 @@
     });
     doc.save('taxis.pdf');
   }
+
+  // Styles communs Inputs
+  const inputClass = "block w-full rounded-xl border-white/10 bg-black/40 p-3 text-sm font-medium text-white placeholder-gray-600 focus:border-yellow-500/50 focus:ring-yellow-500/50 transition-all outline-none";
+  const labelClass = "block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide";
 </script>
 
 <svelte:head>
   <title>Taxis | BACO</title>
 </svelte:head>
 
-<div class="space-y-6">
-  <div class="flex flex-col md:flex-row justify-between items-center gap-4 bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-    <div>
-      <h1 class="text-3xl font-bold text-gray-800 dark:text-white flex items-center gap-2">
-        <Car class="w-8 h-8 text-yellow-500" /> Section Taxis
-      </h1>
-      <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Filtrer par lieu d'intervention.</p>
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
+  
+  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }}>
+    <div class="flex items-center gap-3">
+        <div class="p-3 rounded-xl bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 shadow-[0_0_15px_rgba(234,179,8,0.15)]">
+          <Car class="w-8 h-8" />
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Répertoire Taxis</h1>
+          <p class="text-gray-500 text-sm mt-1">Trouver un transporteur par secteur.</p>
+        </div>
     </div>
     
     <div class="flex gap-2">
       {#if filteredTaxis.length > 0}
-        <button on:click={exportPDF} class="flex items-center gap-2 px-3 py-2 bg-red-600 text-white rounded-lg shadow hover:bg-red-700 transition-colors">
-          <FileText class="w-4 h-4" /> <span class="hidden sm:inline">PDF</span>
+        <button on:click={exportPDF} class="flex items-center gap-2 px-3 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 rounded-xl transition-all hover:scale-105">
+          <FileText class="w-4 h-4" /> <span class="hidden sm:inline font-bold">PDF</span>
         </button>
       {/if}
       {#if isAdmin}
-        <button on:click={() => openModal()} class="flex items-center gap-2 px-3 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition-colors">
-          <Plus class="w-4 h-4" /> <span class="hidden sm:inline">Ajouter</span>
+        <button on:click={() => openModal()} class="bg-blue-600/20 hover:bg-blue-600/30 text-blue-100 border border-blue-500/30 px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group shadow-lg shadow-blue-900/10">
+          <Plus class="w-5 h-5 group-hover:rotate-90 transition-transform" /> 
+          <span class="font-semibold hidden sm:inline">Ajouter</span>
         </button>
       {/if}
     </div>
-  </div>
+  </header>
 
-  <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700">
-    <div class="flex justify-between mb-4">
-      <div class="flex items-center gap-2">
-        <h3 class="text-lg font-medium text-gray-700 dark:text-gray-200">Secteurs disponibles :</h3>
-        <button on:click={loadFilters} title="Rafraîchir les filtres" class="p-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full">
-            <RefreshCw class="w-4 h-4 text-gray-400 {loadingFilters ? 'animate-spin' : ''}" />
+  <div class="bg-black/20 border border-white/5 rounded-2xl p-6" in:fly={{ y: 20, duration: 600, delay: 100 }}>
+    <div class="flex flex-col md:flex-row justify-between mb-6 gap-4">
+      <div class="flex items-center gap-3">
+        <h3 class="text-xs font-bold uppercase text-gray-500 flex items-center gap-2">
+            <div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Secteurs disponibles
+        </h3>
+        <button on:click={loadFilters} title="Rafraîchir les filtres" class="p-1.5 hover:bg-white/5 rounded-full transition-colors">
+            <RefreshCw class="w-4 h-4 text-gray-500 {loadingFilters ? 'animate-spin' : ''}" />
         </button>
       </div>
 
-      <div class="relative w-full md:w-64">
-        <Search class="absolute left-3 top-2.5 h-4 w-4 text-gray-400" />
-        <input type="text" bind:value={searchTerm} placeholder="Rechercher..." class="w-full pl-9 pr-4 py-2 rounded-md border border-gray-300 dark:border-gray-600 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-yellow-500">
+      <div class="relative w-full md:w-72">
+        <Search class="absolute left-3 top-3 h-4 w-4 text-gray-500" />
+        <input 
+            type="text" 
+            bind:value={searchTerm} 
+            placeholder="Rechercher une société..." 
+            class="w-full pl-10 pr-4 py-2.5 rounded-xl border border-white/10 bg-black/40 text-gray-200 placeholder-gray-600 focus:ring-2 focus:ring-yellow-500/30 focus:border-transparent outline-none transition-all"
+        >
       </div>
     </div>
 
     {#if loadingFilters && lieuxDisponibles.length === 0}
-        <div class="text-sm text-gray-500">Chargement des secteurs...</div>
+        <div class="text-sm text-gray-500 flex items-center gap-2"><Loader2 class="w-4 h-4 animate-spin"/> Chargement des secteurs...</div>
     {:else}
-        <div class="flex flex-wrap gap-3">
+        <div class="flex flex-wrap gap-2">
         {#each lieuxDisponibles as lieu}
             <button 
             on:click={() => toggleLieu(lieu)}
-            class="flex items-center space-x-2 px-4 py-2 border rounded-full transition-all shadow-sm 
+            class="flex items-center space-x-2 px-3 py-1.5 border rounded-lg transition-all duration-300 text-xs font-medium uppercase tracking-wide
             {selectedLieux.includes(lieu) 
-                ? 'bg-yellow-100 border-yellow-500 text-yellow-800 dark:bg-yellow-900 dark:border-yellow-400 dark:text-yellow-100' 
-                : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-200'}"
+                ? 'bg-yellow-500/20 border-yellow-500/40 text-yellow-300 shadow-[0_0_10px_rgba(234,179,8,0.15)]' 
+                : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white hover:border-white/20'}"
             >
-            {#if selectedLieux.includes(lieu)}<CheckSquare class="w-4 h-4" />{:else}<Square class="w-4 h-4" />{/if}
+            {#if selectedLieux.includes(lieu)}<CheckSquare class="w-3.5 h-3.5" />{:else}<Square class="w-3.5 h-3.5" />{/if}
             <span>{lieu}</span>
             </button>
         {/each}
@@ -293,46 +308,51 @@
 
   <div>
     {#if selectedLieux.length === 0}
-      <div class="text-center p-12 text-gray-500 dark:text-gray-400">
-        <MapPin class="w-12 h-12 mx-auto mb-3 text-gray-300 dark:text-gray-600" />
-        <p>Sélectionnez un lieu pour voir les taxis.</p>
+      <div class="flex flex-col items-center justify-center h-64 text-gray-500 bg-black/20 rounded-2xl border border-dashed border-white/10" in:fade>
+        <MapPin size={48} class="mb-4 opacity-30" />
+        <p>Sélectionnez un secteur ci-dessus pour afficher les taxis.</p>
       </div>
     {:else if loading}
-      <div class="flex justify-center p-12"><Loader2 class="w-10 h-10 animate-spin text-yellow-500" /></div>
+      <div class="flex flex-col items-center justify-center h-64 text-gray-500">
+        <Loader2 class="w-10 h-10 animate-spin text-yellow-500/50 mb-3" />
+        <p>Recherche des taxis...</p>
+      </div>
     {:else if filteredTaxis.length === 0}
-      <div class="text-center p-12 bg-white dark:bg-gray-800 rounded-lg shadow border dark:border-gray-700">
-        <p class="text-gray-500">Aucun taxi trouvé.</p>
+      <div class="text-center p-12 bg-black/20 rounded-2xl border border-dashed border-white/10">
+        <p class="text-gray-500">Aucun taxi trouvé pour votre recherche.</p>
       </div>
     {:else}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {#each filteredTaxis as taxi}
-          <div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-5 hover:shadow-md transition-all relative group flex flex-col">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" in:fly={{ y: 20, duration: 400 }}>
+        {#each filteredTaxis as taxi (taxi.id)}
+          <div class="group bg-black/20 rounded-2xl border border-white/5 hover:border-yellow-500/30 p-5 hover:shadow-xl hover:shadow-black/50 transition-all duration-300 relative flex flex-col hover:-translate-y-1">
             
-            <div class="flex justify-between items-start mb-3">
-              <h3 class="font-bold text-lg text-gray-900 dark:text-white">{taxi.societe}</h3>
+            <div class="flex justify-between items-start mb-4 pb-4 border-b border-white/5">
+              <h3 class="font-bold text-xl text-gray-200 group-hover:text-yellow-400 transition-colors">{taxi.societe}</h3>
               <div class="flex flex-wrap gap-1 justify-end max-w-[50%]">
                  {#each taxi.lieux as l}
-                    <span class="bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200 text-xs font-bold px-2 py-1 rounded {selectedLieux.includes(l) ? 'border border-yellow-400' : ''}">
+                    <span class="bg-yellow-500/10 text-yellow-500/80 text-[10px] font-bold px-2 py-0.5 rounded border border-yellow-500/10 {selectedLieux.includes(l) ? 'border-yellow-500/50 text-yellow-400 shadow-[0_0_5px_rgba(234,179,8,0.2)]' : ''}">
                         {l}
                     </span>
                  {/each}
               </div>
             </div>
 
-            <div class="space-y-2 mt-2 pt-3 border-t border-gray-100 dark:border-gray-700 flex-grow">
+            <div class="space-y-3 flex-grow text-sm">
               {#each taxi.contacts as contactLine}
-                 <div class="flex justify-between text-sm">
-                   <span class="text-gray-600 dark:text-gray-400">{contactLine}</span>
-                   <a href="etrali:{cleanPhone(contactLine)}" class="text-blue-600 dark:text-blue-400 hover:underline"><Phone class="w-4 h-4 inline"/></a>
+                 <div class="flex justify-between items-center group/item hover:bg-white/5 p-1 rounded transition-colors -mx-1 px-1">
+                   <span class="text-gray-400 font-medium">{contactLine}</span>
+                   <a href="etrali:{cleanPhone(contactLine)}" class="text-yellow-400/80 hover:text-yellow-300 bg-yellow-500/10 p-1.5 rounded-lg border border-yellow-500/10 hover:border-yellow-500/30 transition-all">
+                        <Phone class="w-3.5 h-3.5"/>
+                   </a>
                  </div>
               {/each}
             </div>
 
             {#if taxi.mail && taxi.mail.length > 0 && taxi.mail[0] !== 'nihil'}
-              <div class="mt-3 space-y-1 pt-2 border-t border-gray-100 dark:border-gray-700">
+              <div class="mt-4 space-y-2 pt-3 border-t border-white/5">
                 {#each taxi.mail as email}
-                  <a href="mailto:{email}" class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-blue-600 dark:hover:text-blue-400">
-                    <Mail class="w-4 h-4 flex-shrink-0" />
+                  <a href="mailto:{email}" class="flex items-center gap-2 text-sm text-gray-500 hover:text-blue-400 transition-colors group/mail">
+                    <Mail class="w-3.5 h-3.5 flex-shrink-0 group-hover/mail:text-blue-400 transition-colors" />
                     <span class="truncate">{email}</span>
                   </a>
                 {/each}
@@ -342,8 +362,8 @@
             {#if taxi.adresse && taxi.adresse.length > 0 && taxi.adresse[0] !== 'nihil'}
               <div class="mt-3 space-y-1">
                 {#each taxi.adresse as addr}
-                  <div class="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-2 rounded">
-                    <Home class="w-4 h-4 mt-0.5 flex-shrink-0 text-gray-400" />
+                  <div class="flex items-start gap-2 text-xs text-gray-500 bg-white/5 p-2 rounded border border-white/5">
+                    <Home class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-gray-600" />
                     <span>{addr}</span>
                   </div>
                 {/each}
@@ -353,8 +373,8 @@
             {#if taxi.remarques && taxi.remarques.length > 0 && taxi.remarques[0] !== 'nihil'}
               <div class="mt-3 space-y-1">
                 {#each taxi.remarques as rem}
-                  <div class="flex items-start gap-2 text-sm bg-yellow-50 dark:bg-yellow-900/20 p-2 rounded text-yellow-800 dark:text-yellow-200 border border-yellow-100 dark:border-yellow-900/30">
-                    <Info class="w-4 h-4 mt-0.5 flex-shrink-0" />
+                  <div class="flex items-start gap-2 text-xs bg-yellow-500/5 p-2 rounded text-yellow-200/70 border border-yellow-500/10">
+                    <Info class="w-3.5 h-3.5 mt-0.5 flex-shrink-0 text-yellow-500/50" />
                     <span>{rem}</span>
                   </div>
                 {/each}
@@ -362,9 +382,9 @@
             {/if}
             
             {#if isAdmin}
-              <div class="absolute top-4 right-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1">
-                <button on:click={() => openModal(taxi)} class="p-1 text-blue-600 bg-blue-50 hover:bg-blue-100 rounded"><Pencil class="w-4 h-4" /></button>
-                <button on:click={() => deleteTaxi(taxi.id, taxi.societe)} class="p-1 text-red-600 bg-red-50 hover:bg-red-100 rounded"><Trash2 class="w-4 h-4" /></button>
+              <div class="absolute top-4 right-14 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 bg-black/60 backdrop-blur rounded-lg p-1 border border-white/10">
+                <button on:click={() => openModal(taxi)} class="p-1.5 text-blue-400 hover:text-white hover:bg-blue-500/20 rounded transition-colors"><Pencil class="w-3.5 h-3.5" /></button>
+                <button on:click={() => deleteTaxi(taxi.id, taxi.societe)} class="p-1.5 text-red-400 hover:text-white hover:bg-red-500/20 rounded transition-colors"><Trash2 class="w-3.5 h-3.5" /></button>
               </div>
             {/if}
           </div>
@@ -375,51 +395,63 @@
 </div>
 
 {#if showModal}
-  <div class="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
-    <div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
-        <div class="p-6 border-b dark:border-gray-700">
-            <h3 class="text-xl font-bold dark:text-white">{isEditMode ? 'Modifier' : 'Ajouter'}</h3>
+  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
+    <div 
+        class="bg-[#0f1115] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-white/10 ring-1 ring-white/5"
+        transition:fly={{ y: 20, duration: 300 }}
+    >
+        <div class="flex justify-between items-center px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+            <h3 class="text-xl font-bold text-gray-200">
+                {isEditMode ? 'Modifier' : 'Ajouter'} une société
+            </h3>
+            <button on:click={() => showModal = false} class="text-gray-500 hover:text-gray-300 p-2 rounded-lg hover:bg-white/5 transition-colors">
+                <X class="w-5 h-5" />
+            </button>
         </div>
         
-        <div class="p-6 overflow-y-auto space-y-4 flex-grow">
+        <div class="p-6 overflow-y-auto space-y-5 flex-grow custom-scrollbar">
             <div>
-                <label class="block text-sm mb-1 dark:text-gray-300 font-medium">Nom société</label>
-                <input bind:value={modalForm.societe} placeholder="Nom société" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-yellow-500">
+                <label class={labelClass}>Nom société</label>
+                <input bind:value={modalForm.societe} placeholder="Nom société" class={inputClass}>
             </div>
             
             <div>
-                <label class="block text-sm mb-1 dark:text-gray-300 font-medium">Lieux couverts (séparés par virgules)</label>
+                <label class={labelClass}>Lieux couverts (séparés par virgules)</label>
                 <input 
                     bind:value={modalForm.lieux} 
                     placeholder="Mons, La Louvière..." 
-                    class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-yellow-500"
+                    class={inputClass}
                 >
             </div>
             
             <div>
-                <label class="block text-sm mb-1 dark:text-gray-300 font-medium">Contacts (Un par ligne)</label>
-                <textarea bind:value={modalForm.contacts} placeholder="Dispatche, 0477/..." rows="2" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-yellow-500"></textarea>
+                <label class={labelClass}>Contacts (Un par ligne)</label>
+                <textarea bind:value={modalForm.contacts} placeholder="Dispatche, 0477/..." rows="2" class="{inputClass} font-mono resize-none"></textarea>
             </div>
 
             <div>
-                <label class="block text-sm mb-1 dark:text-gray-300 font-medium">E-mails (Un par ligne)</label>
-                <textarea bind:value={modalForm.mail} placeholder="contact@taxi.be" rows="2" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-yellow-500"></textarea>
+                <label class={labelClass}>E-mails (Un par ligne)</label>
+                <textarea bind:value={modalForm.mail} placeholder="contact@taxi.be" rows="2" class="{inputClass} font-mono resize-none"></textarea>
             </div>
 
             <div>
-                <label class="block text-sm mb-1 dark:text-gray-300 font-medium">Adresses (Une par ligne)</label>
-                <textarea bind:value={modalForm.adresse} placeholder="Rue de la Gare 1, 7000 Mons" rows="2" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-yellow-500"></textarea>
+                <label class={labelClass}>Adresses (Une par ligne)</label>
+                <textarea bind:value={modalForm.adresse} placeholder="Rue de la Gare 1, 7000 Mons" rows="2" class="{inputClass} resize-none"></textarea>
             </div>
 
             <div>
-                <label class="block text-sm mb-1 dark:text-gray-300 font-medium">Remarques (Une par ligne)</label>
-                <textarea bind:value={modalForm.remarques} placeholder="Accepte les chèques..." rows="2" class="w-full p-2 border rounded dark:bg-gray-700 dark:border-gray-600 dark:text-white focus:ring-yellow-500"></textarea>
+                <label class={labelClass}>Remarques (Une par ligne)</label>
+                <textarea bind:value={modalForm.remarques} placeholder="Accepte les chèques..." rows="2" class="{inputClass} resize-none"></textarea>
             </div>
         </div>
         
-        <div class="p-6 border-t dark:border-gray-700 flex justify-end gap-2 bg-gray-50 dark:bg-gray-900 rounded-b-lg">
-            <button on:click={() => showModal = false} class="px-4 py-2 border rounded dark:text-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700">Annuler</button>
-            <button on:click={handleSubmit} disabled={modalLoading} class="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 flex items-center">
+        <div class="flex justify-end items-center px-6 py-4 bg-white/[0.02] border-t border-white/10 gap-3 relative">
+            <div class="absolute inset-0 bg-gradient-to-t from-blue-500/5 to-transparent pointer-events-none"></div>
+
+            <button on:click={() => showModal = false} class="px-4 py-2 bg-white/5 border border-white/10 text-gray-300 rounded-xl hover:bg-white/10 hover:text-white transition-all">
+                Annuler
+            </button>
+            <button on:click={handleSubmit} disabled={modalLoading} class="px-4 py-2 bg-yellow-600/80 text-white rounded-xl hover:bg-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)] flex items-center transition-all disabled:opacity-50 group">
                 {#if modalLoading}<Loader2 class="w-4 h-4 animate-spin mr-2"/>{/if}
                 Enregistrer
             </button>

@@ -1,8 +1,9 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { fly, fade } from 'svelte/transition';
   import { 
-    Route, MapPin, TrainTrack, Milestone, Building2, Tag, Info, Loader2, Filter
+    Route, MapPin, TrainTrack, Milestone, Building2, Tag, Info, Loader2, Filter, CheckSquare, Square 
   } from 'lucide-svelte';
 
   // --- ÉTAT ---
@@ -13,9 +14,9 @@
   // Sélections
   let selectedCategories = []; // ['Lignes', 'Adresse PN', 'Zone SPI']
   let selectedLines = [];
-  let selectedZones = []; // ['FTY', 'FMS', 'FCR'] (valeurs par défaut vides)
+  let selectedZones = []; // ['FTY', 'FMS', 'FCR']
 
-  // Résultats structurés : { "L.75": { gares: [], pn: [], spi: [] } }
+  // Résultats structurés
   let results = {}; 
 
   onMount(async () => {
@@ -39,7 +40,7 @@
         ...(gares.data || []).map(i => i.ligne_nom)
       ];
 
-      // Unique + Tri intelligent (ex: L.75A après L.75)
+      // Unique + Tri intelligent
       availableLines = [...new Set(allLines.filter(Boolean))].sort((a, b) => {
         const parseLine = (str) => parseFloat(str.replace('L.', '').replace('A', '.1').replace('C', '.2'));
         return parseLine(a) - parseLine(b);
@@ -54,7 +55,6 @@
 
   // --- CHARGEMENT RÉSULTATS ---
 
-  // Déclenché à chaque changement de filtre
   async function updateDisplay() {
     if (selectedCategories.length === 0 || selectedLines.length === 0) {
       results = {};
@@ -64,7 +64,6 @@
     isLoadingResults = true;
     const newResults = {};
     
-    // Initialiser la structure pour chaque ligne sélectionnée
     selectedLines.forEach(line => {
       newResults[line] = { gares: [], pn: [], spi: [] };
     });
@@ -93,7 +92,7 @@
         );
       }
 
-      // 3. SPI (avec filtre zone optionnel)
+      // 3. SPI
       if (selectedCategories.includes("Zone SPI")) {
         let q = supabase.from('spi_data').select('*').in('ligne_nom', selectedLines);
         if (selectedZones.length > 0) {
@@ -104,7 +103,6 @@
 
       const responses = await Promise.all(promises);
 
-      // Répartir les données dans newResults
       responses.forEach(res => {
         res.data.forEach(item => {
           if (newResults[item.ligne_nom]) {
@@ -122,123 +120,128 @@
     }
   }
 
-  // Réaction aux changements
-  // (On utilise une fonction réactive $: pour lancer updateDisplay quand les variables changent)
   $: if (selectedCategories || selectedLines || selectedZones) {
-    // Petit debounce pour éviter trop d'appels si on clique vite
-    // (optionnel, ici on appelle direct pour la réactivité)
     updateDisplay(); 
   }
 
-  // Styles communs
-  const checkboxClass = "w-5 h-5 text-blue-600 rounded-md border-gray-300 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:checked:bg-blue-600";
-  const labelWrapperClass = "flex items-center space-x-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-all shadow-sm select-none";
-  const labelTextClass = "font-medium text-gray-700 dark:text-gray-200";
-
+  // Styles communs Glass
+  const toggleBtnClass = (active) => `flex items-center space-x-2 px-4 py-2 border rounded-full transition-all duration-300 text-sm font-medium shadow-sm hover:scale-105 active:scale-95 ${active ? 'bg-blue-500/20 border-blue-500/40 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.2)]' : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white hover:border-white/20'}`;
 </script>
 
-<div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-20">
+<svelte:head>
+  <title>Lignes | BACO</title>
+</svelte:head>
+
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
   
-  <header class="sticky top-0 z-30 w-full bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-b-3xl transition-colors duration-300 mb-8">
-    <div class="max-w-7xl mx-auto px-6 h-20 flex items-center gap-3">
-      <div class="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
-        <Route size={24} />
-      </div>
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">Répertoire des Lignes</h1>
-        <p class="text-xs text-gray-500 dark:text-gray-400 font-medium hidden sm:block">Infrastructures, PN et SPI</p>
-      </div>
+  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }}>
+    <div class="flex items-center gap-3">
+        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+          <Route size={32} />
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Répertoire des Lignes</h1>
+          <p class="text-gray-500 text-sm mt-1">Infrastructures, PN et Zones SPI.</p>
+        </div>
     </div>
   </header>
 
-  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+  <main class="space-y-8">
     
-    <section>
-      <h3 class="text-sm font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
-        <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">1</span>
-        Catégories
+    <div class="bg-black/20 border border-white/5 rounded-2xl p-6" in:fly={{ y: 20, duration: 600, delay: 100 }}>
+      <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <div class="w-6 h-6 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs font-bold border border-blue-500/20">1</div>
+        Choisir les catégories
       </h3>
       <div class="flex flex-wrap gap-3">
         {#each ['Lignes', 'Adresse PN', 'Zone SPI'] as cat}
-          <label class={labelWrapperClass}>
-            <input type="checkbox" value={cat} bind:group={selectedCategories} class={checkboxClass}>
-            <span class={labelTextClass}>{cat}</span>
+          <label class="{toggleBtnClass(selectedCategories.includes(cat))} cursor-pointer select-none">
+            <input type="checkbox" value={cat} bind:group={selectedCategories} class="hidden">
+            {#if selectedCategories.includes(cat)}<CheckSquare class="w-4 h-4 text-blue-400" />{:else}<Square class="w-4 h-4" />{/if}
+            <span>{cat}</span>
           </label>
         {/each}
       </div>
-    </section>
+    </div>
 
     {#if selectedCategories.length > 0}
-      <section class="animate-in fade-in slide-in-from-top-2 duration-300">
-        <h3 class="text-sm font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">2</span>
-          Lignes
+      <div class="bg-black/20 border border-white/5 rounded-2xl p-6" in:fly={{ y: 20, duration: 600 }}>
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-blue-500/10 text-blue-400 flex items-center justify-center text-xs font-bold border border-blue-500/20">2</div>
+          Sélectionner les lignes
         </h3>
         
         {#if isLoadingFilters}
-          <div class="flex items-center gap-2 text-gray-500"><Loader2 size={16} class="animate-spin"/> Chargement des lignes...</div>
+          <div class="flex items-center gap-2 text-gray-500 p-4"><Loader2 size={20} class="animate-spin text-blue-500/50"/> Chargement...</div>
         {:else if availableLines.length === 0}
-          <p class="text-red-500">Aucune ligne trouvée.</p>
+          <p class="text-red-400 p-4">Aucune ligne disponible.</p>
         {:else}
-          <div class="flex flex-wrap gap-2 max-h-60 overflow-y-auto p-1">
+          <div class="flex flex-wrap gap-2 max-h-60 overflow-y-auto custom-scrollbar p-1">
             {#each availableLines as line}
-              <label class="{labelWrapperClass} py-1.5 px-3">
-                <input type="checkbox" value={line} bind:group={selectedLines} class={checkboxClass}>
-                <span class="{labelTextClass} text-sm">{line}</span>
+              <label class="{toggleBtnClass(selectedLines.includes(line))} cursor-pointer select-none py-1.5 px-3 text-xs">
+                <input type="checkbox" value={line} bind:group={selectedLines} class="hidden">
+                {#if selectedLines.includes(line)}<CheckSquare class="w-3.5 h-3.5 text-blue-400" />{:else}<Square class="w-3.5 h-3.5" />{/if}
+                <span>{line}</span>
               </label>
             {/each}
           </div>
         {/if}
-      </section>
+      </div>
     {/if}
 
     {#if selectedCategories.includes('Zone SPI') && selectedLines.length > 0}
-      <section class="animate-in fade-in slide-in-from-top-2 duration-300">
-        <h3 class="text-sm font-extrabold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3 flex items-center gap-2">
-          <span class="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 text-blue-600 dark:text-blue-400 flex items-center justify-center text-xs">3</span>
-          Filtres SPI
+      <div class="bg-black/20 border border-white/5 rounded-2xl p-6" in:fly={{ y: 20, duration: 600 }}>
+        <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wider mb-4 flex items-center gap-2">
+          <div class="w-6 h-6 rounded-full bg-purple-500/10 text-purple-400 flex items-center justify-center text-xs font-bold border border-purple-500/20">3</div>
+          Filtres SPI (Optionnel)
         </h3>
         <div class="flex flex-wrap gap-3">
           {#each ['FTY', 'FMS', 'FCR'] as zone}
-            <label class={labelWrapperClass}>
-              <input type="checkbox" value={zone} bind:group={selectedZones} class={checkboxClass}>
-              <span class={labelTextClass}>{zone}</span>
+            <label class="{toggleBtnClass(selectedZones.includes(zone)).replace('blue', 'purple')} cursor-pointer select-none">
+              <input type="checkbox" value={zone} bind:group={selectedZones} class="hidden">
+              {#if selectedZones.includes(zone)}<CheckSquare class="w-4 h-4 text-purple-400" />{:else}<Square class="w-4 h-4" />{/if}
+              <span>{zone}</span>
             </label>
           {/each}
         </div>
-      </section>
+      </div>
     {/if}
 
-    <hr class="border-gray-200 dark:border-gray-700 my-8">
+    <div class="border-t border-white/10 my-8"></div>
 
     <div id="resultDisplay" class="min-h-[200px]">
       
       {#if isLoadingResults}
-        <div class="flex justify-center py-20"><Loader2 class="w-10 h-10 text-blue-600 animate-spin" /></div>
+        <div class="flex flex-col items-center justify-center py-20 text-gray-500">
+            <Loader2 class="w-10 h-10 text-blue-500/50 animate-spin mb-3" />
+            <p>Chargement des données...</p>
+        </div>
       
       {:else if selectedLines.length === 0}
-        <div class="text-center py-12 text-gray-500 dark:text-gray-400 bg-white dark:bg-gray-800 rounded-3xl border border-dashed border-gray-200 dark:border-gray-700">
-          <Filter size={48} class="mx-auto mb-3 opacity-50" />
-          <p>Veuillez sélectionner au moins une catégorie et une ligne.</p>
+        <div class="text-center py-16 bg-black/20 rounded-3xl border border-dashed border-white/10" in:fade>
+          <Filter size={48} class="mx-auto mb-4 opacity-30 text-gray-500" />
+          <h3 class="text-lg font-bold text-gray-400">En attente de sélection</h3>
+          <p class="text-gray-600">Choisissez au moins une catégorie et une ligne pour voir les résultats.</p>
         </div>
 
       {:else}
         {#each selectedLines as line}
           {#if results[line] && (results[line].gares.length > 0 || results[line].pn.length > 0 || results[line].spi.length > 0)}
             
-            <div class="mb-10 animate-in fade-in duration-500">
-              <h2 class="text-2xl font-bold text-gray-900 dark:text-white border-gray-200 dark:border-gray-700 pb-2 mb-6 flex items-center gap-2">
-                <span class="bg-blue-600 text-white px-3 py-1 rounded-lg text-lg shadow-sm">{line}</span>
-              </h2>
+            <div class="mb-10 animate-in fade-in duration-500 bg-black/20 rounded-3xl border border-white/5 p-6 md:p-8">
+              <div class="flex items-center gap-4 mb-8 pb-4 border-b border-white/5">
+                <span class="bg-blue-600 text-white px-4 py-1.5 rounded-xl text-xl font-bold shadow-lg shadow-blue-900/50">{line}</span>
+                <div class="h-px bg-white/10 flex-grow"></div>
+              </div>
 
               {#if results[line].gares.length > 0}
-                <div class="mb-6">
-                  <h3 class="text-lg font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                    <Building2 size={18} /> Gares
+                <div class="mb-8">
+                  <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
+                    <Building2 size={20} class="text-blue-400" /> Gares
                   </h3>
                   <div class="flex flex-wrap gap-3">
                     {#each results[line].gares as gare}
-                      <div class="bg-white dark:bg-gray-800 px-4 py-2 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm text-gray-800 dark:text-gray-200 font-medium">
+                      <div class="bg-white/5 px-4 py-2.5 rounded-xl border border-white/5 text-gray-200 font-medium hover:bg-white/10 transition-colors shadow-sm">
                         {gare.gare}
                       </div>
                     {/each}
@@ -247,23 +250,23 @@
               {/if}
 
               {#if results[line].pn.length > 0}
-                <div class="mb-6">
-                  <h3 class="text-lg font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                    <TrainTrack size={18} /> Passages à Niveau
+                <div class="mb-8">
+                  <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
+                    <TrainTrack size={20} class="text-blue-400" /> Passages à Niveau
                   </h3>
                   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {#each results[line].pn as pn}
-                      <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col gap-2 hover:shadow-md transition-shadow">
+                      <div class="bg-white/5 p-4 rounded-2xl border border-white/5 hover:border-blue-500/20 shadow-sm flex flex-col gap-2 hover:bg-white/10 transition-all group">
                         <div class="flex justify-between items-center">
-                          <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm font-bold">
+                          <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/30 text-gray-200 text-sm font-bold border border-white/5">
                             {pn.pn}
                           </span>
-                          <span class="flex items-center gap-1.5 text-sm font-bold font-mono text-blue-600 dark:text-blue-400">
+                          <span class="flex items-center gap-1.5 text-sm font-bold font-mono text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                             <Milestone size={14} /> {pn.bk}
                           </span>
                         </div>
-                        <div class="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300 mt-1">
-                          <MapPin size={16} class="flex-shrink-0 mt-0.5 opacity-70" />
+                        <div class="flex items-start gap-2 text-sm text-gray-400 mt-2 pl-1 border-t border-white/5 pt-2">
+                          <MapPin size={16} class="flex-shrink-0 mt-0.5 opacity-50 group-hover:text-blue-400 transition-colors" />
                           <span>{pn.adresse}</span>
                         </div>
                       </div>
@@ -274,27 +277,27 @@
 
               {#if results[line].spi.length > 0}
                 <div class="mb-6">
-                  <h3 class="text-lg font-bold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                    <Tag size={18} /> Zones SPI
+                  <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
+                    <Tag size={20} class="text-purple-400" /> Zones SPI
                   </h3>
                   <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {#each results[line].spi as spi}
-                      <div class="bg-white dark:bg-gray-800 p-4 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm flex flex-col gap-2 hover:shadow-md transition-shadow">
+                      <div class="bg-white/5 p-4 rounded-2xl border border-white/5 hover:border-purple-500/20 shadow-sm flex flex-col gap-2 hover:bg-white/10 transition-all group">
                         <div class="flex justify-between items-center">
-                          <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200 text-sm font-bold">
+                          <span class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-black/30 text-gray-200 text-sm font-bold border border-white/5">
                             {spi.lieu}
                           </span>
-                          <span class="flex items-center gap-1.5 text-sm font-bold font-mono text-blue-600 dark:text-blue-400">
+                          <span class="flex items-center gap-1.5 text-sm font-bold font-mono text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
                             <Tag size={14} /> {spi.zone}
                           </span>
                         </div>
-                        <div class="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300 mt-1">
-                          <MapPin size={16} class="flex-shrink-0 mt-0.5 opacity-70" />
+                        <div class="flex items-start gap-2 text-sm text-gray-400 mt-2 pl-1 border-t border-white/5 pt-2">
+                          <MapPin size={16} class="flex-shrink-0 mt-0.5 opacity-50 group-hover:text-purple-400 transition-colors" />
                           <span>{spi.adresse}</span>
                         </div>
                         {#if spi.remarques}
-                          <div class="flex items-start gap-2 text-xs text-gray-500 dark:text-gray-400 mt-2 pt-2 border-t border-gray-100 dark:border-gray-700">
-                            <Info size={14} class="flex-shrink-0 mt-0.5 text-blue-500" />
+                          <div class="flex items-start gap-2 text-xs text-gray-500 mt-2 pt-2 bg-black/20 p-2 rounded-lg border border-white/5">
+                            <Info size={14} class="flex-shrink-0 mt-0.5 text-blue-400" />
                             <span class="italic">{spi.remarques}</span>
                           </div>
                         {/if}

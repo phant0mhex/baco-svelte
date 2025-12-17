@@ -1,71 +1,84 @@
 <script>
     import { toasts, dismissToast } from '$lib/stores/toast.js';
-    import { fade } from 'svelte/transition';
+    import { fly } from 'svelte/transition';
+    import { quintOut } from 'svelte/easing';
 
     // Import des icônes Lucide spécifiques
     import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-svelte'; 
 
     /**
-     * Retourne les classes Tailwind et le composant icône pour chaque type de toast.
+     * Retourne les styles Glassmorphic pour chaque type
      */
     function getStyle(type) {
         switch (type) {
             case 'success':
                 return {
-                    bg: 'bg-green-500',
-                    border: 'border-green-600',
-                    icon: CheckCircle, // Composant Lucide
+                    // Fond teinté vert + Bordure verte subtile + Ombre verte légère
+                    container: 'bg-green-500/20 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]',
+                    textColor: 'text-green-100',
+                    iconColor: 'text-green-400',
+                    icon: CheckCircle,
                 };
             case 'error':
                 return {
-                    bg: 'bg-red-600',
-                    border: 'border-red-700',
-                    icon: XCircle, // Composant Lucide
+                    container: 'bg-red-500/20 border-red-500/30 shadow-[0_0_15px_rgba(239,68,68,0.15)]',
+                    textColor: 'text-red-100',
+                    iconColor: 'text-red-400',
+                    icon: XCircle,
                 };
             case 'warning':
                 return {
-                    bg: 'bg-yellow-500',
-                    border: 'border-yellow-600',
-                    icon: AlertTriangle, // Composant Lucide
+                    container: 'bg-yellow-500/20 border-yellow-500/30 shadow-[0_0_15px_rgba(234,179,8,0.15)]',
+                    textColor: 'text-yellow-100',
+                    iconColor: 'text-yellow-400',
+                    icon: AlertTriangle,
                 };
             case 'info':
             default:
                 return {
-                    bg: 'bg-blue-500',
-                    border: 'border-blue-600',
-                    icon: Info, // Composant Lucide
+                    container: 'bg-blue-500/20 border-blue-500/30 shadow-[0_0_15px_rgba(59,130,246,0.15)]',
+                    textColor: 'text-blue-100',
+                    iconColor: 'text-blue-400',
+                    icon: Info,
                 };
         }
     }
 </script>
 
-<div class="fixed top-4 right-4 z-[1000] space-y-3 pointer-events-none">
+<div class="fixed top-4 right-4 z-[1000] space-y-3 pointer-events-none flex flex-col items-end p-4">
     
     {#each $toasts as t (t.id)}
+        {@const style = getStyle(t.type)}
         
         <div 
-            in:fade={{ duration: 150 }} 
-            out:fade={{ duration: 150 }}
+            in:fly={{ x: 20, duration: 300, easing: quintOut }} 
+            out:fly={{ opacity: 0, duration: 200 }}
             class="
-                w-full max-w-sm p-4 rounded-lg shadow-lg text-white 
-                {getStyle(t.type).bg} border-l-4 {getStyle(t.type).border} 
-                flex items-start justify-between space-x-4
                 pointer-events-auto
+                w-full max-w-sm p-4 rounded-2xl border
+                backdrop-blur-xl
+                flex items-start justify-between gap-4
+                shadow-lg transition-all
+                {style.container}
             "
         >
-            <div class="flex items-start space-x-3">
+            <div class="flex items-start gap-3">
                 
-                <svelte:component this={getStyle(t.type).icon} class="w-5 h-5 mt-0.5 flex-shrink-0" />
+                <div class="flex-shrink-0 mt-0.5 {style.iconColor}">
+                    <svelte:component this={style.icon} size={20} />
+                </div>
                 
-                <p class="text-sm font-medium">{t.message}</p>
+                <p class="text-sm font-medium {style.textColor} leading-snug pt-0.5">
+                    {t.message}
+                </p>
             </div>
 
             <button 
                 on:click={() => dismissToast(t.id)}
-                class="text-white/70 hover:text-white transition-colors flex-shrink-0 p-1 rounded-full hover:bg-white/10"
-                aria-label="Fermer la notification"
+                class="flex-shrink-0 p-1 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Fermer"
             >
-                <X class="h-4 w-4" />
+                <X size={16} />
             </button>
         </div>
     {/each}

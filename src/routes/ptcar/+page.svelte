@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { fly, fade } from 'svelte/transition';
   import { 
     Tag, Search, ChevronLeft, ChevronRight, Loader2, MapPin
   } from 'lucide-svelte';
@@ -37,7 +38,6 @@
     if (newPage < 1 || newPage > maxPage) return;
     currentPage = newPage;
     loadData();
-    // Scroll fluide vers le haut du tableau
     const table = document.getElementById('result-table');
     if(table) table.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
@@ -48,7 +48,6 @@
       const from = (currentPage - 1) * ROWS_PER_PAGE;
       const to = from + ROWS_PER_PAGE - 1;
 
-      // 1. Requête principale (Données + Count exact)
       let query = supabase
         .from('ptcar_abbreviations')
         .select('*', { count: 'exact' })
@@ -57,7 +56,6 @@
 
       if (searchQuery.trim()) {
         const q = searchQuery.trim();
-        // Filtre "OR" sur les 3 colonnes (abbr, fr, nl)
         query = query.or(`abbr.ilike.%${q}%,ptcar_fr.ilike.%${q}%,ptcar_nl.ilike.%${q}%`);
       }
 
@@ -70,42 +68,36 @@
 
     } catch (error) {
       console.error("Erreur chargement:", error);
-      // alert("Erreur lors du chargement des données."); // Optionnel, évite le spam
     } finally {
       isLoading = false;
     }
   }
 
   // --- HELPERS UI ---
-  // Calcul des bornes d'affichage (ex: "1 à 15")
   $: fromRow = (currentPage - 1) * ROWS_PER_PAGE + 1;
   $: toRow = Math.min(currentPage * ROWS_PER_PAGE, totalRows);
 
-  // Styles CSS communs
-  const labelClass = "block text-xs font-extrabold text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide";
-  const inputClass = "block w-full rounded-2xl border-gray-200 bg-white p-3 text-sm font-medium focus:border-blue-500 focus:ring-blue-500 dark:border-gray-700 dark:bg-gray-800 dark:text-white dark:placeholder-gray-400 transition-shadow shadow-sm";
-
 </script>
 
-<div class="min-h-screen bg-gray-50/50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans pb-10">
+<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
   
-  <header class="sticky top-0 z-30 w-full bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 rounded-b-3xl transition-colors duration-300">
-    <div class="max-w-4xl mx-auto px-6 h-20 flex items-center gap-3">
-      <div class="p-2.5 bg-blue-100 dark:bg-blue-900/30 rounded-xl text-blue-600 dark:text-blue-400">
-        <Tag size={24} />
-      </div>
-      <div>
-        <h1 class="text-xl font-bold tracking-tight text-gray-900 dark:text-white">Répertoire des PtCar</h1>
-        <p class="text-xs text-gray-500 dark:text-gray-400 font-medium hidden sm:block">Codes gares et abréviations</p>
-      </div>
+  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }}>
+    <div class="flex items-center gap-3">
+        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+          <Tag size={32} />
+        </div>
+        <div>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Répertoire des PtCar</h1>
+          <p class="text-gray-500 text-sm mt-1">Codes gares et abréviations officielles.</p>
+        </div>
     </div>
   </header>
 
-  <main class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+  <main class="space-y-8">
     
-    <div class="max-w-xl mx-auto">
+    <div class="max-w-xl mx-auto" in:fly={{ y: 20, duration: 600, delay: 100 }}>
       <div class="relative group">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 group-focus-within:text-blue-500 transition-colors">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-blue-400 transition-colors">
           <Search size={18} />
         </div>
         <input 
@@ -113,51 +105,51 @@
           placeholder="Rechercher (ex: FNT, Antoing, ATH...)" 
           bind:value={searchQuery}
           on:input={handleSearchInput}
-          class="block w-full pl-10 pr-3 py-3 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all shadow-sm text-gray-900 dark:text-white"
+          class="block w-full pl-10 pr-3 py-3 bg-black/40 border border-white/10 rounded-2xl text-sm text-gray-200 placeholder-gray-600 focus:ring-2 focus:ring-blue-500/30 focus:border-transparent transition-all outline-none"
         />
       </div>
     </div>
 
-    <div id="result-table">
+    <div id="result-table" class="min-h-[400px]">
       {#if isLoading}
-        <div class="flex flex-col items-center justify-center py-20 text-gray-400">
-          <div class="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600 mb-4"></div>
-          <p>Chargement...</p>
+        <div class="flex flex-col items-center justify-center py-20 text-gray-500">
+          <Loader2 class="w-10 h-10 animate-spin text-blue-500/50 mb-3" />
+          <p>Chargement des données...</p>
         </div>
       
       {:else if ptcars.length === 0}
-        <div class="text-center py-24 bg-white dark:bg-gray-800 rounded-3xl border-2 border-dashed border-gray-200 dark:border-gray-700">
-          <Tag size={48} class="mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-          <h3 class="text-lg font-bold text-gray-900 dark:text-white">Aucun résultat</h3>
-          <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Aucune abréviation ne correspond à votre recherche.</p>
+        <div class="text-center py-24 bg-black/20 rounded-3xl border border-dashed border-white/10" in:fade>
+          <Tag size={48} class="mx-auto text-gray-600 mb-4 opacity-50" />
+          <h3 class="text-lg font-bold text-gray-400">Aucun résultat</h3>
+          <p class="text-sm text-gray-600 mt-1">Aucune abréviation ne correspond à votre recherche.</p>
         </div>
 
       {:else}
-        <div class="bg-white dark:bg-gray-800 rounded-3xl shadow-sm border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="bg-black/20 rounded-3xl shadow-sm border border-white/5 overflow-hidden backdrop-blur-sm" in:fly={{ y: 20, duration: 600 }}>
           <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead class="bg-gray-50/80 dark:bg-gray-900/50 backdrop-blur-sm">
+            <table class="min-w-full divide-y divide-white/5">
+              <thead class="bg-white/[0.02]">
                 <tr>
-                  <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider w-32">Abréviation</th>
-                  <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PtCar FR</th>
-                  <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">PtCar NL</th>
+                  <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-32">Abréviation</th>
+                  <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">PtCar FR</th>
+                  <th scope="col" class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">PtCar NL</th>
                 </tr>
               </thead>
-              <tbody class="divide-y divide-gray-100 dark:divide-gray-700/50 bg-white dark:bg-gray-800">
+              <tbody class="divide-y divide-white/5">
                 {#each ptcars as row}
-                  <tr class="group hover:bg-blue-50/50 dark:hover:bg-blue-900/10 transition-colors duration-150">
+                  <tr class="group hover:bg-white/[0.03] transition-colors duration-150">
                     
                     <td class="px-6 py-4 whitespace-nowrap">
-                      <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-bold bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border border-blue-100 dark:border-blue-800 font-mono">
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-lg text-sm font-bold bg-blue-500/10 text-blue-400 border border-blue-500/20 font-mono shadow-[0_0_10px_rgba(59,130,246,0.1)] group-hover:bg-blue-500/20 transition-all">
                         {row.abbr || 'N/A'}
                       </span>
                     </td>
 
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300 font-medium">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300 font-medium">
                       {row.ptcar_fr || '—'}
                     </td>
 
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {row.ptcar_nl || '—'}
                     </td>
 
@@ -168,25 +160,25 @@
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row items-center justify-between mt-8 border-t border-gray-200 dark:border-gray-700 pt-6 gap-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between mt-8 border-t border-white/10 pt-6 gap-4">
           
-          <div class="text-sm text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl px-4 py-2 shadow-sm">
-            Résultats <span class="font-bold text-gray-900 dark:text-white">{totalRows > 0 ? fromRow : 0}</span> à <span class="font-bold text-gray-900 dark:text-white">{toRow}</span> sur
-            <span class="font-bold text-gray-900 dark:text-white">{totalRows}</span>
+          <div class="text-sm text-gray-400 bg-white/5 border border-white/10 rounded-xl px-4 py-2 shadow-sm">
+            Résultats <span class="font-bold text-gray-200">{totalRows > 0 ? fromRow : 0}</span> à <span class="font-bold text-gray-200">{toRow}</span> sur
+            <span class="font-bold text-gray-200">{totalRows}</span>
           </div>
 
           <div class="flex gap-2">
             <button 
               on:click={() => changePage(currentPage - 1)} 
               disabled={currentPage === 1}
-              class="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              class="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-400 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               <ChevronLeft size={16} /> Précédent
             </button>
             <button 
               on:click={() => changePage(currentPage + 1)} 
               disabled={currentPage >= Math.ceil(totalRows / ROWS_PER_PAGE)}
-              class="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              class="flex items-center gap-1 px-4 py-2 text-sm font-medium text-gray-400 bg-white/5 border border-white/10 rounded-xl hover:bg-white/10 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
             >
               Suivant <ChevronRight size={16} />
             </button>
