@@ -9,12 +9,12 @@
         { href: '/operationnel', icon: Shield, label: 'Opérationnel', color: 'text-blue-400', glow: 'rgba(96,165,250,0.8)', desc: 'Procédures' },
         { href: '/pmr', icon: Accessibility, label: 'Rampes', color: 'text-red-400', glow: 'rgba(248,113,113,0.8)', desc: 'État' },
         { href: '/clients-pmr', icon: Users, label: 'Clients', color: 'text-purple-400', glow: 'rgba(192,132,252,0.8)', desc: 'Détails' },
-        { href: '/bus', icon: Bus, label: 'Bus', color: 'text-yellow-400', glow: 'rgba(250,204,21,0.8)', desc: 'Substitute' },
-        { href: '/taxi', icon: Car, label: 'Taxi', color: 'text-orange-400', glow: 'rgba(251,146,60,0.8)', desc: 'Commande' },
+        { href: '/bus', icon: Bus, label: 'Bus', color: 'text-yellow-400', glow: 'rgba(250,204,21,0.8)', desc: 'Sociétés bus' },
+        { href: '/taxi', icon: Car, label: 'Taxi', color: 'text-orange-400', glow: 'rgba(251,146,60,0.8)', desc: 'Sociétés taxis' },
         { href: '/repertoire', icon: BookUser, label: 'Répertoire', color: 'text-green-400', glow: 'rgba(74,222,128,0.8)', desc: 'Contacts' },
         { href: '/lignes', icon: Train, label: 'Lignes', color: 'text-cyan-400', glow: 'rgba(34,211,238,0.8)', desc: 'Infos' },
         { href: '/documents', icon: Folder, label: 'Docs', color: 'text-gray-400', glow: 'rgba(156,163,175,0.8)', desc: 'Archives' },
-        { href: '/ptcar', icon: Tag, label: 'PtCar', color: 'text-indigo-400', glow: 'rgba(129,140,248,0.8)', desc: 'Codes' }
+        { href: '/ptcar', icon: Tag, label: 'PtCar', color: 'text-indigo-400', glow: 'rgba(129,140,248,0.8)', desc: 'Codes Tel.' }
     ];
 
     const getNeonStyle = (color) => `group-hover:drop-shadow-[0_0_8px_${color}]`;
