@@ -1,243 +1,96 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { fly, slide, fade } from 'svelte/transition'; 
+  import { dndzone } from 'svelte-dnd-action';
+  import { flip } from 'svelte/animate';
+  import { Settings, Save, Maximize, Minimize, GripHorizontal, Search, BookCopy, CalendarDays, Zap } from 'lucide-svelte';
   
-  import { 
-    Search, BookCopy, Activity, ChevronDown, 
-    Shield, Accessibility, Users, Bus, Car, BookUser, 
-    Train, Folder, Tag, MapPin, Hash, CheckCircle2,
-    CalendarDays, Cake, ListTodo, Zap,
-    // NOUVELLES ICONES :
-    Cloud, Sun, CloudRain, CloudSnow, CloudLightning, Wind,
-    TrainFront, Clock, AlertCircle, Edit2, X, TriangleAlert, Megaphone, Info
-  } from 'lucide-svelte';
+  // --- IMPORTS DES WIDGETS ---
+  import WidgetWeather from '$lib/components/widgets/WidgetWeather.svelte';
+  import WidgetTrains from '$lib/components/widgets/WidgetTrains.svelte';
+  import WidgetTraffic from '$lib/components/widgets/WidgetTraffic.svelte';
+  import WidgetPmr from '$lib/components/widgets/WidgetPmr.svelte';
+  import WidgetJournal from '$lib/components/widgets/WidgetJournal.svelte';
+  import WidgetPlanning from '$lib/components/widgets/WidgetPlanning.svelte'; // Nouveau
+  import WidgetLinks from '$lib/components/widgets/WidgetLinks.svelte';       // Nouveau
 
-  // --- ÉTATS (DATA) ---
   let userProfile = null;
-  let pmrIssues = [];
-  let journalEntries = [];
-  let upcomingLeaves = [];
-  let upcomingBirthdays = [];
-  
-  // NOUVEAUX ÉTATS
-  let weatherData = null;
-  let trainDepartures = [];
-let disturbances = [];
-  let loadingDisturbances = true;
+  let isEditMode = false;
+  const flipDurationMs = 300;
 
-  // États de chargement
-  let loadingPmr = true;
-  let loadingJournal = true;
-  let loadingPlanning = true;
-  let loadingWeather = true; 
-  let loadingTrains = true;  
-  
-  // États d'ouverture des widgets
-  let isPmrOpen = true;
-  let isJournalOpen = true;
-  let isLeavesOpen = true;
-  let isBirthdaysOpen = true;
-
-  // --- ETATS SELECTION GARE ---
-  let currentStation = 'Mons'; // Gare par défaut
-  let allStations = []; // Liste complète des gares
-  let stationSearch = ''; // Texte de recherche
-  let showStationSelector = false; // Afficher/Masquer le sélecteur
-
-  // Filtrage dynamique des gares selon la recherche
-  $: filteredStations = allStations.filter(s => 
-      s.name.toLowerCase().includes(stationSearch.toLowerCase())
-  ).slice(0, 10); 
-
-  // --- STYLES GLASSMORPHIC & NÉON ---
-  const glassCardBase = "relative overflow-hidden rounded-2xl border border-white/5 bg-white/5 backdrop-blur-md transition-all duration-300 group hover:bg-white/10 hover:border-white/20 hover:shadow-[0_8px_32px_0_rgba(0,0,0,0.36)]";
-  const iconBoxBase = "p-3 rounded-xl bg-white/5 border border-white/5 text-gray-400 transition-all duration-300 group-hover:scale-110 group-hover:bg-white/10 group-hover:text-white";
-  
-  const getNeonStyle = (color) => `
-    [&>svg]:transition-all [&>svg]:duration-300 
-    group-hover:[&>svg]:drop-shadow-[0_0_8px_${color}]
-  `;
-
-  // --- INITIALISATION ---
-  onMount(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single();
-      userProfile = data;
-    }
-
-    if (typeof localStorage !== 'undefined') {
-      isPmrOpen = localStorage.getItem('bacoPmrWidgetState') !== 'closed';
-      isJournalOpen = localStorage.getItem('bacoJournalWidgetState') !== 'closed';
-      isLeavesOpen = localStorage.getItem('bacoLeavesWidgetState') !== 'closed';
-      isBirthdaysOpen = localStorage.getItem('bacoBirthdaysWidgetState') !== 'closed';
-    
-      // Récupérer la gare sauvegardée
-      const savedStation = localStorage.getItem('bacoFavoriteStation');
-      if (savedStation) currentStation = savedStation;
-    }
-
-    fetchDisturbances();
-
-    // Chargement parallèle
-    loadAllStations();
-    loadWeatherMons(); 
-    loadTrains();
-    loadPmrIssues();
-    loadRecentJournal();
-    loadPlanningWidgetsData();
-  });
-
-  // --- Fonction pour récupérer les perturbations iRail ---
-  async function fetchDisturbances() {
-    try {
-      loadingDisturbances = true;
-      // On récupère les perturbations en français
-      const response = await fetch('https://api.irail.be/disturbances/?format=json&lang=fr');
-      const data = await response.json();
-      
-      // L'API renvoie un objet 'disturbance' qui peut être un tableau ou vide
-      if (data && data.disturbance) {
-        // Parfois c'est un objet unique, parfois un tableau, on normalise en tableau
-        disturbances = Array.isArray(data.disturbance) ? data.disturbance : [data.disturbance];
-      } else {
-        disturbances = [];
-      }
-    } catch (e) {
-      console.error("Erreur perturbations:", e);
-    } finally {
-      loadingDisturbances = false;
-    }
-  }
-  
-  // Fonction utilitaire pour formater le temps (timestamp iRail est en secondes)
-  const formatTime = (timestamp) => {
-      if (!timestamp) return '';
-      return new Date(timestamp * 1000).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  // Mapping des composants pour l'affichage dynamique
+  const WIDGET_TYPES = {
+    weather: WidgetWeather,
+    trains: WidgetTrains,
+    traffic: WidgetTraffic,
+    pmr: WidgetPmr,
+    journal: WidgetJournal,
+    planning: WidgetPlanning,
+    links: WidgetLinks
   };
 
-  // --- FONCTIONS DE CHARGEMENT ---
+  // Disposition par défaut (Ordre initial)
+  const DEFAULT_LAYOUT = [
+    { id: 1, type: 'weather', title: 'Météo', cols: 1 },
+    { id: 2, type: 'trains', title: 'Départs', cols: 2 },
+    { id: 3, type: 'traffic', title: 'Info Trafic', cols: 1 },
+    { id: 4, type: 'pmr', title: 'Rampes PMR', cols: 1 },
+    { id: 5, type: 'journal', title: 'Journal', cols: 1 },
+    { id: 6, type: 'planning', title: 'Planning', cols: 1 }, // Nouveau
+    { id: 7, type: 'links', title: 'Raccourcis', cols: 2 }   // Nouveau (Pleine largeur)
+  ];
 
-  async function loadAllStations() {
-      try {
-          const res = await fetch('https://api.irail.be/stations/?format=json&lang=fr');
-          const data = await res.json();
-          allStations = data.station;
-      } catch (e) {
-          console.error("Erreur chargement liste gares", e);
-      }
-  }
+  let items = DEFAULT_LAYOUT;
 
-  async function selectStation(stationName) {
-      currentStation = stationName;
-      showStationSelector = false;
-      stationSearch = ''; 
-      if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('bacoFavoriteStation', currentStation);
-      }
-      loadTrains(); 
-  }
-
-  async function loadWeatherMons() {
-    loadingWeather = true;
-    try {
-        // Coordonnées de Mons : 50.4542, 3.9567
-        const res = await fetch('https://api.open-meteo.com/v1/forecast?latitude=50.4542&longitude=3.9567&current=temperature_2m,weather_code,wind_speed_10m&timezone=Europe%2FBrussels');
-        const data = await res.json();
-        weatherData = data.current;
-    } catch (e) {
-        console.error("Erreur météo", e);
+  onMount(async () => {
+    // 1. Charger User
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const { data } = await supabase.from('profiles').select('full_name, avatar_url').eq('id', user.id).single();
+        userProfile = data;
     }
-    loadingWeather = false;
-  }
 
-  async function loadTrains() {
-    loadingTrains = true;
-    trainDepartures = []; 
-
-    try {
-        const res = await fetch(`https://api.irail.be/liveboard/?station=${encodeURIComponent(currentStation)}&format=json&lang=fr`);
-        const data = await res.json();
-        
-        if (data && data.departures && data.departures.departure) {
-            const allDepartures = Array.isArray(data.departures.departure) 
-                ? data.departures.departure 
-                : [data.departures.departure];
-            
-            const now = Math.floor(Date.now() / 1000);
-            const fourHoursLater = now + (3 * 60 * 60);
-
-            trainDepartures = allDepartures.filter(t => {
-                const trainTime = parseInt(t.time);
-                return trainTime <= fourHoursLater; 
-            });
-        }
-    } catch (e) {
-        console.error("Erreur trains", e);
+    // 2. Charger Layout Sauvegardé
+    const saved = localStorage.getItem('baco_dashboard_layout_v3'); // J'ai changé la clé en v3 pour forcer la maj des nouveaux widgets
+    if (saved) {
+        try { 
+            const parsed = JSON.parse(saved);
+            // Vérification simple pour s'assurer que les nouveaux widgets sont là (sinon on recharge le défaut)
+            const hasLinks = parsed.some(i => i.type === 'links');
+            if (hasLinks) {
+                items = parsed;
+            } else {
+                // Si l'utilisateur a une vieille config sans les liens, on reset (ou on pourrait merger)
+                items = DEFAULT_LAYOUT;
+            }
+        } catch (e) { console.error(e); }
     }
-    loadingTrains = false;
+  });
+
+  // --- LOGIQUE DRAG & DROP & RESIZE ---
+  function handleDndConsider(e) { items = e.detail.items; }
+  
+  function handleDndFinalize(e) { 
+      items = e.detail.items; 
+      saveLayout(); 
   }
 
-  async function loadPmrIssues() {
-    loadingPmr = true;
-    const { data, error } = await supabase.from('pmr_data').select('gare, quai, etat_rampe, rampe_id').in('etat_rampe', ['HS', 'En attente']).order('gare', { ascending: true });
-    if (!error) pmrIssues = data || [];
-    loadingPmr = false;
+  function toggleSize(id) {
+    items = items.map(i => i.id === id ? { ...i, cols: i.cols === 2 ? 1 : 2 } : i);
+    saveLayout();
   }
 
-  async function loadRecentJournal() {
-    loadingJournal = true;
-    const { data, error } = await supabase.from('main_courante').select(`*, profiles ( full_name, avatar_url )`).order('created_at', { ascending: false }).limit(3);
-    if (!error) journalEntries = data || [];
-    loadingJournal = false;
+  function saveLayout() { 
+      localStorage.setItem('baco_dashboard_layout_v3', JSON.stringify(items)); 
+  }
+
+  function toggleEditMode() { 
+      isEditMode = !isEditMode; 
+      if(!isEditMode) saveLayout(); 
   }
   
-  async function loadPlanningWidgetsData() {
-    loadingPlanning = true;
-    const today = new Date();
-    const todayString = today.toISOString().split('T')[0];
-
-    const { data: leaves } = await supabase.from('leave_requests').select(`start_date, end_date, type, status, profiles(full_name)`).in('status', ['APPROVED', 'PENDING']).gte('end_date', todayString).order('start_date', { ascending: true }).limit(5);
-    upcomingLeaves = leaves || [];
-    
-    const { data: profiles } = await supabase.from('profiles').select('full_name, birthday').not('birthday', 'is', null);
-    if (profiles) {
-        upcomingBirthdays = profiles.map(profile => {
-                const bday = new Date(profile.birthday.replace(/-/g, '/')); 
-                const currentYear = today.getFullYear();
-                let nextBday = new Date(currentYear, bday.getMonth(), bday.getDate());
-                if (nextBday < today) nextBday = new Date(currentYear + 1, bday.getMonth(), bday.getDate());
-                return { name: profile.full_name, date: nextBday, displayDate: nextBday.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }), isToday: nextBday.toDateString() === today.toDateString() };
-            }).sort((a, b) => a.date - b.date).slice(0, 5);
-    }
-    loadingPlanning = false;
-  }
-
-  // --- UTILITAIRES ---
-  function toggleWidget(widgetName) {
-    if (widgetName === 'pmr') { isPmrOpen = !isPmrOpen; localStorage.setItem('bacoPmrWidgetState', isPmrOpen ? 'open' : 'closed'); }
-    else if (widgetName === 'journal') { isJournalOpen = !isJournalOpen; localStorage.setItem('bacoJournalWidgetState', isJournalOpen ? 'open' : 'closed'); }
-    else if (widgetName === 'leaves') { isLeavesOpen = !isLeavesOpen; localStorage.setItem('bacoLeavesWidgetState', isLeavesOpen ? 'open' : 'closed'); }
-    else if (widgetName === 'birthdays') { isBirthdaysOpen = !isBirthdaysOpen; localStorage.setItem('bacoBirthdaysWidgetState', isBirthdaysOpen ? 'open' : 'closed'); }
-  }
-
-  function formatLogDate(dateString) { return new Date(dateString).toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }).replace('.', ''); }
-  function handleSearch() { window.dispatchEvent(new CustomEvent('openGlobalSearch')); }
-
-  // Helper pour icones météo
-  function getWeatherIcon(code) {
-    if (code === 0) return Sun;
-    if (code >= 1 && code <= 3) return Cloud;
-    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return CloudRain;
-    if (code >= 71 && code <= 77) return CloudSnow;
-    if (code >= 95) return CloudLightning;
-    return Cloud;
-  }
-
-  // Helper temps train (Unix timestamp to HH:MM)
-  function formatTrainTime(timestamp) {
-    return new Date(timestamp * 1000).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+  function handleSearch() { 
+      window.dispatchEvent(new CustomEvent('openGlobalSearch')); 
   }
 </script>
 
@@ -245,477 +98,70 @@ let disturbances = [];
   <title>Accueil - Portail BACO</title>
 </svelte:head>
 
-<div class="container mx-auto p-4 md:p-8 space-y-10 pb-20">
+<div class="container mx-auto p-4 md:p-8 space-y-8 pb-20">
   
-  <header class="text-center space-y-4" in:fly={{ y: -20, duration: 800 }}>
-    <div class="flex justify-center items-center gap-4">
+  <header class="flex flex-col md:flex-row justify-between items-center gap-6">
+    <div class="flex items-center gap-4">
       {#if userProfile?.avatar_url}
         <img src={userProfile.avatar_url} alt="Avatar" class="w-16 h-16 rounded-full object-cover shadow-[0_0_20px_rgba(255,255,255,0.15)] border border-white/10">
       {/if}
-      <div class="text-left">
+      <div>
         <h2 class="text-3xl font-bold text-white tracking-tight">
           Bonjour, <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-300">{userProfile?.full_name || 'Utilisateur'}</span>
         </h2>
-        <p class="text-gray-400 text-sm">Bienvenue sur le portail opérationnel.</p>
+        <p class="text-gray-400 text-sm">Tableau de bord.</p>
       </div>
     </div>
+
+    <button 
+        on:click={toggleEditMode} 
+        class="flex items-center gap-2 px-4 py-2 rounded-xl border transition-all shadow-lg 
+        {isEditMode ? 'bg-blue-600 border-blue-500 text-white shadow-blue-500/20' : 'bg-white/5 border-white/10 text-gray-400 hover:text-white hover:bg-white/10'}"
+    >
+        {#if isEditMode} <Save class="w-4 h-4" /> Terminer {:else} <Settings class="w-4 h-4" /> Personnaliser {/if}
+    </button>
   </header>
 
-  <div in:fly={{ y: 20, duration: 800, delay: 100 }}>
-   <div class="flex items-center gap-3 mb-6 pl-1">
-      <div class="p-2 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400">
-        <Zap class="w-5 h-5" />
-      </div>
-      <h2 class="text-lg font-bold text-white tracking-wide">Accès Rapide</h2>
-   </div>
-    
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <button on:click={handleSearch} class="{glassCardBase} block h-full p-6 text-left hover:-translate-y-1">
-        <div class="flex items-center gap-4 mb-3">
-          <div class="{iconBoxBase} group-hover:text-blue-300 {getNeonStyle('rgba(147,197,253,0.8)')}"><Search class="w-6 h-6" /></div>
-          <h3 class="text-xl font-bold text-white">Rechercher</h3>
-        </div>
-        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Faire une recherche (<kbd class="px-1.5 py-0.5 rounded bg-white/10 font-mono text-xs border border-white/10 text-gray-300">Ctrl+K</kbd>).</p>
-      </button>
-      
-      <a href="/journal" class="{glassCardBase} block h-full p-6 hover:-translate-y-1">
-        <div class="flex items-center gap-4 mb-3">
-          <div class="{iconBoxBase} group-hover:text-yellow-300 {getNeonStyle('rgba(253,224,71,0.8)')}"><BookCopy class="w-6 h-6" /></div>
-          <h3 class="text-xl font-bold text-white">Nouvelle Entrée</h3>
-        </div>
-        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Ajouter un message au journal.</p>
-      </a>
-
-      <a href="/planning" class="{glassCardBase} block h-full p-6 hover:-translate-y-1">
-        <div class="flex items-center gap-4 mb-3">
-          <div class="{iconBoxBase} group-hover:text-pink-300 {getNeonStyle('rgba(249,168,212,0.8)')}"><CalendarDays class="w-6 h-6" /></div>
-          <h3 class="text-xl font-bold text-white">Planning</h3>
-        </div>
-        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Encoder les congés</p>
-      </a>
-    </div>
-  </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6" in:fly={{ y: 20, duration: 800, delay: 150 }}>
-    
-    <div class="{glassCardBase} p-6 relative flex flex-col justify-between overflow-hidden">
-        <div class="absolute -right-6 -top-6 w-32 h-32 bg-orange-500/20 blur-[50px] rounded-full"></div>
-        
-        <div class="flex justify-between items-start mb-4 relative z-10">
-            <div>
-                <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                    <MapPin class="w-4 h-4 text-orange-400" /> Mons
-                </h3>
-                <p class="text-xs text-gray-400 uppercase tracking-wider mt-1">Météo en direct</p>
+  <section 
+    use:dndzone="{{items, flipDurationMs, dragDisabled: !isEditMode, dropTargetStyle: {outline: 'none'}}}" 
+    on:consider={handleDndConsider} 
+    on:finalize={handleDndFinalize}
+    class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+  >
+    {#each items as item (item.id)}
+        <div 
+            class="relative transition-all duration-300 rounded-2xl
+                   {item.cols === 2 ? 'md:col-span-2' : 'md:col-span-1'} 
+                   {isEditMode ? 'z-10 ring-2 ring-blue-500/50' : ''}"
+            animate:flip="{{duration: flipDurationMs}}"
+        >
+            <div class="h-full min-h-[350px] {isEditMode ? 'pointer-events-none opacity-50 blur-[1px]' : ''}">
+                <svelte:component this={WIDGET_TYPES[item.type]} />
             </div>
-            {#if !loadingWeather && weatherData}
-                {@const WeatherIcon = getWeatherIcon(weatherData.weather_code)}
-                <WeatherIcon class="w-10 h-10 text-orange-300 drop-shadow-[0_0_15px_rgba(253,186,116,0.6)]" />
-            {/if}
-        </div>
 
-        <div class="relative z-10">
-            {#if loadingWeather}
-                <div class="animate-pulse space-y-2">
-                    <div class="h-8 w-20 bg-white/10 rounded"></div>
-                    <div class="h-4 w-32 bg-white/5 rounded"></div>
-                </div>
-            {:else if weatherData}
-                <div class="flex items-end gap-2">
-                    <span class="text-5xl font-bold text-white tracking-tighter">{Math.round(weatherData.temperature_2m)}°</span>
-                    <span class="text-lg text-gray-400 mb-1.5 font-medium">C</span>
-                </div>
-                <div class="flex items-center gap-2 mt-2 text-sm text-gray-400">
-                    <Wind class="w-4 h-4" /> <span>{weatherData.wind_speed_10m} km/h</span>
-                </div>
-            {:else}
-                <p class="text-sm text-red-400">Erreur météo</p>
-            {/if}
-        </div>
-    </div>
+            {#if isEditMode}
+                <div class="absolute inset-0 z-50 flex flex-col items-center justify-center bg-black/40 backdrop-blur-sm rounded-2xl border border-white/10">
+                    
+                    <div class="p-4 bg-blue-600 rounded-full shadow-xl cursor-grab active:cursor-grabbing mb-4 hover:scale-110 transition-transform">
+                        <GripHorizontal class="w-6 h-6 text-white" />
+                    </div>
+                    
+                    <div class="flex items-center gap-3 bg-[#0f1115] rounded-full px-5 py-2 border border-white/20 shadow-2xl">
+                        <span class="text-xs font-bold text-gray-300 uppercase tracking-wider">{item.title}</span>
+                        <div class="w-px h-4 bg-white/20 mx-1"></div>
+                        <button 
+                            on:click|stopPropagation={() => toggleSize(item.id)} 
+                            class="p-1.5 hover:bg-white/20 rounded-lg text-blue-400 hover:text-white transition-colors" 
+                            title={item.cols === 2 ? "Réduire" : "Agrandir"}
+                        >
+                            {#if item.cols === 2} <Minimize class="w-4 h-4"/> {:else} <Maximize class="w-4 h-4"/> {/if}
+                        </button>
+                    </div>
 
-    <div class="{glassCardBase} p-0 lg:col-span-2 flex flex-col h-full min-h-[350px] relative">
-        
-        <div class="p-5 border-b border-white/5 flex justify-between items-center bg-white/[0.02] sticky top-0 z-20 backdrop-blur-xl min-h-[80px]">
-             
-             {#if showStationSelector}
-                <div class="flex-1 flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                    <div class="relative flex-1">
-                        <Search class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"/>
-                        <input 
-                            type="text" 
-                            bind:value={stationSearch} 
-                            placeholder="Chercher une gare (ex: Namur)..." 
-                            class="w-full bg-black/40 border border-blue-500/50 rounded-xl py-2 pl-9 pr-4 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50"
-                            autoFocus
-                        />
-                        {#if stationSearch.length > 1}
-                            <div class="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto custom-scrollbar">
-                                {#each filteredStations as station}
-                                    <button 
-                                        on:click={() => selectStation(station.name)}
-                                        class="w-full text-left px-4 py-3 text-sm text-gray-300 hover:bg-blue-600 hover:text-white transition-colors border-b border-white/5 last:border-0"
-                                    >
-                                        {station.name}
-                                    </button>
-                                {/each}
-                                {#if filteredStations.length === 0}
-                                    <div class="p-3 text-xs text-gray-500 text-center">Aucune gare trouvée.</div>
-                                {/if}
-                            </div>
-                        {/if}
-                    </div>
-                    <button on:click={() => showStationSelector = false} class="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white transition-colors">
-                        <X class="w-5 h-5" />
-                    </button>
-                </div>
-
-             {:else}
-                <div class="flex items-center gap-3 group/title cursor-pointer" on:click={() => { showStationSelector = true; setTimeout(() => document.querySelector('input[type="text"]')?.focus(), 100); }}>
-                    <div class="p-2 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/30 group-hover/title:bg-blue-500 group-hover/title:text-white transition-colors">
-                        <TrainFront class="w-5 h-5" />
-                    </div>
-                    <div>
-                        <h3 class="text-lg font-bold text-white flex items-center gap-2">
-                            Gare de {currentStation} 
-                            <Edit2 class="w-3.5 h-3.5 text-gray-600 group-hover/title:text-blue-400 transition-colors" />
-                        </h3>
-                        <p class="text-[10px] text-gray-400 uppercase tracking-wider">Départs (Prochaines 3h)</p>
-                    </div>
-                </div>
-                
-                {#if !loadingTrains}
-                    <div class="flex items-center gap-1.5 px-2 py-1 rounded-full bg-green-500/10 border border-green-500/20">
-                        <div class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></div>
-                        <span class="text-[10px] font-bold text-green-400 uppercase">Live</span>
-                    </div>
-                {/if}
-             {/if}
-        </div>
-
-        <div class="flex-1 overflow-y-auto custom-scrollbar max-h-[300px]">
-            {#if loadingTrains}
-                <div class="p-6 space-y-4">
-                    <div class="flex flex-col items-center justify-center h-40 gap-3">
-                        <div class="w-8 h-8 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                        <p class="text-xs text-blue-400 animate-pulse">Chargement de {currentStation}...</p>
-                    </div>
-                </div>
-            {:else if trainDepartures.length > 0}
-                <div class="divide-y divide-white/5 text-sm">
-                    {#each trainDepartures as train}
-                        {@const isCanceled = train.canceled === "1"}
-                        <div class="flex items-center justify-between p-3.5 hover:bg-white/[0.03] transition-colors group/train {isCanceled ? 'opacity-50 grayscale' : ''}">
-                            <div class="flex items-center gap-4">
-                                <div class="flex flex-col items-center min-w-[50px]">
-                                    <span class="font-mono font-bold text-lg {isCanceled ? 'text-gray-500 line-through' : 'text-blue-300'}">
-                                        {formatTrainTime(train.time)}
-                                    </span>
-                                    {#if train.delay > 0 && !isCanceled}
-                                        <span class="text-[10px] font-bold text-red-400 bg-red-500/10 px-1 rounded flex items-center gap-0.5">
-                                            +{Math.floor(train.delay / 60)}'
-                                        </span>
-                                    {/if}
-                                </div>
-                                
-                                <div>
-                                    <span class="block font-bold text-gray-200 text-base group-hover/train:text-white transition-colors">
-                                        {train.station}
-                                    </span>
-                                    <div class="flex gap-2 text-[10px] text-gray-500 uppercase tracking-wider">
-                                        <span>{train.vehicle.replace('BE.NMBS.', '')}</span>
-                                        {#if isCanceled}
-                                            <span class="text-red-500 font-bold border border-red-500/30 px-1 rounded">SUPPRIMÉ</span>
-                                        {/if}
-                                    </div>
-                                </div>
-                            </div>
-
-                            <div class="text-right pl-4">
-                                <div class="flex flex-col items-end">
-                                    <span class="text-[10px] text-gray-500 uppercase">Voie</span>
-                                    <span class="font-bold text-white text-lg w-8 text-center bg-white/5 rounded border border-white/10">
-                                        {train.platform || '?'}
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
-                    {/each}
-                </div>
-            {:else}
-                <div class="flex flex-col items-center justify-center h-40 text-gray-500 gap-2">
-                    <Clock class="w-8 h-8 opacity-50" />
-                    <p class="text-sm">Aucun départ affiché.</p>
-                    <p class="text-xs opacity-50 text-center px-4">
-                        Il n'y a peut-être aucun train prévu à {currentStation} dans les 4 prochaines heures.
-                    </p>
                 </div>
             {/if}
         </div>
-    </div>
-  </div>
-
-  <div class="glass-panel p-6 rounded-2xl border border-white/10 relative overflow-hidden flex flex-col h-[400px]">
-        
-        <div class="flex justify-between items-center mb-4 z-10">
-            <h2 class="text-xl font-bold text-white flex items-center gap-2">
-                <div class="p-2 rounded-lg bg-orange-500/20 text-orange-400 border border-orange-500/30">
-                    <TriangleAlert class="w-5 h-5" />
-                </div>
-                Info Trafic
-            </h2>
-            
-            {#if disturbances.length > 0}
-                <span class="px-2 py-1 bg-red-500/20 text-red-300 text-xs font-bold rounded-full border border-red-500/30 animate-pulse">
-                    {disturbances.length} incident(s)
-                </span>
-            {:else}
-                <span class="px-2 py-1 bg-green-500/20 text-green-300 text-xs font-bold rounded-full border border-green-500/30">
-                    Réseau fluide
-                </span>
-            {/if}
-        </div>
-
-        <div class="flex-1 overflow-y-auto custom-scrollbar z-10 space-y-3 pr-2">
-            
-            {#if loadingDisturbances}
-                <div class="flex flex-col items-center justify-center h-full text-gray-500 gap-2">
-                    <div class="w-6 h-6 border-2 border-orange-500/30 border-t-orange-500 rounded-full animate-spin"></div>
-                    <span class="text-xs">Chargement des infos...</span>
-                </div>
-
-            {:else if disturbances.length === 0}
-                <div class="flex flex-col items-center justify-center h-full text-gray-500 opacity-60">
-                    <ShieldCheck class="w-12 h-12 mb-2 text-green-400/50" />
-                    <p class="text-sm">Aucune perturbation majeure signalée.</p>
-                </div>
-
-            {:else}
-                {#each disturbances as dist}
-                    <div class="bg-black/20 border border-white/5 rounded-xl p-4 hover:bg-black/30 transition-colors group">
-                        <div class="flex justify-between items-start gap-3 mb-2">
-                            <h3 class="text-sm font-bold text-orange-200 group-hover:text-orange-100 leading-tight">
-                                {dist.title}
-                            </h3>
-                            <span class="text-[10px] font-mono text-gray-500 bg-black/40 px-1.5 py-0.5 rounded whitespace-nowrap">
-                                {formatTime(dist.timestamp)}
-                            </span>
-                        </div>
-                        
-                        <p class="text-xs text-gray-400 leading-relaxed">
-                            {dist.description}
-                        </p>
-
-                        {#if dist.link}
-                            <a href={dist.link} target="_blank" class="mt-2 inline-flex items-center gap-1 text-[10px] text-blue-400 hover:text-blue-300 hover:underline">
-                                <Info class="w-3 h-3"/> Plus d'infos
-                            </a>
-                        {/if}
-                    </div>
-                {/each}
-            {/if}
-        </div>
-
-        <div class="absolute -bottom-10 -right-10 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl pointer-events-none"></div>
-    </div>
-
-  <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" in:fly={{ y: 20, duration: 800, delay: 200 }}>
-    <div class="{glassCardBase} p-0">
-      <button on:click={() => toggleWidget('leaves')} class="w-full text-left p-5 flex items-center justify-between group cursor-pointer">
-        <span class="flex items-center gap-3">
-          <div class="p-2 rounded-xl bg-green-500/10 border border-green-500/20 text-green-400 transition-all duration-300 group-hover:bg-green-500/20 group-hover:text-green-300 {getNeonStyle('rgba(134,239,172,0.8)')}">
-             <ListTodo class="w-5 h-5" />
-          </div>
-          <span class="text-lg font-bold text-white">Congés à venir</span>
-        </span>
-        <div class="text-white/50 transition-transform duration-300 {isLeavesOpen ? 'rotate-180' : ''}"><ChevronDown class="w-5 h-5" /></div>
-      </button>
-
-      {#if isLeavesOpen}
-        <div class="p-5 pt-0 space-y-3" transition:slide>
-          {#if loadingPlanning}
-            <div class="text-center text-gray-400 animate-pulse py-4 text-sm">Chargement...</div>
-          {:else if upcomingLeaves.length === 0}
-            <p class="text-sm text-gray-500 text-center py-4 bg-black/20 rounded-xl border border-white/5">Aucun congé prévu prochainement.</p>
-          {:else}
-            <ul class="space-y-2">
-              {#each upcomingLeaves as leave}
-                <li class="flex items-center justify-between p-3 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.07] transition-colors">
-                    <div>
-                        <span class="block font-medium text-gray-200 text-sm">{leave.profiles.full_name}</span>
-                        <span class="text-[10px] text-gray-500 uppercase tracking-wider">{leave.type}</span>
-                    </div>
-                    <div class="text-right">
-                         <span class="text-[10px] font-bold px-2 py-0.5 rounded-full {leave.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}">
-                            {leave.status === 'APPROVED' ? 'Validé' : 'En attente'}
-                         </span>
-                         <p class="text-[10px] text-gray-500 mt-1">
-                            {new Date(leave.start_date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})} → {new Date(leave.end_date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}
-                         </p>
-                    </div>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/if}
-    </div>
-    
-    <div class="{glassCardBase} p-0">
-        <button on:click={() => toggleWidget('birthdays')} class="w-full text-left p-5 flex items-center justify-between group cursor-pointer">
-            <span class="flex items-center gap-3">
-                <div class="p-2 rounded-xl bg-pink-500/10 border border-pink-500/20 text-pink-400 transition-all duration-300 group-hover:bg-pink-500/20 group-hover:text-pink-300 {getNeonStyle('rgba(244,114,182,0.8)')}">
-                     <Cake class="w-5 h-5" />
-                </div>
-                <span class="text-lg font-bold text-white">Anniversaires</span>
-            </span>
-            <div class="text-white/50 transition-transform duration-300 {isBirthdaysOpen ? 'rotate-180' : ''}"><ChevronDown class="w-5 h-5" /></div>
-        </button>
-
-      {#if isBirthdaysOpen}
-        <div class="p-5 pt-0 space-y-3" transition:slide>
-          {#if loadingPlanning}
-             <div class="text-center text-gray-400 animate-pulse py-4 text-sm">Chargement...</div>
-          {:else if upcomingBirthdays.length === 0}
-            <p class="text-sm text-gray-500 text-center py-4 bg-black/20 rounded-xl border border-white/5">Aucun anniversaire.</p>
-          {:else}
-            <ul class="space-y-2">
-              {#each upcomingBirthdays as birthday}
-                 <li class="flex items-center justify-between p-3 rounded-xl border transition-all {birthday.isToday ? 'bg-pink-500/10 border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.15)]' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.07]'}">
-                  <span class="font-medium text-gray-200 text-sm">{birthday.name}</span>
-                  <span class="text-xs font-bold flex items-center gap-2 {birthday.isToday ? 'text-pink-300' : 'text-gray-500'}">
-                    🎂 {birthday.displayDate}
-                    {#if birthday.isToday}<span class="animate-pulse bg-pink-500 text-white text-[9px] px-1.5 py-0.5 rounded-full">J-J</span>{/if}
-                  </span>
-                </li>
-              {/each}
-            </ul>
-          {/if}
-        </div>
-      {/if}
-    </div>
-  </div>
-
-  <div class="space-y-8" in:fly={{ y: 20, duration: 800, delay: 300 }}>
-    <div class="{glassCardBase} p-0">
-        <button on:click={() => toggleWidget('pmr')} class="w-full text-left p-5 flex items-center justify-between group cursor-pointer">
-            <div class="flex items-center gap-3">
-            <div class="p-2 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 transition-all duration-300 group-hover:bg-red-500/20 group-hover:text-red-300 {getNeonStyle('rgba(248,113,113,0.8)')}"><Activity class="w-6 h-6" /></div>
-            <span class="text-xl font-bold text-white">Rampes PMR (HS/En attente)</span>
-            </div>
-            <div class="text-white/50 transition-transform duration-300 {isPmrOpen ? 'rotate-180' : ''}"><ChevronDown class="w-6 h-6" /></div>
-        </button>
-        {#if isPmrOpen}
-            <div class="p-5 pt-0 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" transition:slide>
-            {#if loadingPmr}
-                <div class="col-span-full py-8 text-center text-gray-400 animate-pulse text-sm">Recherche des données...</div>
-            {:else if pmrIssues.length === 0}
-                <div class="col-span-full flex flex-col items-center justify-center p-8 border border-dashed border-green-500/20 rounded-2xl bg-green-500/[0.02]">
-                <CheckCircle2 class="w-10 h-10 text-green-500/50 mb-2" />
-                <span class="text-green-200/50 font-medium text-sm">Aucun problème signalé. Tout est opérationnel.</span>
-                </div>
-            {:else}
-                {#each pmrIssues as issue}
-                <a href="/pmr?search={issue.rampe_id || issue.gare}" class="relative overflow-hidden block p-4 rounded-xl border border-red-500/20 bg-red-500/5 hover:bg-red-500/10 hover:border-red-500/40 transition-all hover:-translate-y-1 group/item">
-                    <div class="absolute left-0 top-0 bottom-0 w-1 bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.6)]"></div>
-                    <div class="flex justify-between items-start mb-2 pl-2">
-                    <h4 class="font-bold text-lg text-white group-hover/item:text-red-300 transition-colors">{issue.gare}</h4>
-                    <span class="flex h-2.5 w-2.5 relative mt-1.5">
-                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                    </span>
-                    </div>
-                    <div class="pl-2 space-y-1">
-                        <div class="flex justify-between items-center">
-                            <span class="text-[10px] font-mono text-red-200/80 bg-red-500/20 border border-red-500/20 px-2 py-0.5 rounded">{issue.etat_rampe}</span>
-                            <span class="text-xs text-gray-400 flex items-center gap-1"><MapPin class="w-3 h-3 text-red-400" /> Quai {issue.quai || '?'}</span>
-                        </div>
-                    </div>
-                </a>
-                {/each}
-            {/if}
-            </div>
-        {/if}
-    </div>
-
-    <div class="{glassCardBase} p-0">
-        <button on:click={() => toggleWidget('journal')} class="w-full text-left p-5 flex items-center justify-between group cursor-pointer">
-          <span class="flex items-center gap-3">
-            <div class="p-2 rounded-xl bg-yellow-500/10 border border-yellow-500/20 text-yellow-400 transition-all duration-300 group-hover:bg-yellow-500/20 group-hover:text-yellow-300 {getNeonStyle('rgba(250,204,21,0.8)')}"><BookCopy class="w-6 h-6" /></div>
-            <span class="text-xl font-bold text-white">Activité Récente</span>
-          </span>
-          <div class="text-white/50 transition-transform duration-300 {isJournalOpen ? 'rotate-180' : ''}"><ChevronDown class="w-6 h-6" /></div>
-        </button>
-        {#if isJournalOpen}
-          <div class="p-5 pt-0 space-y-3" transition:slide>
-            {#if loadingJournal}
-               <div class="text-center text-gray-400 animate-pulse py-4 text-sm">Chargement...</div>
-            {:else if journalEntries.length === 0}
-               <p class="text-sm text-gray-500 text-center p-4 bg-black/20 rounded-xl">Le journal est vide.</p>
-            {:else}
-               {#each journalEntries as entry}
-                 <div class="bg-white/[0.03] border border-white/5 rounded-xl flex gap-4 p-4 hover:bg-white/[0.07] transition-colors">
-                    {#if entry.profiles?.avatar_url}
-                        <img src={entry.profiles.avatar_url} alt="avatar" class="w-9 h-9 rounded-full object-cover border border-white/10 shadow-sm">
-                    {:else}
-                        <div class="w-9 h-9 rounded-full bg-white/10 border border-white/10 flex items-center justify-center text-xs text-white">?</div>
-                    {/if}
-                   <div class="flex-1 min-w-0">
-                     <div class="flex justify-between items-center mb-1">
-                        <span class="font-bold text-gray-200 text-sm truncate">{entry.profiles?.full_name || 'Inconnu'}</span>
-                        <span class="text-[10px] text-gray-500 whitespace-nowrap bg-black/20 px-1.5 py-0.5 rounded">{formatLogDate(entry.created_at)}</span>
-                     </div>
-                     <p class="text-gray-300 text-sm whitespace-pre-wrap leading-relaxed">{entry.message_content}</p>
-                   </div>
-                  </div>
-               {/each}
-            {/if}
-            <a href="/journal" class="block text-xs font-bold uppercase tracking-wider text-blue-400 hover:text-blue-300 text-center pt-3 transition-colors">Voir tout le journal</a>
-          </div>
-        {/if}
-    </div>
-  </div>
-
-  <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4" in:fly={{ y: 20, duration: 800, delay: 400 }}>
-     {#each [
-        { href: '/operationnel', icon: Shield, label: 'Opérationnel', color: 'text-blue-400', glow: 'rgba(96,165,250,0.8)', desc: 'Procédures' },
-        { href: '/pmr', icon: Accessibility, label: 'Rampes', color: 'text-red-400', glow: 'rgba(248,113,113,0.8)', desc: 'État' },
-        { href: '/clients-pmr', icon: Users, label: 'Clients', color: 'text-purple-400', glow: 'rgba(192,132,252,0.8)', desc: 'Détails' },
-        { href: '/bus', icon: Bus, label: 'Bus', color: 'text-yellow-400', glow: 'rgba(250,204,21,0.8)', desc: 'Substitute' },
-        { href: '/taxi', icon: Car, label: 'Taxi', color: 'text-orange-400', glow: 'rgba(251,146,60,0.8)', desc: 'Commande' },
-        { href: '/repertoire', icon: BookUser, label: 'Répertoire', color: 'text-green-400', glow: 'rgba(74,222,128,0.8)', desc: 'Contacts' },
-        { href: '/lignes', icon: Train, label: 'Lignes', color: 'text-cyan-400', glow: 'rgba(34,211,238,0.8)', desc: 'Infos' },
-        { href: '/documents', icon: Folder, label: 'Docs', color: 'text-gray-400', glow: 'rgba(156,163,175,0.8)', desc: 'Archives' },
-        { href: '/ptcar', icon: Tag, label: 'PtCar', color: 'text-indigo-400', glow: 'rgba(129,140,248,0.8)', desc: 'Codes' }
-     ] as item}
-        <a href={item.href} class="{glassCardBase} p-4 flex flex-col items-center justify-center text-center gap-3 hover:-translate-y-1 group">
-            <item.icon class="w-8 h-8 {item.color} transition-transform duration-300 group-hover:scale-110 {getNeonStyle(item.glow)}" />
-            <div>
-                <span class="block font-bold text-white text-sm group-hover:text-blue-100 transition-colors">{item.label}</span>
-                {#if item.desc}
-                    <span class="text-[10px] text-gray-500 uppercase tracking-wider group-hover:text-gray-400 transition-colors">{item.desc}</span>
-                {/if}
-            </div>
-        </a>
-     {/each}
-  </div>
+    {/each}
+  </section>
 
 </div>
-
-<style>
-  /* Custom Scrollbar pour le widget perturbations */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 6px;
-}
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: rgba(255, 255, 255, 0.02);
-    border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-}
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-</style>
