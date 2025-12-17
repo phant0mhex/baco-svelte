@@ -179,14 +179,60 @@
 
 <svelte:window on:click={closeDropdowns} />
 
+<!-- RETIRER NOEL
 <nav class="sticky top-4 mx-4 rounded-2xl z-50 transition-all duration-300 glass-panel border border-white/10 {isChristmasTheme ? 'christmas-nav' : 'bg-[#0f1115]/80 backdrop-blur-xl'} shadow-2xl">
-  
-  {#if isChristmasTheme}
+ -->  
+
+<nav class="sticky top-4 mx-4 rounded-2xl z-50 transition-all duration-300 glass-panel border border-white/10 {isChristmasTheme ? 'christmas-nav' : 'bg-[#0f1115]/80 backdrop-blur-xl'} shadow-2xl overflow-visible">
+
+
+ {#if isChristmasTheme}
     <div class="garland"><div class="garland-lights"></div></div>
-    <div class="sleigh-reindeer"></div>
+    
+    <div class="glass-gift" style="left: 50px;">
+        <div class="gift-box">
+            <div class="gift-ribbon-v"></div>
+            <div class="gift-ribbon-h"></div>
+        </div>
+    </div>
+
+    <div class="fixed inset-0 pointer-events-none z-[-1] overflow-hidden h-screen w-screen left-0 top-0">
+        {#each Array(50) as _, i}
+        <div class="snowflake" style="--delay: {Math.random() * 5}s; --left: {Math.random() * 100}%; --duration: {5 + Math.random() * 5}s; --size: {Math.random() * 5 + 2}px;"></div>
+        {/each}
+    </div>
+
+<div class="absolute -top-10 left-0 w-full h-10 overflow-visible pointer-events-none z-0">
+        <div class="glass-elf" style="left: 15%; --delay: 0s; --color-tint: rgba(50, 205, 50, 0.15);">
+            <div class="elf-pompon"></div>
+            <div class="elf-hat"></div>
+            <div class="elf-head">
+                <div class="elf-eyes"></div>
+            </div>
+        </div>
+
+        <div class="glass-elf" style="right: 15%; --delay: 2.5s; --color-tint: rgba(220, 20, 60, 0.15);">
+            <div class="elf-pompon"></div>
+            <div class="elf-hat"></div>
+            <div class="elf-head">
+                <div class="elf-eyes"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="absolute top-full left-0 w-full flex justify-around items-start px-10 pointer-events-none">
+        {#each [1, 2, 3, 4, 5, 6] as i}
+        <div class="hanging-ornament" style="--delay: {i * 0.5}s; --height: {20 + (i * 5 % 30)}px">
+            <div class="thread"></div>
+            <div class="glass-ball">
+                <div class="shine"></div>
+            </div>
+        </div>
+        {/each}
+    </div>
   {/if}
 
-  <div class="px-6 py-2">
+ <div class="px-6 py-2 relative z-20">
     
     <div class="flex justify-between items-center">
       
@@ -414,3 +460,203 @@
 
   </div>
 </nav>
+
+<style>
+    /* --- NEIGE (SNOW) --- */
+    :global(.snowflake) {
+        position: absolute;
+        top: -10px;
+        left: var(--left);
+        width: var(--size);
+        height: var(--size);
+        background: rgba(255, 255, 255, 0.4);
+        border-radius: 50%;
+        filter: blur(1px);
+        animation: fall var(--duration) linear infinite;
+        animation-delay: var(--delay);
+    }
+
+    @keyframes fall {
+        0% { transform: translateY(-10vh) translateX(0px); opacity: 0; }
+        20% { opacity: 0.8; }
+        100% { transform: translateY(110vh) translateX(20px); opacity: 0; }
+    }
+
+    /* --- ORNEMENTS SUSPENDUS --- */
+    .hanging-ornament {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        transform-origin: top center;
+        /* Oscillation douce style "pendule" */
+        animation: swing 4s ease-in-out infinite alternate;
+        animation-delay: var(--delay);
+        margin-top: -1px; /* Pour coller parfaitement à la barre */
+    }
+
+    /* Le fil */
+    .thread {
+        width: 1px;
+        height: var(--height);
+        background: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(255,255,255,0.4));
+    }
+
+    /* La boule Glassmorphic */
+    .glass-ball {
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        /* Effet de verre givré */
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border: 1px solid rgba(255, 255, 255, 0.3);
+        box-shadow: 
+            0 4px 10px rgba(0, 0, 0, 0.2), 
+            inset 0 0 8px rgba(255, 255, 255, 0.1);
+        position: relative;
+    }
+
+    /* Petit reflet brillant */
+    .glass-ball .shine {
+        position: absolute;
+        top: 6px;
+        left: 8px;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: radial-gradient(circle, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0) 70%);
+    }
+
+    @keyframes swing {
+        from { transform: rotate(-5deg); }
+        to { transform: rotate(5deg); }
+    }
+
+    /* --- LUTINS DE VERRE (GLASS ELVES) --- */
+    .glass-elf {
+        position: absolute;
+        bottom: -20px; /* Commence caché derrière la barre */
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        /* Animation: le lutin sort sa tête puis se recache */
+        animation: peek 8s ease-in-out infinite;
+        animation-delay: var(--delay);
+        filter: drop-shadow(0 4px 6px rgba(0,0,0,0.1));
+    }
+
+    /* Le Chapeau (Triangle de verre) */
+    .elf-hat {
+        width: 40px;
+        height: 35px;
+        /* Forme triangle */
+        clip-path: polygon(50% 0%, 0% 100%, 100% 100%);
+        background: linear-gradient(180deg, var(--color-tint), rgba(255,255,255,0.05));
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        /* Bordure simulée (clip-path coupe les borders classiques, on utilise box-shadow ou gradient interne) */
+        position: relative;
+        z-index: 2;
+    }
+
+    /* Le Pompon (Petit point lumineux) */
+    .elf-pompon {
+        width: 8px;
+        height: 8px;
+        background: radial-gradient(circle, rgba(255,255,255,1) 0%, rgba(255,255,255,0.5) 100%);
+        border-radius: 50%;
+        margin-bottom: -2px; /* Colle au chapeau */
+        box-shadow: 0 0 10px rgba(255, 255, 255, 0.8);
+        z-index: 3;
+        animation: bounce 2s infinite ease-in-out;
+    }
+
+    /* La Tête (Rond de verre) */
+    .elf-head {
+        width: 30px;
+        height: 30px;
+        background: rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255,255,255,0.2);
+        border-radius: 50%;
+        margin-top: -5px; /* Légèrement sous le chapeau */
+        position: relative;
+        z-index: 1;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 4px;
+    }
+
+    /* Les Yeux (Points luisants) */
+    .elf-eyes::before, .elf-eyes::after {
+        content: '';
+        display: inline-block;
+        width: 4px;
+        height: 4px;
+        background-color: rgba(255, 255, 255, 0.8);
+        border-radius: 50%;
+        box-shadow: 0 0 4px rgba(255, 255, 255, 0.5);
+        margin: 0 2px;
+    }
+
+    @keyframes peek {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        10% { transform: translateY(-35px) rotate(-5deg); } /* Il sort */
+        20% { transform: translateY(-35px) rotate(5deg); }  /* Il regarde autour */
+        30% { transform: translateY(0); } /* Il rentre */
+    }
+
+    @keyframes bounce {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-3px); }
+    }
+
+    .glass-gift {
+        position: absolute;
+        top: 110%; /* Juste en dessous de la barre */
+        width: 24px;
+        height: 24px;
+        animation: float 6s ease-in-out infinite;
+    }
+
+    .gift-box {
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        backdrop-filter: blur(4px);
+        border-radius: 4px;
+        position: relative;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        transform: rotate(15deg);
+    }
+
+    /* Rubans Néon */
+    .gift-ribbon-v, .gift-ribbon-h {
+        position: absolute;
+        background: rgba(59, 130, 246, 0.5); /* Bleu Baco */
+        box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+    }
+
+    .gift-ribbon-v {
+        width: 4px;
+        height: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .gift-ribbon-h {
+        height: 4px;
+        width: 100%;
+        top: 50%;
+        transform: translateY(-50%);
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0) rotate(0deg); }
+        50% { transform: translateY(10px) rotate(5deg); }
+    }
+</style>
