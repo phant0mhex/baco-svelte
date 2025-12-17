@@ -243,7 +243,7 @@
           <div class="{iconBoxBase} group-hover:text-blue-300 {getNeonStyle('rgba(147,197,253,0.8)')}"><Search class="w-6 h-6" /></div>
           <h3 class="text-xl font-bold text-white">Rechercher</h3>
         </div>
-        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Accédez à tout instantanément (<kbd class="px-1.5 py-0.5 rounded bg-white/10 font-mono text-xs border border-white/10 text-gray-300">Ctrl+K</kbd>).</p>
+        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Faire une recherche (<kbd class="px-1.5 py-0.5 rounded bg-white/10 font-mono text-xs border border-white/10 text-gray-300">Ctrl+K</kbd>).</p>
       </button>
       
       <a href="/journal" class="{glassCardBase} block h-full p-6 hover:-translate-y-1">
@@ -251,7 +251,7 @@
           <div class="{iconBoxBase} group-hover:text-yellow-300 {getNeonStyle('rgba(253,224,71,0.8)')}"><BookCopy class="w-6 h-6" /></div>
           <h3 class="text-xl font-bold text-white">Nouvelle Entrée</h3>
         </div>
-        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Consigner un événement dans la main courante.</p>
+        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Ajouter un message au journal.</p>
       </a>
 
       <a href="/planning" class="{glassCardBase} block h-full p-6 hover:-translate-y-1">
@@ -259,7 +259,7 @@
           <div class="{iconBoxBase} group-hover:text-pink-300 {getNeonStyle('rgba(249,168,212,0.8)')}"><CalendarDays class="w-6 h-6" /></div>
           <h3 class="text-xl font-bold text-white">Planning</h3>
         </div>
-        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Gérer les congés et voir les présents.</p>
+        <p class="text-sm text-gray-400 pl-1 group-hover:text-gray-300 transition-colors">Encoder les congés</p>
       </a>
     </div>
   </div>
