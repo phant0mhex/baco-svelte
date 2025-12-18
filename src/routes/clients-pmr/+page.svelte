@@ -265,7 +265,7 @@
                 {#if client.telephone}
                   <div class="flex items-center gap-3">
                    <div class="p-1.5 bg-green-500/10 text-green-400 rounded-lg border border-green-500/20"><Phone size={14} /></div>
-                    <a href="tel:{client.telephone}" class="font-mono font-medium text-gray-300 hover:text-blue-400 transition-colors tracking-wide">{formatPhone(client.telephone)}</a>
+                    <a href="etrali:{client.telephone}" class="font-mono font-medium text-gray-300 hover:text-blue-400 transition-colors tracking-wide">{formatPhone(client.telephone)}</a>
                   </div>
                 {:else}
                     <div class="text-sm text-gray-600 italic pl-1">Pas de téléphone</div>

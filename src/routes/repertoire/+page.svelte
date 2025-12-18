@@ -468,7 +468,7 @@ async function loadContacts() {
                                         </div>
                                         <div class="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs">
                                             {#if contact.tel}
-                                                <a href="tel:{cleanPhone(contact.tel)}" class="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 hover:underline font-mono bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
+                                                <a href="etrali:{cleanPhone(contact.tel)}" class="flex items-center gap-1.5 text-blue-400 hover:text-blue-300 hover:underline font-mono bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/20">
                                                     <Phone class="w-3 h-3" /> {formatPhone(contact.tel)}
                                                 </a>
                                             {/if}

@@ -512,7 +512,7 @@
                         <span class="block font-bold text-gray-200">{c.nom}</span>
                         <span class="text-xs text-gray-500 uppercase tracking-wide">{c.societes_bus.nom}</span>
                     </div>
-                    <a href="tel:{cleanPhone(c.tel)}" class="flex items-center gap-2 text-green-400 hover:text-green-300 font-mono bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 group-hover:bg-green-500/20 transition-all">
+                    <a href="etrali:{cleanPhone(c.tel)}" class="flex items-center gap-2 text-green-400 hover:text-green-300 font-mono bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 group-hover:bg-green-500/20 transition-all">
                         <Phone size={14} /> {formatPhone(c.tel)}
                     </a>
                     </li>
@@ -533,7 +533,7 @@
                         <span class="block font-bold text-gray-200">{c.nom}</span>
                         <span class="text-xs text-gray-500 uppercase tracking-wide">{c.societes_bus.nom}</span>
                     </div>
-                    <a href="tel:{cleanPhone(c.tel)}" class="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-mono bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20 group-hover:bg-yellow-500/20 transition-all">
+                    <a href="etrali:{cleanPhone(c.tel)}" class="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-mono bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20 group-hover:bg-yellow-500/20 transition-all">
                         <Phone size={14} /> {formatPhone(c.tel)}
                     </a>
                     </li>
