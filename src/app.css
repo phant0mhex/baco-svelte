@@ -1,3 +1,56 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+@plugin "@tailwindcss/forms";
+@variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  :root {
+    /* Valeurs par défaut (fallback) */
+    --color-primary: 59, 130, 246; 
+    --color-glow: 147, 197, 253;
+    --glass-border: rgba(255, 255, 255, 0.1);
+    --bg-gradient-from: rgba(56, 189, 248, 0.15);
+    --bg-gradient-to: rgba(236, 72, 153, 0.15);
+  }
+  
+  body {
+    @apply bg-gray-50 text-gray-900;
+  }
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+
+}
+
+
+@layer utilities {
+  /* Le fond global devient dynamique */
+  .bg-deep-space {
+    background-color: #0f172a;
+    background-image: 
+        radial-gradient(at 0% 0%, var(--bg-gradient-from) 0px, transparent 50%),
+        radial-gradient(at 100% 0%, var(--bg-gradient-to) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(99, 102, 241, 0.15) 0px, transparent 50%), /* Tu peux aussi rendre celui-ci dynamique */
+        radial-gradient(at 0% 100%, rgba(16, 185, 129, 0.15) 0px, transparent 50%);
+    background-attachment: fixed;
+  }
+
+  /* Panneaux de verre avec bordure dynamique */
+  .glass-panel {
+    @apply bg-white/10 dark:bg-gray-900/30 backdrop-blur-md shadow-xl;
+    border: 1px solid var(--glass-border);
+  }
+  
+  /* Classe pour coloriser le texte principal dynamiquement */
+  .text-theme-primary {
+    color: rgb(var(--color-primary));
+  }
+  
+  /* Classe pour les bordures/lueurs dynamiques */
+  .border-theme-primary {
+    border-color: rgba(var(--color-primary), 0.3);
+  }
+}
 
 /* --- AJOUT SPÉCIFIQUE POUR CARTA MARKDOWN --- */
 @layer components {
