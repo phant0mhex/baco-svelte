@@ -5,6 +5,7 @@
   import { goto } from '$app/navigation';
   import { currentThemeId } from '$lib/stores/theme';
   import { slide, fly } from 'svelte/transition';
+  import { isCommandOpen } from '$lib/stores/command';
 import { zenMode } from '$lib/stores/zen';
   // Icônes
   import { 
