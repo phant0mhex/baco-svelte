@@ -9,6 +9,9 @@
     Zap, Bug, Star
   } from 'lucide-svelte';
 
+  // IMPORT TOAST
+  import { toast } from '$lib/stores/toast.js';
+
   // --- CONFIG ---
   const ROWS_PER_PAGE = 5;
 
@@ -75,6 +78,7 @@
 
     } catch (e) {
       console.error("Erreur chargement:", e);
+      toast.error("Erreur lors du chargement des nouveautés.");
     } finally {
       isLoading = false;
     }
@@ -83,7 +87,7 @@
   // --- ACTIONS ---
 
   async function saveEntry() {
-    if (!newEntry.title || !newEntry.content) return;
+    if (!newEntry.title || !newEntry.content) return toast.warning("Veuillez remplir le titre et le contenu.");
     isSaving = true;
 
     try {
@@ -100,9 +104,10 @@
       closeModal();
       currentPage = 1; 
       loadChangelog();
+      toast.success("Entrée publiée avec succès !");
 
     } catch (e) {
-      alert("Erreur lors de la publication : " + e.message);
+      toast.error("Erreur lors de la publication : " + e.message);
     } finally {
       isSaving = false;
     }
@@ -113,9 +118,11 @@
     try {
       const { error } = await supabase.from('changelog').delete().eq('id', id);
       if (error) throw error;
+      
       loadChangelog();
+      toast.success("Entrée supprimée.");
     } catch (e) {
-      alert("Erreur suppression : " + e.message);
+      toast.error("Erreur suppression : " + e.message);
     }
   }
 
