@@ -306,7 +306,7 @@
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap align-middle">
                        {#if client.telephone}
-                        <a href="tel:{client.telephone}" class="inline-flex items-center gap-2 text-sm font-mono text-gray-400 hover:text-blue-400 transition-colors bg-white/5 px-2 py-1 rounded-lg border border-white/5 hover:border-blue-500/30">
+                        <a href="etrali:{client.telephone}" class="inline-flex items-center gap-2 text-sm font-mono text-gray-400 hover:text-blue-400 transition-colors bg-white/5 px-2 py-1 rounded-lg border border-white/5 hover:border-blue-500/30">
                           <Phone size={12} /> {formatPhone(client.telephone)}
                          </a>
                       {:else}<span class="text-xs text-gray-700 italic px-2">—</span>{/if}
