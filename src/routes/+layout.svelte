@@ -1,10 +1,13 @@
 <script>
   import '../app.css';
   import { onMount } from 'svelte';
-  import { page } from '$app/stores'; // <-- Import important
+  import { page } from '$app/stores';
+  // Import des transitions Svelte
+  import { fly, fade } from 'svelte/transition';
+  import { cubicIn, cubicOut } from 'svelte/easing';
+
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
-  import { currentThemeId } from '$lib/stores/theme';
   import Nav from '$lib/components/Nav.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import GlobalSearch from '$lib/components/GlobalSearch.svelte';
@@ -13,47 +16,26 @@
 
   let user = null;
   let loading = true;
-let isChristmasTheme = false;
-  // Détecter si on est sur la page de login (racine)
+  let isChristmasTheme = false;
+
   $: isLoginPage = $page.url.pathname === '/';
 
   onMount(async () => {
+    // ... (votre code existant reste identique ici) ...
     const { data: { session } } = await supabase.auth.getSession();
     user = session?.user;
 
-    if (user) {
-      // Récupérer la préférence de thème
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('theme')
-        .eq('id', user.id)
-        .single();
-        
-      if (profile?.theme) {
-          currentThemeId.set(profile.theme);
-      }
-  }
-  
-    // Redirection automatique si non connecté et qu'on essaie d'accéder à une page interne
     if (!user && !isLoginPage) {
         goto('/');
     }
-    // Redirection automatique si connecté et qu'on est sur le login
     if (user && isLoginPage) {
         goto('/accueil');
     }
 
-
-// Lire l'état du thème depuis le localStorage
     if (typeof localStorage !== 'undefined') {
       isChristmasTheme = localStorage.getItem('bacoChristmasTheme') !== 'false';
     }
     
-    // Écouter les changements de l'événement (nécessite d'émettre un événement dans Nav.svelte ou de passer un store)
-    // Pour simplifier ici, le thème sera appliqué uniquement au chargement ou en utilisant l'état initial.
-
-
-
     loading = false;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -70,11 +52,20 @@ let isChristmasTheme = false;
   {#if !isLoginPage}
     <Nav {user} />
     <GlobalSearch />
-    
   {/if}
 
-  <main class="flex-grow {isLoginPage ? '' : 'container mx-auto px-4 py-8'}">
-    <slot />
+  <main class="flex-grow grid grid-cols-1 grid-rows-1 {isLoginPage ? '' : 'container mx-auto px-4 py-8'}">
+    
+    {#key $page.url.pathname}
+      <div 
+        class="col-start-1 row-start-1 w-full"
+        in:fly={{ y: 20, duration: 300, delay: 300, easing: cubicOut }} 
+        out:fly={{ y: -20, duration: 300, easing: cubicIn }}
+      >
+        <slot />
+      </div>
+    {/key}
+  
   </main>
 
   {#if !isLoginPage}
