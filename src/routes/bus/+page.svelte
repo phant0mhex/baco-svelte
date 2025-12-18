@@ -9,6 +9,9 @@
   import jsPDF from 'jspdf';
   import autoTable from 'jspdf-autotable';
 
+  // IMPORT TOAST
+  import { toast } from '$lib/stores/toast.js';
+
   // --- ÉTATS (DATA) ---
   let user = null;
   let isAdmin = false;
@@ -22,7 +25,6 @@
     'DSE': [],
     'DSO': []
   };
-
   // --- NOUVEAU : Référentiel des lignes ---
   let knownLinesMap = {}; // Format: { 'L.37': 'DSE', 'L.75': 'DSO' }
   let newLinesDistricts = {}; // Pour stocker les choix temporaires de l'utilisateur: { 'L.999': 'DSE' }
@@ -36,7 +38,6 @@
   let societesAffichees = [];
   let contactsAffiches = [];
   let chauffeursAffiches = [];
-
   // Loaders
   let loadingStructure = true; // Pour le chargement initial des lignes/districts
   let loadingSocietes = false;
@@ -53,7 +54,6 @@
     contacts: '',
     chauffeurs: ''
   };
-
   // --- INITIALISATION ---
   onMount(async () => {
     // 1. Auth
@@ -64,18 +64,16 @@
       isAdmin = data?.role === 'admin';
     }
 
-await loadLinesReference();
+    await loadLinesReference();
 
     // 2. Charger la structure (Lignes disponibles & Districts)
     await fetchLinesStructure();
   });
-
   // Fonction pour charger le mapping Ligne -> District
   async function loadLinesReference() {
     const { data, error } = await supabase
       .from('ligne_data')
       .select('ligne_nom, district');
-    
     if (data) {
         knownLinesMap = data.reduce((acc, item) => {
             acc[item.ligne_nom] = item.district || 'DSO'; // Valeur par défaut si null
@@ -87,12 +85,10 @@ await loadLinesReference();
   // --- LOGIQUE DE RÉCUPÉRATION DES LIGNES ---
   async function fetchLinesStructure() {
     loadingStructure = true;
-    
     // A. Récupérer toutes les lignes qui ont des bus (depuis lignes_bus)
     const { data: busData, error: busError } = await supabase
         .from('lignes_bus')
         .select('ligne');
-    
     if (busError || !busData) {
         console.error("Erreur fetch lignes_bus", busError);
         loadingStructure = false;
@@ -101,7 +97,6 @@ await loadLinesReference();
 
     // Extraire les lignes uniques (ex: ['L.34', 'L.36', ...])
     const uniqueBusLines = [...new Set(busData.map(item => item.ligne))];
-
     if (uniqueBusLines.length === 0) {
         loadingStructure = false;
         return;
@@ -112,12 +107,10 @@ await loadLinesReference();
         .from('ligne_data')
         .select('ligne_nom, district')
         .in('ligne_nom', uniqueBusLines);
-
     if (lineError) console.error("Erreur fetch ligne_data", lineError);
 
     // C. Organiser par district
     let structure = { 'DSE': new Set(), 'DSO': new Set() };
-    
     // Mapping des lignes trouvées dans ligne_data
     if (linesInfo) {
         linesInfo.forEach(info => {
@@ -138,13 +131,11 @@ await loadLinesReference();
             structure['DSO'].add(l); // Ou créer une catégorie 'Inconnu'
         }
     });
-
     // Conversion Sets -> Arrays triés
     linesByDistrict = {
         'DSE': Array.from(structure['DSE']).sort((a, b) => parseInt(a.replace(/\D/g, '')) - parseInt(b.replace(/\D/g, ''))),
         'DSO': Array.from(structure['DSO']).sort((a, b) => parseInt(a.replace(/\D/g, '')) - parseInt(b.replace(/\D/g, '')))
     };
-
     loadingStructure = false;
   }
 
@@ -154,20 +145,19 @@ await loadLinesReference();
     if (selectedDistrict !== d) {
         selectedDistrict = d;
         selectedLines = []; // Reset lignes
-        societesAffichees = []; // Reset résultats
+        societesAffichees = [];
+        // Reset résultats
         selectedSocieteIds = [];
     }
   }
 
   $: if (selectedLines) loadSocietes();
   $: if (selectedSocieteIds) loadDetails();
-
   async function loadSocietes() {
     societesAffichees = [];
     selectedSocieteIds = [];
     contactsAffiches = [];
     chauffeursAffiches = [];
-
     if (selectedLines.length === 0) return;
 
     loadingSocietes = true;
@@ -177,18 +167,15 @@ await loadLinesReference();
       .from('lignes_bus')
       .select('societe_id')
       .in('ligne', selectedLines);
-
     if (lErr) { console.error(lErr); loadingSocietes = false; return; }
 
     const uniqueIds = [...new Set(lignesData.map(item => item.societe_id))];
-
     if (uniqueIds.length > 0) {
       const { data: societes, error: sErr } = await supabase
         .from('societes_bus')
         .select('id, nom')
         .in('id', uniqueIds)
         .order('nom');
-
       if (!sErr) societesAffichees = societes;
     }
     loadingSocietes = false;
@@ -199,7 +186,6 @@ await loadLinesReference();
     chauffeursAffiches = [];
 
     if (selectedSocieteIds.length === 0) return;
-
     loadingDetails = true;
 
     // Contacts
@@ -207,7 +193,6 @@ await loadLinesReference();
       .from('contacts_bus')
       .select('id, nom, tel, societes_bus ( nom )')
       .in('societe_id', selectedSocieteIds);
-    
     if (contacts) contactsAffiches = contacts;
 
     // Chauffeurs
@@ -215,7 +200,6 @@ await loadLinesReference();
       .from('chauffeurs_bus')
       .select('id, nom, tel, societes_bus ( nom )')
       .in('societe_id', selectedSocieteIds);
-    
     if (chauffeurs) chauffeursAffiches = chauffeurs;
 
     loadingDetails = false;
@@ -224,8 +208,7 @@ await loadLinesReference();
   // --- FONCTIONS UTILITAIRES ---
   function toggleLine(line) {
     // Si on veut permettre une seule ligne à la fois, décommenter la ligne suivante et commenter le bloc if/else
-    // selectedLines = [line]; 
-
+    // selectedLines = [line];
     // Version Multi-select (pour comparer ou voir plusieurs lignes)
     if (selectedLines.includes(line)) {
       selectedLines = selectedLines.filter(l => l !== line);
@@ -243,12 +226,11 @@ await loadLinesReference();
   }
 
   const cleanPhone = (tel) => tel ? tel.replace(/[^0-9]/g, '') : '';
-  
   const formatPhone = (tel) => {
     const cleaned = cleanPhone(tel);
     // Format simple belge : 04XX/XX.XX.XX ou 0X/XX.XX.XX
     if (cleaned.length >= 10) {
-         return cleaned.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, '$1/$2.$3.$4'); 
+         return cleaned.replace(/(\d{4})(\d{2})(\d{2})(\d{2})/, '$1/$2.$3.$4');
     }
     return tel;
   };
@@ -257,14 +239,12 @@ await loadLinesReference();
   async function openModal(societe = null) {
     isEditMode = !!societe;
     modalForm = { id: societe?.id || null, nom: societe?.nom || '', lignes: '', contacts: '', chauffeurs: '' };
-    
     if (isEditMode) {
       const { data } = await supabase
         .from('societes_bus')
         .select(`lignes_bus (ligne), contacts_bus (nom, tel), chauffeurs_bus (nom, tel)`)
         .eq('id', societe.id)
         .single();
-      
       if (data) {
         modalForm.lignes = data.lignes_bus.map(l => l.ligne).join(', ');
         modalForm.contacts = data.contacts_bus.map(c => `${c.nom}, ${c.tel}`).join('\n');
@@ -277,10 +257,8 @@ await loadLinesReference();
 // --- MODIFICATION : handleSubmit ---
   async function handleSubmit() {
     modalLoading = true;
-
     // 1. Traitement des lignes et sauvegarde des nouveaux districts
     const linesToProcess = modalForm.lignes.split(',').map(s => s.trim()).filter(Boolean);
-    
     // Pour chaque ligne, si elle n'est pas connue, on l'ajoute à ligne_data
     for (const line of linesToProcess) {
         if (!knownLinesMap[line]) {
@@ -294,7 +272,8 @@ await loadLinesReference();
                     ligne_nom: line, 
                     district: districtChoice,
                     gare: 'Gare Inconnue' // Valeur placeholder obligatoire si la colonne est non-nullable
-                }, { onConflict: 'ligne_nom' }); // Assurez-vous que ligne_nom est unique ou PK
+                }, { onConflict: 'ligne_nom' });
+            // Assurez-vous que ligne_nom est unique ou PK
             
             if (!lineErr) {
                 // Mettre à jour le cache local pour ne plus la considérer comme inconnue
@@ -308,7 +287,6 @@ await loadLinesReference();
         const parts = line.split(',');
         return { nom: parts.shift()?.trim(), tel: parts.join(',').trim() };
     });
-
     const payload = {
       societe_id_to_update: modalForm.id,
       new_nom: modalForm.nom,
@@ -316,15 +294,15 @@ await loadLinesReference();
       new_contacts: parseList(modalForm.contacts),
       new_chauffeurs: parseList(modalForm.chauffeurs)
     };
-
     const { error } = await supabase.rpc('upsert_societe_bus', payload);
     modalLoading = false;
-    
     if (error) {
-      alert("Erreur : " + error.message);
+      toast.error("Erreur : " + error.message);
     } else {
+      toast.success(isEditMode ? "Société modifiée avec succès !" : "Société ajoutée avec succès !");
       showModal = false;
-      newLinesDistricts = {}; // Reset
+      newLinesDistricts = {};
+      // Reset
       fetchLinesStructure(); // Rafraîchir les filtres
       loadSocietes();
     }
@@ -342,17 +320,22 @@ await loadLinesReference();
     if (!confirm(`Supprimer ${nom} et tout son contenu ?`)) return;
     const { error } = await supabase.rpc('delete_societe_bus', { societe_id_to_delete: id });
     if (!error) {
+        toast.success(`Société ${nom} supprimée.`);
         fetchLinesStructure();
         loadSocietes();
+    } else {
+        toast.error("Impossible de supprimer la société.");
     }
   }
 
   async function exportPDF() {
-    if (selectedLines.length === 0) return alert("Sélectionnez des lignes.");
+    if (selectedLines.length === 0) return toast.warning("Sélectionnez au moins une ligne.");
+    
     const doc = new jsPDF();
     doc.text(`Export Bus - Lignes : ${selectedLines.join(', ')}`, 14, 15);
     // TODO: Ajouter le tableau complet si nécessaire
     doc.save('bus-export.pdf');
+    toast.success("PDF exporté avec succès !");
   }
 
   // Styles communs Inputs
@@ -516,7 +499,7 @@ await loadLinesReference();
       {:else}
         
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" in:fly={{ y: 20, duration: 400 }}>
-            
+          
             {#if contactsAffiches.length > 0}
             <div class="bg-black/20 border border-white/5 rounded-2xl p-6 h-fit">
                 <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
@@ -541,7 +524,7 @@ await loadLinesReference();
             {#if chauffeursAffiches.length > 0}
             <div class="bg-black/20 border border-white/5 rounded-2xl p-6 h-fit">
                 <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
-                    <div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Chauffeurs / Garde
+                  <div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Chauffeurs / Garde
                 </h3>
                 <ul class="space-y-3">
                 {#each chauffeursAffiches as c}
@@ -587,7 +570,7 @@ await loadLinesReference();
           <input bind:value={modalForm.nom} type="text" class={inputClass}>
         </div>
        
-<div>
+        <div>
           <label class={labelClass}>Lignes desservies</label>
           <input 
             bind:value={modalForm.lignes} 
@@ -628,6 +611,7 @@ await loadLinesReference();
                                         >DSO</button>
                                     </div>
                                 </div>
+                            {:else}
                             {/if}
                         </div>
                     {/if}
