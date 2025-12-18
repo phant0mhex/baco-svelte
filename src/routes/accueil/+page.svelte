@@ -232,7 +232,7 @@
             >
                 <button 
                     on:click={() => removeWidget(item.id)}
-                    class="transform hover:scale-110 transition-transform bg-red-500 text-white p-3 rounded-full shadow-xl flex items-center gap-2"
+                    class="transform hover:scale-110 transition-transform bg-red-500 text-white p-3 rounded-full shadow-xl flex items-center gap-2 cursor-pointer"
                 >
                     <X size={20} />
                     <span class="font-bold text-sm">Supprimer</span>
@@ -244,14 +244,6 @@
   </section>
 
 </div>
-
-{#if isDrawerOpen}
-    <div 
-        transition:fade={{ duration: 300 }}
-        class="fixed inset-0 bg-black/60 backdrop-blur-sm z-40"
-        on:click={toggleDrawer}
-    ></div>
-{/if}
 
 <div 
     class="fixed inset-y-0 right-0 w-96 bg-[#0f1115]/95 backdrop-blur-xl border-l border-white/10 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out flex flex-col"
