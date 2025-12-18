@@ -5,14 +5,14 @@
   import { goto } from '$app/navigation';
   import { currentThemeId } from '$lib/stores/theme';
   import { slide, fly } from 'svelte/transition';
-
+import { zenMode } from '$lib/stores/zen';
   // Icônes
   import { 
     Shield, Accessibility, ChevronDown, Combine, Users, BookUser, 
     Bus, Car, Database, Train, Tag, Map, Folder, BookCopy, 
     ClipboardPaste, Search, CalendarDays, Bell, UserCog, 
     ShieldCheck, LogOut, Menu, X, ChevronLeft, ChevronRight, 
-    Cake, FileClock 
+    Cake, FileClock, Maximize 
   } from 'lucide-svelte';
 
   export let user;
@@ -295,6 +295,13 @@ const activeTile = `
           </div>
 
           <div class="flex items-center gap-2">
+            <button 
+        on:click={() => zenMode.set(true)} 
+        class="{iconBtnClass} text-gray-400 hover:text-blue-400" 
+        title="Mode Zen (Plein écran)"
+    >
+        <Maximize class="w-5 h-5" />
+    </button>
               <button on:click={handleGlobalSearch} class="{iconBtnClass} flex items-center gap-2 group" title="Rechercher">
                   <Search class="w-5 h-5" />
               </button>
