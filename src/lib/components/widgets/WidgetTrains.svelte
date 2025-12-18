@@ -36,7 +36,7 @@
             if (data?.departures?.departure) {
                 const all = Array.isArray(data.departures.departure) ? data.departures.departure : [data.departures.departure];
                 const now = Math.floor(Date.now() / 1000);
-                trainDepartures = all.filter(t => parseInt(t.time) <= now + (3 * 60 * 60));
+                trainDepartures = all.filter(t => parseInt(t.time) <= now + (2 * 60 * 60));
             }
         } catch (e) { console.error(e); }
         loading = false;
@@ -50,6 +50,12 @@
     }
 
     const formatTrainTime = (ts) => new Date(ts * 1000).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
+    
+    // Fonction pour formater le numéro de train (ex: BE.NMBS.IC1234 -> IC1234)
+    const formatTrainId = (id) => {
+        if (!id) return '';
+        return id.replace('BE.NMBS.', '');
+    }
 </script>
 
 <div class="glass-panel rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md flex flex-col h-full min-h-[350px] relative overflow-hidden">
@@ -74,7 +80,7 @@
                 <div class="p-2 rounded-lg bg-blue-600/20 text-blue-300 border border-blue-500/30 group-hover:bg-blue-500 group-hover:text-white transition-colors"><TrainFront class="w-5 h-5" /></div>
                 <div>
                     <h3 class="text-lg font-bold text-white flex items-center gap-2">Gare de {currentStation} <Edit2 class="w-3.5 h-3.5 text-gray-600 group-hover:text-blue-400" /></h3>
-                    <p class="text-[10px] text-gray-400 uppercase">Départs (3h)</p>
+                    <p class="text-[10px] text-gray-400 uppercase">Départs (2h)</p>
                 </div>
             </div>
         {/if}
@@ -92,6 +98,7 @@
                             <span class="font-mono font-bold text-lg {isCanceled ? 'text-gray-500 line-through' : 'text-blue-300'}">{formatTrainTime(train.time)}</span>
                             <div>
                                 <span class="block font-bold text-gray-200">{train.station}</span>
+                                <span class="block text-[10px] text-gray-400">{formatTrainId(train.vehicle)}</span>
                                 {#if train.delay > 0 && !isCanceled}<span class="text-[10px] font-bold text-red-400">+{Math.floor(train.delay / 60)}'</span>{/if}
                             </div>
                         </div>
