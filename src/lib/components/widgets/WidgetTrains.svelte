@@ -1,6 +1,6 @@
 <script>
     import { onMount } from 'svelte';
-    import { TrainFront, Search, X, Edit2, Clock, AlertTriangle } from 'lucide-svelte';
+    import { TrainFront, Search, X, Edit2, Clock } from 'lucide-svelte';
 
     let currentStation = 'Mons';
     let allStations = [];
@@ -8,7 +8,6 @@
     let showStationSelector = false;
     let trainDepartures = [];
     let loading = true;
-
     $: filteredStations = allStations.filter(s => s.name.toLowerCase().includes(stationSearch.toLowerCase())).slice(0, 10);
 
     onMount(() => {
@@ -36,7 +35,6 @@
             if (data?.departures?.departure) {
                 const all = Array.isArray(data.departures.departure) ? data.departures.departure : [data.departures.departure];
                 const now = Math.floor(Date.now() / 1000);
-                // On filtre pour les 3 prochaines heures
                 trainDepartures = all.filter(t => parseInt(t.time) <= now + (3 * 60 * 60));
             }
         } catch (e) { console.error(e); }
@@ -86,9 +84,13 @@
 
     <div class="flex-1 overflow-y-auto custom-scrollbar">
         {#if loading}
-            <div class="flex items-center justify-center h-full gap-2 text-gray-500">
-                <div class="w-5 h-5 border-2 border-blue-500/30 border-t-blue-500 rounded-full animate-spin"></div>
-                <span class="text-xs">Chargement...</span>
+            <div class="divide-y divide-white/5 animate-pulse">
+                {#each Array(5) as _}
+                    <div class="p-3 flex justify-between items-center">
+                        <div class="flex items-center gap-3">
+                            <div class="h-4 w-10 bg-white/10 rounded"></div> <div class="h-4 w-24 bg-white/10 rounded"></div> </div>
+                        <div class="h-5 w-6 bg-white/5 rounded"></div> </div>
+                {/each}
             </div>
         {:else if trainDepartures.length > 0}
             <div class="divide-y divide-white/5 text-sm">

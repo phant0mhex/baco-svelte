@@ -23,7 +23,20 @@
 
     <div class="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1">
         {#if loading}
-            <div class="text-center text-gray-400 animate-pulse text-sm">Chargement...</div>
+            <div class="space-y-3 animate-pulse">
+                {#each Array(3) as _}
+                    <div class="bg-white/5 border border-white/5 rounded-xl p-3">
+                        <div class="flex justify-between items-center mb-2">
+                            <div class="h-3 w-24 bg-white/10 rounded"></div>
+                            <div class="h-3 w-12 bg-white/5 rounded"></div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="h-2 w-full bg-white/5 rounded"></div>
+                            <div class="h-2 w-3/4 bg-white/5 rounded"></div>
+                        </div>
+                    </div>
+                {/each}
+            </div>
         {:else if entries.length === 0}
             <div class="text-center text-gray-500 text-sm py-4">Journal vide.</div>
         {:else}

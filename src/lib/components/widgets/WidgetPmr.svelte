@@ -21,7 +21,17 @@
 
     <div class="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
         {#if loading}
-            <div class="text-center text-gray-400 animate-pulse text-sm py-4">Chargement...</div>
+            <div class="space-y-2 animate-pulse">
+                {#each Array(3) as _}
+                    <div class="p-3 rounded-xl border border-white/5 bg-white/5">
+                        <div class="flex justify-between items-start mb-2">
+                            <div class="h-3 w-16 bg-white/10 rounded"></div>
+                            <div class="h-3 w-12 bg-white/10 rounded"></div>
+                        </div>
+                        <div class="h-2 w-10 bg-white/5 rounded"></div>
+                    </div>
+                {/each}
+            </div>
         {:else if pmrIssues.length === 0}
             <div class="flex flex-col items-center justify-center h-full text-green-500/50">
                 <CheckCircle2 class="w-10 h-10 mb-2" />

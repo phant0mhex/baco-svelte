@@ -4,7 +4,7 @@
     import { CalendarDays, Cake, ListTodo, User } from 'lucide-svelte';
     import { slide } from 'svelte/transition';
 
-    let activeTab = 'leaves'; // 'leaves' ou 'birthdays'
+    let activeTab = 'leaves';
     let upcomingLeaves = [];
     let upcomingBirthdays = [];
     let loading = true;
@@ -18,7 +18,6 @@
         const today = new Date();
         const todayString = today.toISOString().split('T')[0];
 
-        // 1. Charger les congés
         const { data: leaves } = await supabase
             .from('leave_requests')
             .select(`start_date, end_date, type, status, profiles(full_name)`)
@@ -29,7 +28,6 @@
         
         upcomingLeaves = leaves || [];
 
-        // 2. Charger les anniversaires
         const { data: profiles } = await supabase
             .from('profiles')
             .select('full_name, birthday')
@@ -41,7 +39,6 @@
                 const currentYear = today.getFullYear();
                 let nextBday = new Date(currentYear, bday.getMonth(), bday.getDate());
                 
-                // Si l'anniv est passé cette année, c'est l'année prochaine
                 if (nextBday < new Date(today.setHours(0,0,0,0))) {
                     nextBday = new Date(currentYear + 1, bday.getMonth(), bday.getDate());
                 }
@@ -85,9 +82,21 @@
 
     <div class="flex-1 overflow-y-auto custom-scrollbar z-10 pr-1">
         {#if loading}
-            <div class="h-full flex items-center justify-center text-gray-500 text-xs gap-2">
-                <div class="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full animate-spin"></div>
-                Chargement...
+            <div class="space-y-2 animate-pulse mt-1">
+                {#each Array(4) as _}
+                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
+                        <div class="flex items-center gap-3">
+                            <div class="w-6 h-6 bg-white/10 rounded-lg"></div>
+                            <div class="space-y-1">
+                                <div class="h-3 w-20 bg-white/10 rounded"></div>
+                                <div class="h-2 w-10 bg-white/5 rounded"></div>
+                            </div>
+                        </div>
+                        <div class="flex flex-col items-end gap-1">
+                             <div class="h-3 w-12 bg-white/10 rounded"></div>
+                        </div>
+                    </div>
+                {/each}
             </div>
         {:else}
             {#if activeTab === 'leaves'}

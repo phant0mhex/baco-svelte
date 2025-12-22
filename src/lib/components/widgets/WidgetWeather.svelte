@@ -24,7 +24,6 @@
     let searchLoading = false;
 
     // --- ICONE RÉACTIVE ---
-    // On passe maintenant le code ET l'indicateur jour/nuit
     $: WeatherIcon = weatherData ? getWeatherIcon(weatherData.weather_code, weatherData.is_day) : Cloud;
 
     onMount(async () => {
@@ -45,7 +44,6 @@
     async function loadWeather() {
         loading = true;
         try {
-            // AJOUT DE 'is_day' DANS L'URL
             const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m,is_day&timezone=Europe%2FBrussels&t=${Date.now()}`);
             const data = await res.json();
             weatherData = data.current;
@@ -81,30 +79,14 @@
 
     // --- LOGIQUE JOUR / NUIT ---
     function getWeatherIcon(code, isDay) {
-        // isDay : 1 = Jour, 0 = Nuit
-        
-        // 0: Ciel dégagé
         if (code === 0) return isDay ? Sun : Moon;
-        
-        // 1, 2: Partiellement nuageux / Voilé
         if (code === 1 || code === 2) return isDay ? CloudSun : CloudMoon;
-        
-        // 3: Couvert (Pas de différence jour/nuit visible)
         if (code === 3) return Cloud;
-        
-        // Brouillard
         if (code === 45 || code === 48) return CloudFog;
-        
-        // Pluie / Bruine
         if (code >= 51 && code <= 67) return CloudRain;
         if (code >= 80 && code <= 82) return CloudRain;
-        
-        // Neige
         if (code >= 71 && code <= 86) return CloudSnow;
-        
-        // Orage
         if (code >= 95) return CloudLightning;
-        
         return Cloud;
     }
 
@@ -167,14 +149,19 @@
 
     <div class="p-6 pt-2 relative z-10 mt-auto">
         {#if loading}
-            <div class="animate-pulse space-y-3 mt-4">
-                <div class="h-10 w-24 bg-white/10 rounded-lg"></div>
+            <div class="animate-pulse flex flex-col justify-end h-full">
+                <div class="flex items-end gap-2 mt-4">
+                    <div class="h-12 w-24 bg-white/10 rounded-lg"></div>
+                    <div class="h-6 w-6 bg-white/10 rounded-lg mb-1"></div>
+                </div>
+                <div class="h-6 w-20 bg-white/5 rounded-full mt-2"></div>
             </div>
         {:else if weatherData}
             <div class="flex items-end gap-2 mt-4">
                 <span class="text-5xl font-bold text-white tracking-tighter drop-shadow-lg">{Math.round(weatherData.temperature_2m)}°</span>
                 <span class="text-lg text-gray-400 mb-1.5 font-medium">C</span>
             </div>
+            
             <div class="flex items-center gap-2 mt-2 text-sm text-gray-400 bg-black/20 inline-block px-3 py-1 rounded-full border border-white/5">
                 <Wind class="w-3.5 h-3.5 inline mr-1" /> <span>{weatherData.wind_speed_10m} km/h</span>
             </div>

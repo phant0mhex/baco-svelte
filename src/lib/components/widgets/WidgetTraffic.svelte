@@ -51,7 +51,20 @@
 
     <div class="flex-1 overflow-y-auto custom-scrollbar z-10 space-y-3 pr-1">
         {#if loading}
-            <div class="h-full flex items-center justify-center text-gray-500 text-xs">Chargement...</div>
+            <div class="space-y-3 animate-pulse">
+                {#each Array(3) as _}
+                    <div class="bg-white/5 rounded-xl p-3 border border-white/5">
+                        <div class="flex justify-between mb-2">
+                            <div class="h-3 w-1/3 bg-white/10 rounded"></div>
+                            <div class="h-3 w-10 bg-white/10 rounded"></div>
+                        </div>
+                        <div class="space-y-1">
+                            <div class="h-2 w-full bg-white/5 rounded"></div>
+                            <div class="h-2 w-2/3 bg-white/5 rounded"></div>
+                        </div>
+                    </div>
+                {/each}
+            </div>
         {:else if disturbances.length === 0}
             <div class="h-full flex flex-col items-center justify-center text-gray-500 opacity-60">
                 <ShieldCheck class="w-10 h-10 mb-2 text-green-400/50" />
