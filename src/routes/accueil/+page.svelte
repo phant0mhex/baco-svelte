@@ -20,86 +20,21 @@
   import { 
     LayoutGrid, Cloud, Loader2, Plus, X, 
     Sun, Car, TrainFront, Accessibility, Link, Calendar, BookOpen, PenLine, Briefcase,
-    Settings2
+    Settings2, Maximize2, Minimize2, Scaling 
   } from 'lucide-svelte';
-  
   import { toast } from '$lib/stores/toast';
 
-  // --- REGISTRE DES WIDGETS ---
-  // Modification ici : ajout de 'defaultRows' pour gérer la hauteur par défaut
+  // --- REGISTRE DES WIDGETS (inchangé) ---
   const WIDGET_REGISTRY = {
-    weather: { 
-        label: 'Météo', 
-        component: WidgetWeather, 
-        defaultSize: 'col-span-1',
-        defaultRows: 'row-span-1',
-        icon: Sun,
-        desc: 'Prévisions et conditions actuelles.'
-    },
-    shift: { 
-        label: 'Mon Service', 
-        component: WidgetShift, 
-        defaultSize: 'col-span-1 md:col-span-2',
-        defaultRows: 'row-span-1',
-        icon: Briefcase,
-        desc: 'Suivi de shift (AM/PM/Nuit) et temps restant.'
-    },
-    notepad: { 
-        label: 'Bloc-notes', 
-        component: WidgetNotepad, 
-        defaultSize: 'col-span-1',
-        defaultRows: 'row-span-1',
-        icon: PenLine,
-        desc: 'Notes rapides persistantes.'
-    },
-    traffic: { 
-        label: 'Info Trafic', 
-        component: WidgetTraffic, 
-        defaultSize: 'col-span-1', // Corrigé 'ol-span' -> 'col-span'
-        defaultRows: 'row-span-1',
-        icon: Car,
-        desc: 'État des routes et incidents.'
-    },
-    trains:  { 
-        label: 'Trains', 
-        component: WidgetTrains, 
-        defaultSize: 'col-span-1 md:col-span-2', // Corrigé 'ol-span' -> 'col-span'
-        defaultRows: 'row-span-1', // Hauteur standard (court)
-        icon: TrainFront,
-        desc: 'Prochains départs en gare.'
-    },
-    pmr:     { 
-        label: 'PMR', 
-        component: WidgetPmr, 
-        defaultSize: 'col-span-1 md:col-span-2',
-        defaultRows: 'row-span-1',
-        icon: Accessibility,
-        desc: 'Dernières demandes d\'assistance.'
-    },
-    links:   { 
-        label: 'Raccourcis', 
-        component: WidgetLinks, 
-        defaultSize: 'col-span-1',
-        defaultRows: 'row-span-1',
-        icon: Link,
-        desc: 'Liens utiles internes et externes.'
-    },
-    planning:{ 
-        label: 'Planning', 
-        component: WidgetPlanning, 
-        defaultSize: 'col-span-1', // Une seule colonne
-        defaultRows: 'row-span-2', // Double hauteur par défaut !
-        icon: Calendar,
-        desc: 'Vue d\'ensemble des effectifs.'
-    },
-    journal: { 
-        label: 'Journal', 
-        component: WidgetJournal, 
-        defaultSize: 'col-span-full',
-        defaultRows: 'row-span-1',
-        icon: BookOpen,
-        desc: 'Main courante et événements.'
-    }
+    weather: { label: 'Météo', component: WidgetWeather, defaultSize: 'col-span-1', defaultRows: 'row-span-1', icon: Sun, desc: 'Prévisions et conditions actuelles.' },
+    shift: { label: 'Mon Service', component: WidgetShift, defaultSize: 'col-span-1 md:col-span-2', defaultRows: 'row-span-1', icon: Briefcase, desc: 'Suivi de shift (AM/PM/Nuit) et temps restant.' },
+    notepad: { label: 'Bloc-notes', component: WidgetNotepad, defaultSize: 'col-span-1', defaultRows: 'row-span-1', icon: PenLine, desc: 'Notes rapides persistantes.' },
+    traffic: { label: 'Info Trafic', component: WidgetTraffic, defaultSize: 'col-span-1', defaultRows: 'row-span-1', icon: Car, desc: 'État des routes et incidents.' },
+    trains:  { label: 'Trains', component: WidgetTrains, defaultSize: 'col-span-1 md:col-span-2', defaultRows: 'row-span-1', icon: TrainFront, desc: 'Prochains départs en gare.' },
+    pmr:     { label: 'PMR', component: WidgetPmr, defaultSize: 'col-span-1 md:col-span-2', defaultRows: 'row-span-1', icon: Accessibility, desc: 'Dernières demandes d\'assistance.' },
+    links:   { label: 'Raccourcis', component: WidgetLinks, defaultSize: 'col-span-1', defaultRows: 'row-span-1', icon: Link, desc: 'Liens utiles internes et externes.' },
+    planning:{ label: 'Planning', component: WidgetPlanning, defaultSize: 'col-span-1', defaultRows: 'row-span-2', icon: Calendar, desc: 'Vue d\'ensemble des effectifs.' },
+    journal: { label: 'Journal', component: WidgetJournal, defaultSize: 'col-span-full', defaultRows: 'row-span-1', icon: BookOpen, desc: 'Main courante et événements.' }
   };
 
   // --- ÉTAT ---
@@ -108,13 +43,18 @@
   let isSaving = false;
   let isDrawerOpen = false;
   let saveTimeout;
+  
+  // Variables UI (Densité & Layout)
+  let isCompact = false;
+  $: gridGap = isCompact ? 'gap-2' : 'gap-6';
+  // Note: Utilisation de vh pour le plein écran demandé précédemment
+  $: gridRowHeight = isCompact ? 'auto-rows-[180px]' : 'auto-rows-[42vh]';
 
-  // Layout par défaut ajusté pour l'exemple d'alignement
   const DEFAULT_LAYOUT = [
     { id: 'def-1', type: 'weather' },
-    { id: 'def-2', type: 'planning' }, // Sera vertical (row-span-2)
+    { id: 'def-2', type: 'planning' },
     { id: 'def-3', type: 'links' },
-    { id: 'def-4', type: 'trains' }    // Sera horizontal (col-span-2, row-span-1)
+    { id: 'def-4', type: 'trains' }
   ];
 
   // --- CHARGEMENT ---
@@ -122,18 +62,56 @@
     const { data: { session } } = await supabase.auth.getSession();
     user = session?.user;
 
-    const localConfig = localStorage.getItem('baco_dashboard_config_v2'); // Changement de clé pour forcer le refresh structurel
+    // 1. Chargement LOCAL immédiat (évite le flash vide)
+    const localConfig = localStorage.getItem('baco_dashboard_config_v2');
     if (localConfig) {
       items = JSON.parse(localConfig);
     } else {
       items = DEFAULT_LAYOUT.map(i => ({ ...i, id: crypto.randomUUID() }));
     }
 
-    // Gestion de la synchro user (simplifiée pour l'exemple)
+    // 2. Synchronisation CLOUD (écrase le local si trouvé)
     if (user) {
-        // ... logique de récupération supabase ...
+       try {
+         const { data, error } = await supabase
+            .from('user_preferences')
+            .select('dashboard_config')
+            .eq('user_id', user.id)
+            .single();
+         
+         if (data && data.dashboard_config) {
+             // On met à jour l'état et le cache local
+             items = data.dashboard_config;
+             saveToLocal(items); 
+             console.log("Configuration chargée depuis Supabase");
+         }
+       } catch (e) {
+           console.error("Pas de config distante ou erreur:", e);
+       }
     }
   });
+
+  // --- LOGIQUE DE REDIMENSIONNEMENT (CYCLE) ---
+  const SIZES = [
+      { label: 'Petit', cols: 'col-span-1', rows: 'row-span-1' },
+      { label: 'Large', cols: 'col-span-1 md:col-span-2', rows: 'row-span-1' },
+      { label: 'Haut',  cols: 'col-span-1', rows: 'row-span-2' },
+      { label: 'Grand', cols: 'col-span-1 md:col-span-2', rows: 'row-span-2' }
+  ];
+
+  function resizeWidget(id) {
+    items = items.map(item => {
+        if (item.id !== id) return item;
+        const currentSizeIndex = SIZES.findIndex(s => 
+            s.cols === (item.cols || WIDGET_REGISTRY[item.type].defaultSize) &&
+            s.rows === (item.rows || WIDGET_REGISTRY[item.type].defaultRows)
+        );
+        const nextIndex = (currentSizeIndex + 1) % SIZES.length;
+        const nextSize = SIZES[nextIndex];
+        return { ...item, cols: nextSize.cols, rows: nextSize.rows };
+    });
+    triggerSave();
+  }
 
   // --- ACTIONS ---
   function toggleDrawer() { isDrawerOpen = !isDrawerOpen; }
@@ -154,15 +132,41 @@
     localStorage.setItem('baco_dashboard_config_v2', JSON.stringify(newItems));
   }
 
-  function triggerSave() {
+  // --- SAUVEGARDE UNIFIÉE AVEC DEBOUNCE ---
+  async function triggerSave() {
+    // 1. Sauvegarde locale immédiate
     saveToLocal(items);
-    // ... logique sauvegarde supabase ...
+
+    // 2. Sauvegarde Cloud différée (Debounce)
+    if (user) {
+        isSaving = true;
+        clearTimeout(saveTimeout);
+        
+        saveTimeout = setTimeout(async () => {
+            const { error } = await supabase
+                .from('user_preferences')
+                .upsert({ 
+                    user_id: user.id, 
+                    dashboard_config: items,
+                    updated_at: new Date()
+                }, { onConflict: 'user_id' }); // Important pour l'upsert
+
+            if (error) {
+                console.error("Erreur sauvegarde Supabase:", error);
+                toast.error("Erreur sauvegarde cloud");
+            }
+            isSaving = false;
+        }, 2000); // Attend 2 secondes après la dernière modif avant d'envoyer
+    }
   }
 
   // --- DND HANDLERS ---
   const flipDurationMs = 300;
   function handleDndConsider(e) { items = e.detail.items; }
-  function handleDndFinalize(e) { items = e.detail.items; triggerSave(); }
+  function handleDndFinalize(e) { 
+      items = e.detail.items; 
+      triggerSave(); 
+  }
 </script>
 
 <div class="space-y-6 relative">
