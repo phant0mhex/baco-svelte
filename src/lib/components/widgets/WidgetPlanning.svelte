@@ -4,10 +4,13 @@
     import { CalendarDays, Cake, ListTodo, User } from 'lucide-svelte';
     import { slide } from 'svelte/transition';
 
-    let activeTab = 'leaves';
-    let upcomingLeaves = [];
-    let upcomingBirthdays = [];
-    let loading = true;
+    // --- RUNES ---
+    let { compact = false } = $props();
+
+    let activeTab = $state('leaves');
+    let upcomingLeaves = $state([]);
+    let upcomingBirthdays = $state([]);
+    let loading = $state(true);
 
     onMount(async () => {
         await loadPlanningData();
@@ -18,6 +21,7 @@
         const today = new Date();
         const todayString = today.toISOString().split('T')[0];
 
+        // 1. Congés
         const { data: leaves } = await supabase
             .from('leave_requests')
             .select(`start_date, end_date, type, status, profiles(full_name)`)
@@ -28,6 +32,7 @@
         
         upcomingLeaves = leaves || [];
 
+        // 2. Anniversaires
         const { data: profiles } = await supabase
             .from('profiles')
             .select('full_name, birthday')
@@ -38,11 +43,9 @@
                 const bday = new Date(profile.birthday.replace(/-/g, '/')); 
                 const currentYear = today.getFullYear();
                 let nextBday = new Date(currentYear, bday.getMonth(), bday.getDate());
-                
                 if (nextBday < new Date(today.setHours(0,0,0,0))) {
                     nextBday = new Date(currentYear + 1, bday.getMonth(), bday.getDate());
                 }
-                
                 return { 
                     name: profile.full_name, 
                     date: nextBday, 
@@ -57,25 +60,25 @@
     }
 </script>
 
-<div class="glass-panel p-5 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md h-full flex flex-col relative overflow-hidden">
+<div class="glass-panel {compact ? 'p-2' : 'p-5'} rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md h-full flex flex-col relative overflow-hidden transition-all duration-300">
     
-    <div class="flex items-center justify-between mb-4 z-10 border-b border-white/10 pb-2">
-        <h2 class="text-lg font-bold text-white flex items-center gap-2">
-            <CalendarDays class="w-5 h-5 text-pink-400" /> Planning
+    <div class="flex items-center justify-between {compact ? 'mb-2 pb-1' : 'mb-4 pb-2'} z-10 border-b border-white/10">
+        <h2 class="{compact ? 'text-sm' : 'text-lg'} font-bold text-white flex items-center gap-2">
+            <CalendarDays class="{compact ? 'w-4 h-4' : 'w-5 h-5'} text-pink-400" /> {#if !compact}Planning{:else}Plan.{/if}
         </h2>
         
         <div class="flex bg-black/20 rounded-lg p-1">
             <button 
-                on:click={() => activeTab = 'leaves'}
+                onclick={() => activeTab = 'leaves'}
                 class="px-3 py-1 text-xs font-bold rounded-md transition-all {activeTab === 'leaves' ? 'bg-white/10 text-white shadow-sm' : 'text-gray-500 hover:text-gray-300'}"
             >
-                Congés
+                {#if compact}<ListTodo class="w-3 h-3"/>{:else}Congés{/if}
             </button>
             <button 
-                on:click={() => activeTab = 'birthdays'}
+                onclick={() => activeTab = 'birthdays'}
                 class="px-3 py-1 text-xs font-bold rounded-md transition-all {activeTab === 'birthdays' ? 'bg-pink-500/20 text-pink-300 shadow-sm' : 'text-gray-500 hover:text-gray-300'}"
             >
-                Anniversaires
+                {#if compact}<Cake class="w-3 h-3"/>{:else}Anniv{/if}
             </button>
         </div>
     </div>
@@ -83,18 +86,16 @@
     <div class="flex-1 overflow-y-auto custom-scrollbar z-10 pr-1">
         {#if loading}
             <div class="space-y-2 animate-pulse mt-1">
-                {#each Array(4) as _}
-                    <div class="flex items-center justify-between p-2.5 rounded-xl bg-white/5 border border-white/5">
+                {#each Array(compact ? 3 : 4) as _}
+                    <div class="flex items-center justify-between {compact ? 'p-1.5' : 'p-2.5'} rounded-xl bg-white/5 border border-white/5">
                         <div class="flex items-center gap-3">
                             <div class="w-6 h-6 bg-white/10 rounded-lg"></div>
                             <div class="space-y-1">
                                 <div class="h-3 w-20 bg-white/10 rounded"></div>
-                                <div class="h-2 w-10 bg-white/5 rounded"></div>
+                                {#if !compact}<div class="h-2 w-10 bg-white/5 rounded"></div>{/if}
                             </div>
                         </div>
-                        <div class="flex flex-col items-end gap-1">
-                             <div class="h-3 w-12 bg-white/10 rounded"></div>
-                        </div>
+                        <div class="h-3 w-12 bg-white/10 rounded"></div>
                     </div>
                 {/each}
             </div>
@@ -109,21 +110,27 @@
                     {:else}
                         <div class="space-y-2">
                             {#each upcomingLeaves as leave}
-                                <div class="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.07] transition-colors">
+                                <div class="flex items-center justify-between {compact ? 'p-1.5' : 'p-2.5'} rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.07] transition-colors">
                                     <div class="flex items-center gap-3">
-                                        <div class="p-1.5 rounded-lg bg-green-500/10 text-green-400">
-                                            <User class="w-3 h-3" />
-                                        </div>
+                                        {#if !compact}
+                                            <div class="p-1.5 rounded-lg bg-green-500/10 text-green-400">
+                                                <User class="w-3 h-3" />
+                                            </div>
+                                        {/if}
                                         <div>
-                                            <span class="block font-bold text-gray-200 text-xs">{leave.profiles?.full_name}</span>
-                                            <span class="text-[9px] text-gray-500 uppercase tracking-wider">{leave.type}</span>
+                                            <span class="block font-bold text-gray-200 {compact ? 'text-[10px]' : 'text-xs'}">{leave.profiles?.full_name}</span>
+                                            {#if !compact}
+                                                <span class="text-[9px] text-gray-500 uppercase tracking-wider">{leave.type}</span>
+                                            {/if}
                                         </div>
                                     </div>
                                     <div class="text-right">
-                                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full {leave.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}">
-                                            {leave.status === 'APPROVED' ? 'Validé' : 'En attente'}
-                                        </span>
-                                        <p class="text-[11px] text-gray-300 mt-1 font-medium">
+                                        {#if !compact}
+                                            <span class="text-[9px] font-bold px-1.5 py-0.5 rounded-full {leave.status === 'APPROVED' ? 'bg-green-500/10 text-green-400 border border-green-500/20' : 'bg-yellow-500/10 text-yellow-400 border border-yellow-500/20'}">
+                                                {leave.status === 'APPROVED' ? 'Validé' : 'En attente'}
+                                            </span>
+                                        {/if}
+                                        <p class="{compact ? 'text-[10px]' : 'text-[11px]'} text-gray-300 mt-1 font-medium">
                                             {new Date(leave.start_date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})} → {new Date(leave.end_date).toLocaleDateString('fr-FR', {day: 'numeric', month: 'short'})}
                                         </p>
                                     </div>
@@ -144,12 +151,12 @@
                     {:else}
                         <div class="space-y-2">
                             {#each upcomingBirthdays as birthday}
-                                <div class="flex items-center justify-between p-2.5 rounded-xl border transition-all {birthday.isToday ? 'bg-pink-500/10 border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.15)]' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.07]'}">
+                                <div class="flex items-center justify-between {compact ? 'p-1.5' : 'p-2.5'} rounded-xl border transition-all {birthday.isToday ? 'bg-pink-500/10 border-pink-500/30 shadow-[0_0_15px_rgba(236,72,153,0.15)]' : 'bg-white/[0.03] border-white/5 hover:bg-white/[0.07]'}">
                                     <div class="flex items-center gap-3">
                                         <div class="p-1.5 rounded-lg {birthday.isToday ? 'bg-pink-500 text-white animate-bounce' : 'bg-white/5 text-gray-400'}">
                                             <Cake class="w-3.5 h-3.5" />
                                         </div>
-                                        <span class="font-medium text-gray-200 text-xs">{birthday.name}</span>
+                                        <span class="font-medium text-gray-200 {compact ? 'text-[10px]' : 'text-xs'}">{birthday.name}</span>
                                     </div>
                                     <span class="text-[10px] font-bold flex items-center gap-2 {birthday.isToday ? 'text-pink-300' : 'text-gray-500'}">
                                         {birthday.displayDate}

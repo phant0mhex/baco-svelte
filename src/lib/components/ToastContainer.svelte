@@ -2,9 +2,7 @@
     import { toasts, dismissToast } from '$lib/stores/toast.js';
     import { fly } from 'svelte/transition';
     import { quintOut } from 'svelte/easing';
-
-    // Import des icônes Lucide spécifiques
-    import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-svelte'; 
+    import { CheckCircle, XCircle, AlertTriangle, Info, X } from 'lucide-svelte';
 
     /**
      * Retourne les styles Glassmorphic pour chaque type
@@ -13,7 +11,6 @@
         switch (type) {
             case 'success':
                 return {
-                    // Fond teinté vert + Bordure verte subtile + Ombre verte légère
                     container: 'bg-green-500/20 border-green-500/30 shadow-[0_0_15px_rgba(34,197,94,0.15)]',
                     textColor: 'text-green-100',
                     iconColor: 'text-green-400',
@@ -46,7 +43,6 @@
 </script>
 
 <div class="fixed top-4 right-4 z-[1000] space-y-3 pointer-events-none flex flex-col items-end p-4">
-    
     {#each $toasts as t (t.id)}
         {@const style = getStyle(t.type)}
         
@@ -63,7 +59,6 @@
             "
         >
             <div class="flex items-start gap-3">
-                
                 <div class="flex-shrink-0 mt-0.5 {style.iconColor}">
                     <svelte:component this={style.icon} size={20} />
                 </div>
@@ -74,8 +69,8 @@
             </div>
 
             <button 
-                on:click={() => dismissToast(t.id)}
-                class="flex-shrink-0 p-1 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors"
+                onclick={() => dismissToast(t.id)}
+                class="flex-shrink-0 p-1 rounded-full text-white/50 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                 aria-label="Fermer"
             >
                 <X size={16} />

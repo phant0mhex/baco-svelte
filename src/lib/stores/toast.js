@@ -13,7 +13,8 @@ export const toasts = writable(initialState);
  * @param {number} duration - Durée d'affichage en millisecondes (par défaut : 3000ms).
  */
 export function sendToast(message, type = 'info', duration = 3000) {
-    const id = Date.now(); // Utiliser l'horodatage comme ID unique
+    // CORRECTION : Utiliser crypto.randomUUID() au lieu de Date.now()
+    const id = crypto.randomUUID(); 
 
     const newToast = {
         id,
@@ -33,7 +34,7 @@ export function sendToast(message, type = 'info', duration = 3000) {
 
 /**
  * Supprime une notification spécifique.
- * @param {number} id - L'ID du toast à supprimer.
+ * @param {string} id - L'ID du toast à supprimer.
  */
 export function dismissToast(id) {
     toasts.update((currentToasts) =>

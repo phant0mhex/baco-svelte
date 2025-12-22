@@ -22,6 +22,21 @@
 
 }
 
+@theme {
+  /* Déclarez ici vos couleurs personnalisées */
+  /* La partie gauche (--color-primary) est le nom de l'utilitaire Tailwind (ex: bg-primary) */
+  /* La partie droite (var(--color-primary)) est la variable CSS injectée par votre JS */
+  
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-success: var(--color-success);
+  --color-warning: var(--color-warning);
+  --color-error: var(--color-error);
+  
+  /* Si vous avez des variations (hover, etc) */
+  --color-primary-hover: var(--color-primary-hover);
+}
+
 
 @layer utilities {
   /* Le fond global devient dynamique */

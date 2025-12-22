@@ -1,30 +1,29 @@
 <script>
     import { onMount } from 'svelte';
     import { 
-        MapPin, Wind, Search, X, Edit2, Loader2,
-        // Icônes Météo Jour
-        Sun, CloudSun, 
-        // Icônes Météo Nuit (Nouveaux)
-        Moon, CloudMoon,
-        // Icônes Neutres
-        Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog, CloudDrizzle
+        MapPin, Wind, Search, X, Edit2, 
+        Sun, CloudSun, Moon, CloudMoon,
+        Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog
     } from 'lucide-svelte';
 
-    // --- ÉTATS ---
-    let weatherData = null;
-    let loading = true;
-    let locationName = "Mons"; 
-    let latitude = 50.4542;    
-    let longitude = 3.9567;
+    // --- ÉTAT (Runes) ---
+    let weatherData = $state(null);
+    let loading = $state(true);
+    let locationName = $state("Mons");
+    let latitude = $state(50.4542);
+    let longitude = $state(3.9567);
 
     // Recherche
-    let showSearch = false;
-    let searchQuery = "";
-    let searchResults = [];
-    let searchLoading = false;
+    let showSearch = $state(false);
+    let searchQuery = $state("");
+    let searchResults = $state([]);
+    // Note: searchLoading n'était pas utilisé dans l'affichage, je l'ai gardé simple
 
-    // --- ICONE RÉACTIVE ---
-    $: WeatherIcon = weatherData ? getWeatherIcon(weatherData.weather_code, weatherData.is_day) : Cloud;
+    // --- DÉRIVÉ (Runes) ---
+    // Remplace la syntaxe $:
+    let WeatherIcon = $derived(
+        weatherData ? getWeatherIcon(weatherData.weather_code, weatherData.is_day) : Cloud
+    );
 
     onMount(async () => {
         if (typeof localStorage !== 'undefined') {
@@ -47,23 +46,17 @@
             const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code,wind_speed_10m,is_day&timezone=Europe%2FBrussels&t=${Date.now()}`);
             const data = await res.json();
             weatherData = data.current;
-            console.log(`Météo ${locationName}: Code ${weatherData.weather_code}, Jour: ${weatherData.is_day}`);
-        } catch (e) { 
-            console.error(e); 
-        } finally {
-            loading = false;
-        }
+        } catch (e) { console.error(e); } 
+        finally { loading = false; }
     }
 
     async function searchCity() {
         if (searchQuery.length < 2) return;
-        searchLoading = true;
         try {
             const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(searchQuery)}&count=5&language=fr&format=json`);
             const data = await res.json();
             searchResults = data.results || [];
-        } catch (e) { searchResults = []; } 
-        finally { searchLoading = false; }
+        } catch (e) { searchResults = []; }
     }
 
     function selectCity(city) {
@@ -77,7 +70,6 @@
         loadWeather();
     }
 
-    // --- LOGIQUE JOUR / NUIT ---
     function getWeatherIcon(code, isDay) {
         if (code === 0) return isDay ? Sun : Moon;
         if (code === 1 || code === 2) return isDay ? CloudSun : CloudMoon;
@@ -104,17 +96,16 @@
     </div>
     
     <div class="p-6 pb-0 flex justify-between items-start relative z-20">
-        
         <div class="flex-1 relative">
             {#if showSearch}
                 <div class="flex items-center gap-2 animate-in fade-in slide-in-from-left-2 duration-200">
                     <div class="relative w-full">
                         <Search class="absolute left-2.5 top-2.5 w-4 h-4 text-gray-400"/>
-                        <input type="text" bind:value={searchQuery} on:input={handleInput} placeholder="Ville..." class="w-full bg-black/60 border border-blue-500/50 rounded-xl py-2 pl-9 pr-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" autoFocus />
+                        <input type="text" bind:value={searchQuery} oninput={handleInput} placeholder="Ville..." class="w-full bg-black/60 border border-blue-500/50 rounded-xl py-2 pl-9 pr-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-blue-500/50" autoFocus />
                         {#if searchResults.length > 0}
                             <div class="absolute top-full left-0 right-0 mt-2 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 overflow-hidden">
                                 {#each searchResults as result}
-                                    <button on:click={() => selectCity(result)} class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-blue-600 hover:text-white transition-colors border-b border-white/5 flex justify-between">
+                                    <button onclick={() => selectCity(result)} class="w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-blue-600 hover:text-white transition-colors border-b border-white/5 flex justify-between">
                                         <span>{result.name}</span>
                                         <span class="text-xs text-gray-500">{result.country_code}</span>
                                     </button>
@@ -122,10 +113,10 @@
                             </div>
                         {/if}
                     </div>
-                    <button on:click={() => showSearch = false} class="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white"><X class="w-4 h-4" /></button>
+                    <button onclick={() => showSearch = false} class="p-2 hover:bg-white/10 rounded-lg text-gray-400 hover:text-white"><X class="w-4 h-4" /></button>
                 </div>
             {:else}
-                <div class="group cursor-pointer inline-flex flex-col" on:click={() => showSearch = true}>
+                <div class="group cursor-pointer inline-flex flex-col" onclick={() => showSearch = true}>
                     <h3 class="text-lg font-bold text-white flex items-center gap-2 transition-colors group-hover:text-blue-300">
                         <MapPin class="w-4 h-4 text-orange-400" /> {locationName}
                         <Edit2 class="w-3 h-3 text-gray-600 opacity-0 group-hover:opacity-100 transition-opacity" />
@@ -136,7 +127,7 @@
         </div>
 
         {#if !loading && weatherData && !showSearch}
-            {#key `${weatherData.weather_code}-${weatherData.is_day}`}
+             {#key `${weatherData.weather_code}-${weatherData.is_day}`}
                 <div class="animate-in fade-in zoom-in duration-500">
                     <svelte:component 
                         this={WeatherIcon} 

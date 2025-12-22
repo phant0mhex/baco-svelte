@@ -3,10 +3,11 @@
   import { Eraser, PenLine } from 'lucide-svelte';
   import { fade } from 'svelte/transition';
 
-  export let id; 
+  // --- RUNES ---
+  let { id, compact = false } = $props();
 
-  let content = "";
-  let saveStatus = "saved"; 
+  let content = $state("");
+  let saveStatus = $state("saved"); 
   let timeout;
   let textareaEl;
 
@@ -17,20 +18,12 @@
     if (saved) {
         content = saved;
     }
-    // Petit délai pour que le CSS h-full soit appliqué avant le calcul
     setTimeout(autoResize, 50);
   });
 
   function autoResize() {
     if (!textareaEl) return;
-    
-    // On reset à 'auto' pour bien calculer la réduction si on efface
     textareaEl.style.height = 'auto';
-    
-    // On applique la hauteur du contenu
-    // Note : Grâce à la classe CSS 'min-h-full' sur le textarea, 
-    // si scrollHeight est petit, le textarea restera quand même grand (taille du widget).
-    // Si scrollHeight est grand, il poussera le widget.
     textareaEl.style.height = textareaEl.scrollHeight + 'px';
   }
 
@@ -57,11 +50,14 @@
 </script>
 
 <div class="flex flex-col h-full bg-[#0f1115]/50 rounded-xl border border-white/5 backdrop-blur-sm overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-    
-    <div class="flex justify-between items-center px-4 py-3 border-b border-white/5 bg-white/5 shrink-0">
+    <div class="flex justify-between items-center {compact ? 'px-2 py-1.5' : 'px-4 py-3'} border-b border-white/5 bg-white/5 shrink-0">
         <div class="flex items-center gap-2 text-yellow-400">
-            <PenLine class="w-4 h-4" />
-            <span class="text-sm font-bold uppercase tracking-wider">Note Rapide</span>
+            <PenLine class="{compact ? 'w-3 h-3' : 'w-4 h-4'}" />
+            {#if !compact}
+                <span class="text-sm font-bold uppercase tracking-wider">Note Rapide</span>
+            {:else}
+                <span class="text-xs font-bold uppercase tracking-wider">Note</span>
+            {/if}
         </div>
         
         <div class="flex items-center gap-2">
@@ -71,8 +67,8 @@
                 <span transition:fade class="text-[10px] text-green-500/50 font-medium">Enregistré</span>
             {/if}
 
-            <button on:click={clearNote} class="p-1 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded transition-colors" title="Effacer">
-                <Eraser class="w-3.5 h-3.5" />
+            <button onclick={clearNote} class="p-1 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded transition-colors" title="Effacer">
+                <Eraser class="{compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}" />
             </button>
         </div>
     </div>
@@ -81,10 +77,10 @@
         <textarea 
             bind:this={textareaEl}
             bind:value={content}
-            on:input={handleInput}
+            oninput={handleInput}
             placeholder="Numéro de bus, rappel, nom..."
             rows="1"
-            class="w-full h-full min-h-full bg-transparent p-4 text-sm text-gray-300 placeholder-gray-600 resize-none focus:outline-none custom-scrollbar leading-relaxed overflow-hidden block"
+            class="w-full h-full min-h-full bg-transparent {compact ? 'p-2 text-xs' : 'p-4 text-sm'} text-gray-300 placeholder-gray-600 resize-none focus:outline-none custom-scrollbar leading-relaxed overflow-hidden block"
         ></textarea>
     </div>
 </div>
