@@ -99,22 +99,31 @@
   });
 
   onDestroy(() => {
-     if (grid) grid.destroy(false); // false = ne pas supprimer le DOM
+     if (grid) {
+         grid.destroy(false); // false = garde le DOM
+         grid = null; // <--- AJOUT CRITIQUE pour éviter d'utiliser une grille morte
+     }
   });
 
-  function initGridStack() {
-      grid = GridStack.init({
-          column: 4, // 4 colonnes comme avant (grid-cols-4)
-          cellHeight: 280, // Hauteur fixe en px (correspond à auto-rows-[280px])
-          margin: 10, // Espace entre widgets
-          float: false, // FALSE = GRAVITÉ (remonte les trous)
-          disableOneColumnMode: false, // Passe en 1 colonne sur mobile
-          animate: true, // Animation fluide
-          staticGrid: true, // Par défaut verrouillé (pas de drag)
-          disableResize: true,
-      }, '.grid-stack');
+function initGridStack() {
+      // Sécurité anti-doublon
+      if (grid) return;
 
-      // Écouter les changements pour sauvegarder
+      const el = document.querySelector('.grid-stack');
+      if (!el) return; // Sécurité si le DOM n'est pas prêt
+
+      grid = GridStack.init({
+          column: 4,
+          cellHeight: 280,
+          margin: 10,
+          float: false,
+          disableOneColumnMode: false,
+          animate: true,
+          staticGrid: true, // Commence en mode statique (verrouillé)
+          disableResize: true,
+      }, el);
+
+      // Écouter les changements
       grid.on('change', (event, changeItems) => {
           updateItemsFromGrid();
           triggerSave();
@@ -123,13 +132,27 @@
 
   // --- LOGIQUE MÉTIER ---
 
-  function toggleDrawer() {
+function toggleDrawer() {
       isDrawerOpen = !isDrawerOpen;
+      
       if (grid) {
-          // Active le Drag & Drop seulement quand le tiroir est ouvert
-          grid.setStatic(!isDrawerOpen); 
-          grid.enableMove(isDrawerOpen);
-          grid.enableResize(isDrawerOpen);
+          try {
+            // On active/désactive le mouvement selon l'état du tiroir
+            grid.enableMove(isDrawerOpen);
+            grid.enableResize(isDrawerOpen);
+            
+            // Gestion manuelle de la classe 'static' pour cacher/montrer les poignées
+            // (C'est ce que setStatic fait en interne, mais on le fait à la main pour éviter le crash)
+            if (grid.el) {
+                if (isDrawerOpen) {
+                    grid.el.classList.remove('grid-stack-static');
+                } else {
+                    grid.el.classList.add('grid-stack-static');
+                }
+            }
+          } catch (err) {
+              console.warn("Erreur GridStack sécurisée:", err);
+          }
       }
   }
 
