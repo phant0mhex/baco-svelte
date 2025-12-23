@@ -6,6 +6,7 @@
   import autoTable from 'jspdf-autotable';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
+  import * as XLSX from 'xlsx';
   import { 
     Bus, Calendar, Clock, MapPin, CheckSquare, Square, 
     FileText, Save, Trash2, Plus, Loader2, ArrowLeft,
@@ -92,6 +93,60 @@
           currentUserProfile = data;
       }
   }
+
+  // --- EXPORT XLSX ---
+function exportToExcel() {
+    // Préparation des données pour l'export
+    const dataToExport = filteredCommandes.map(cmd => ({
+        Relation: cmd.relation,
+        Société: cmd.societes_bus?.nom || 'Inconnue',
+        Statut: cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon',
+        Date: new Date(cmd.date_commande).toLocaleDateString('fr-BE'),
+        'Heure Appel': cmd.heure_appel || '',
+        Origine: cmd.origine || '',
+        Destination: cmd.destination || '',
+        Motif: cmd.motif || '',
+        'Mail Envoyé': cmd.is_mail_sent ? 'Oui' : 'Non',
+        Créateur: cmd.creator?.full_name || ''
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Commandes Otto");
+    
+    // Génération du fichier
+    XLSX.writeFile(workbook, `Export_Otto_${new Date().toISOString().split('T')[0]}.xlsx`);
+    toast.success("Fichier Excel généré !");
+}
+
+// --- EXPORT PDF (LISTE) ---
+function exportListPDF() {
+    const doc = new jsPDF('l', 'mm', 'a4'); // Mode paysage pour plus de colonnes
+    
+    doc.setFontSize(16);
+    doc.text("Liste des Commandes Bus (Otto)", 15, 15);
+    
+    const rows = filteredCommandes.map(cmd => [
+        cmd.relation,
+        cmd.societes_bus?.nom || '-',
+        cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon',
+        new Date(cmd.date_commande).toLocaleDateString('fr-BE'),
+        cmd.origine + " -> " + cmd.destination,
+        cmd.motif
+    ]);
+
+    autoTable(doc, {
+        startY: 25,
+        head: [['Relation', 'Société', 'Statut', 'Date', 'Parcours', 'Motif']],
+        body: rows,
+        theme: 'grid',
+        headStyles: { fillColor: [249, 115, 22] }, // Couleur orange du thème Otto
+        styles: { fontSize: 8 }
+    });
+
+    doc.save(`Liste_Otto_${new Date().toISOString().split('T')[0]}.pdf`);
+    toast.success("Liste PDF générée !");
+}
 
   async function loadCommandes() {
     const { data, error } = await supabase
@@ -564,6 +619,14 @@ async function generatePDF() {
                     {#if dateFilter}<button on:click={() => dateFilter = ""} class="absolute right-2 top-2.5 text-gray-500 hover:text-white"><X size={14}/></button>{/if}
                 </div>
 
+                <button on:click={exportToExcel} class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20 transition-all flex items-center gap-2">
+            <Download size={14} /> Excel
+        </button>
+        
+        <button on:click={exportListPDF} class="flex-1 sm:flex-none px-4 py-2 rounded-xl text-xs font-bold bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center gap-2">
+            <Printer size={14} /> PDF
+        </button>
+        
                 <div class="w-px h-8 bg-white/10 hidden sm:block"></div>
 
                 <div class="flex gap-2 w-full sm:w-auto">
