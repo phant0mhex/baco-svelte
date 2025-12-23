@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { fly, fade, slide } from 'svelte/transition';
-  import jsPDF from 'jsPDF';
+  import jsPDF from 'jspdf';
   import autoTable from 'jspdf-autotable';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
