@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { page } from '$app/stores'; // IMPORT AJOUTÉ
   import { fly, fade, slide } from 'svelte/transition';
   import { 
     Search, User, Phone, Mail, LayoutGrid, List, 
@@ -72,6 +73,17 @@
     await loadCategories();
   });
 
+  // --- LOGIQUE URL (GLOBAL SEARCH) ---
+  // Si on arrive avec ?search=..., on applique le filtre
+  $: {
+      const q = $page.url.searchParams.get('search');
+      if (q && q !== searchTerm) {
+          searchTerm = q;
+          // On force le chargement, même si aucune catégorie n'est sélectionnée
+          // (car loadContacts se déclenche via la réactivité de searchTerm plus bas)
+      }
+  }
+
   // --- LOGIQUE DE CHARGEMENT ---
 
  async function loadCategories() {
@@ -92,6 +104,8 @@
   }
 
   $: if (selectedCategories) handleCategoryChange();
+  
+  // MODIF : On déclenche le chargement aussi si searchTerm change
   $: if (selectedCategories || selectedZones || searchTerm || sortOrder) loadContacts();
 
 
@@ -125,6 +139,7 @@ function handleCategoryChange() {
  
 
 async function loadContacts() {
+    // MODIF : Si pas de catégorie ET pas de recherche, on vide tout (écran d'accueil vide)
     if (selectedCategories.length === 0 && !searchTerm) {
         displayedContacts = {};
         return;
@@ -139,27 +154,37 @@ async function loadContacts() {
     const orFilters = [];
 
     // Pour chaque catégorie sélectionnée, on construit son filtre spécifique
-    selectedCategories.forEach(cat => {
-        // Quelles sont les zones valides pour CETTE catégorie dans la base ?
-        const validZonesForCat = rawContactData
-           .filter(d => d.categorie_principale === cat && d.zone)
-           .map(d => d.zone);
+    if (selectedCategories.length > 0) {
+        selectedCategories.forEach(cat => {
+            // Quelles sont les zones valides pour CETTE catégorie dans la base ?
+            const validZonesForCat = rawContactData
+            .filter(d => d.categorie_principale === cat && d.zone)
+            .map(d => d.zone);
 
-        // Parmi les zones cochées par l'utilisateur, lesquelles s'appliquent à CETTE catégorie ?
-        const appliedZones = selectedZones.filter(z => validZonesForCat.includes(z));
+            // Parmi les zones cochées par l'utilisateur, lesquelles s'appliquent à CETTE catégorie ?
+            const appliedZones = selectedZones.filter(z => validZonesForCat.includes(z));
 
-        if (appliedZones.length > 0) {
-            // Si l'utilisateur a coché des zones spécifiques à cette catégorie, on filtre
-            // Exemple : (Categorie = MIA AND Zone IN (FMS, FTY))
-            orFilters.push(`and(categorie_principale.eq.${cat},zone.in.(${appliedZones.join(',')}))`);
-        } else {
-            // Sinon, on prend tout pour cette catégorie
-            orFilters.push(`categorie_principale.eq.${cat}`);
-        }
-    });
+            if (appliedZones.length > 0) {
+                // Si l'utilisateur a coché des zones spécifiques à cette catégorie, on filtre
+                // Exemple : (Categorie = MIA AND Zone IN (FMS, FTY))
+                orFilters.push(`and(categorie_principale.eq.${cat},zone.in.(${appliedZones.join(',')}))`);
+            } else {
+                // Sinon, on prend tout pour cette catégorie
+                orFilters.push(`categorie_principale.eq.${cat}`);
+            }
+        });
+    }
 
-    if (orFilters.length > 0) query = query.or(orFilters.join(','));
+    // Appliquer les filtres de catégorie/zone si présents
+    if (orFilters.length > 0) {
+        // Si on a aussi une recherche texte, on doit combiner : (Filtres Catégorie) AND (Recherche Texte)
+        // Supabase .or() s'applique au niveau racine.
+        // Si on veut faire (A OR B) AND (C OR D), c'est complexe avec l'API JS simple.
+        // Solution simple : On applique d'abord le filtre OR des catégories.
+        query = query.or(orFilters.join(','));
+    }
     
+    // Ensuite on applique la recherche texte par dessus (c'est un AND implicite)
     if (searchTerm) {
       query = query.or(`nom.ilike.%${searchTerm}%,tel.ilike.%${searchTerm}%,email.ilike.%${searchTerm}%,groupe.ilike.%${searchTerm}%`);
     }

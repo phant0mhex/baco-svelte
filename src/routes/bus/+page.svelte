@@ -1,10 +1,11 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { page } from '$app/stores'; // IMPORT AJOUTÉ
   import { fly, fade } from 'svelte/transition';
   import { 
     Bus, FileText, Plus, X, Pencil, Trash2, 
-    Phone, MapPin, CheckSquare, Square, Loader2, Check, Filter, AlertCircle
+    Phone, MapPin, CheckSquare, Square, Loader2, Check, Filter, AlertCircle, Search
   } from 'lucide-svelte';
   import jsPDF from 'jspdf';
   import autoTable from 'jspdf-autotable';
@@ -33,6 +34,7 @@
   // Sélection
   let selectedLines = [];
   let selectedSocieteIds = [];
+  let searchTerm = ""; // NOUVEL ÉTAT POUR LA RECHERCHE
 
   // Résultats
   let societesAffichees = [];
@@ -140,6 +142,19 @@
   }
 
   // --- LOGIQUE RÉACTIVE ---
+  
+  // 1. Détection URL (Recherche Globale)
+  $: {
+      const q = $page.url.searchParams.get('search');
+      if (q && q !== searchTerm) {
+          searchTerm = q;
+          // Réinitialiser la navigation manuelle pour passer en mode recherche
+          selectedDistrict = null;
+          selectedLines = [];
+          loadSocietes();
+      }
+  }
+
   // Si on change de district, on vide la sélection de ligne pour éviter les confusions
   function selectDistrict(d) {
     if (selectedDistrict !== d) {
@@ -148,21 +163,75 @@
         societesAffichees = [];
         // Reset résultats
         selectedSocieteIds = [];
+        searchTerm = ""; // On quitte le mode recherche
     }
   }
 
   $: if (selectedLines) loadSocietes();
   $: if (selectedSocieteIds) loadDetails();
-  async function loadSocietes() {
+
+async function loadSocietes() {
     societesAffichees = [];
     selectedSocieteIds = [];
     contactsAffiches = [];
     chauffeursAffiches = [];
+
+    // CAS 1: MODE RECHERCHE TEXTUELLE (Prioritaire)
+    if (searchTerm) {
+        loadingSocietes = true;
+        const term = `%${searchTerm}%`;
+
+        // 1. Chercher les sociétés par nom
+        const { data: socs } = await supabase
+            .from('societes_bus')
+            .select('id')
+            .ilike('nom', term);
+
+        // 2. Chercher les chauffeurs (et récupérer l'ID de leur société)
+       const { data: chauff } = await supabase
+            .from('chauffeurs_bus')
+            .select('societe_id')
+            .ilike('nom', term);
+
+        // 3. Chercher les contacts (et récupérer l'ID de leur société)
+        const { data: cont } = await supabase
+            .from('contacts_bus')
+            .select('societe_id')
+            .ilike('nom', term);
+
+        // Fusionner tous les IDs trouvés (Set évite les doublons)
+        const allIds = new Set([
+            ...(socs?.map(s => s.id) || []),
+            ...(chauff?.map(c => c.societe_id) || []),
+            ...(cont?.map(c => c.societe_id) || [])
+        ]);
+
+        // Charger les sociétés correspondantes
+        if (allIds.size > 0) {
+            const { data } = await supabase
+                .from('societes_bus')
+                .select('id, nom')
+                .in('id', [...allIds])
+                .order('nom');
+            
+            societesAffichees = data || [];
+            
+            // Astuce UX : Si on a des résultats, on sélectionne automatiquement les sociétés
+            // pour afficher directement les chauffeurs/contacts en bas
+            selectedSocieteIds = societesAffichees.map(s => s.id);
+        } else {
+            societesAffichees = [];
+        }
+
+        loadingSocietes = false;
+        return;
+    }
+
+    // CAS 2: MODE NAVIGATION PAR LIGNE (inchangé)
     if (selectedLines.length === 0) return;
 
     loadingSocietes = true;
     
-    // Récupérer les ID sociétés liées aux lignes sélectionnées
     const { data: lignesData, error: lErr } = await supabase
       .from('lignes_bus')
       .select('societe_id')
@@ -207,9 +276,7 @@
 
   // --- FONCTIONS UTILITAIRES ---
   function toggleLine(line) {
-    // Si on veut permettre une seule ligne à la fois, décommenter la ligne suivante et commenter le bloc if/else
-    // selectedLines = [line];
-    // Version Multi-select (pour comparer ou voir plusieurs lignes)
+    searchTerm = ""; // On quitte le mode recherche
     if (selectedLines.includes(line)) {
       selectedLines = selectedLines.filter(l => l !== line);
     } else {
@@ -254,7 +321,6 @@
     showModal = true;
   }
 
-// --- MODIFICATION : handleSubmit ---
   async function handleSubmit() {
     modalLoading = true;
     // 1. Traitement des lignes et sauvegarde des nouveaux districts
@@ -273,7 +339,6 @@
                     district: districtChoice,
                     gare: 'Gare Inconnue' // Valeur placeholder obligatoire si la colonne est non-nullable
                 }, { onConflict: 'ligne_nom' });
-            // Assurez-vous que ligne_nom est unique ou PK
             
             if (!lineErr) {
                 // Mettre à jour le cache local pour ne plus la considérer comme inconnue
@@ -440,7 +505,7 @@
 
   <div class="space-y-8 min-h-[400px]">
     
-    {#if selectedLines.length === 0}
+    {#if selectedLines.length === 0 && !searchTerm}
       <div class="flex flex-col items-center justify-center h-48 text-gray-600 bg-black/10 rounded-2xl border border-dashed border-white/5 mt-8" in:fade>
         <p>Sélectionnez une ligne pour voir les sociétés.</p>
       </div>
@@ -453,13 +518,13 @@
 
     {:else if societesAffichees.length === 0}
       <div class="flex flex-col items-center justify-center h-64 text-gray-500 bg-black/20 rounded-2xl border border-dashed border-white/10">
-        <p>Aucune société trouvée pour ces lignes.</p>
+        <p>Aucune société trouvée pour ces lignes (ou recherche).</p>
       </div>
 
     {:else}
       <div in:fly={{ y: 20, duration: 400 }}>
         <h3 class="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <div class="w-1 h-6 bg-blue-500 rounded-full"></div> Sociétés concernées
+            <div class="w-1 h-6 bg-blue-500 rounded-full"></div> Sociétés concernées {#if searchTerm}(Recherche: "{searchTerm}"){/if}
         </h3>
         
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">

@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { fly, fade } from 'svelte/transition';
+  import { page } from '$app/stores'; // IMPORT NÉCESSAIRE
   import { 
     Tag, Search, ChevronLeft, ChevronRight, Loader2, MapPin
   } from 'lucide-svelte';
@@ -22,6 +23,17 @@
   onMount(() => {
     loadData();
   });
+
+  // --- LOGIQUE RÉACTIVE (Gestion URL) ---
+  // Si l'utilisateur arrive avec ?search=XYZ, on lance la recherche automatiquement
+  $: {
+      const urlQuery = $page.url.searchParams.get('search');
+      if (urlQuery && urlQuery !== searchQuery) {
+          searchQuery = urlQuery;
+          currentPage = 1;
+          loadData();
+      }
+  }
 
   // --- LOGIQUE MÉTIER ---
 
@@ -72,7 +84,7 @@
       isLoading = false;
     }
   }
-
+  
   // --- HELPERS UI ---
   $: fromRow = (currentPage - 1) * ROWS_PER_PAGE + 1;
   $: toRow = Math.min(currentPage * ROWS_PER_PAGE, totalRows);

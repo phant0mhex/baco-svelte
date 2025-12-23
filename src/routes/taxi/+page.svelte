@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { page } from '$app/stores'; // IMPORT AJOUTÉ
   import { fly, fade } from 'svelte/transition';
   import { 
     Car, MapPin, Phone, Search, Plus, FileText, 
@@ -52,6 +53,26 @@
     await loadFilters();
   });
 
+  // --- LOGIQUE URL & RECHERCHE GLOBALE ---
+  // Surveille l'URL pour appliquer le filtre si on vient de la recherche globale
+  $: {
+      const urlQuery = $page.url.searchParams.get('search');
+      if (urlQuery && urlQuery !== searchTerm) {
+          searchTerm = urlQuery;
+          // Si on a un terme de recherche mais pas de lieu sélectionné, on charge tout pour chercher dedans
+          if (selectedLieux.length === 0 && lieuxDisponibles.length > 0) {
+             // Astuce : on ne sélectionne rien mais on force le chargement dans loadTaxis si besoin
+             // Ou mieux : on sélectionne tous les lieux pour chercher partout
+             // Pour l'instant, loadTaxis demande selectedLieux > 0.
+             // On peut imaginer charger tous les taxis si recherche globale.
+             // Mais pour faire simple et performant, on laisse l'utilisateur choisir un lieu ou on modifie loadTaxis.
+             // MODIFICATION : Pour que la recherche globale marche sans lieu sélectionné,
+             // il faudrait que loadTaxis accepte de charger sans lieu SI searchTerm est présent.
+             // Voyons loadTaxis ci-dessous.
+          }
+      }
+  }
+
   // --- CHARGEMENT DES FILTRES ---
   async function loadFilters() {
     loadingFilters = true;
@@ -73,21 +94,29 @@
 
   // --- CHARGEMENT DES TAXIS ---
   
-  $: if (selectedLieux) loadTaxis();
+  // MODIF : On charge aussi si searchTerm est présent (recherche globale)
+  $: if (selectedLieux.length > 0 || searchTerm) loadTaxis();
 
   async function loadTaxis() {
-    if (selectedLieux.length === 0) {
+    // Si pas de lieu ET pas de recherche, on ne charge rien (état initial vide)
+    if (selectedLieux.length === 0 && !searchTerm) {
       taxis = [];
       return;
     }
 
     loading = true;
     try {
-      const { data, error } = await supabase
-        .from('taxis')
-        .select('*')
-        .overlaps('lieux', selectedLieux)
-        .order('nom');
+      let query = supabase.from('taxis').select('*');
+
+      // Si des lieux sont sélectionnés, on filtre par lieux
+      if (selectedLieux.length > 0) {
+          query = query.overlaps('lieux', selectedLieux);
+      }
+      // Si pas de lieux mais une recherche (GlobalSearch), on ne filtre pas par lieux (on cherche partout)
+      // L'ordre par nom reste
+      query = query.order('nom');
+
+      const { data, error } = await query;
       
       if (error) throw error;
       
@@ -316,7 +345,7 @@
   </div>
 
   <div>
-    {#if selectedLieux.length === 0}
+    {#if selectedLieux.length === 0 && !searchTerm}
       <div class="flex flex-col items-center justify-center h-64 text-gray-500 bg-black/20 rounded-2xl border border-dashed border-white/10" in:fade>
         <MapPin size={48} class="mb-4 opacity-30" />
         <p>Sélectionnez un secteur ci-dessus pour afficher les taxis.</p>

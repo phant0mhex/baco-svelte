@@ -7,12 +7,12 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { page } from '$app/stores'; // IMPORT NÉCESSAIRE POUR L'URL
   import { toast } from '$lib/stores/toast.js'; 
   import { openConfirmModal } from '$lib/stores/modal.js';
   import { fly, fade } from 'svelte/transition';
   import EmojiPicker from '$lib/components/EmojiPicker.svelte';
   
-  // --- NOUVEAUX IMPORTS ---
   import MarkdownToolbar from '$lib/components/MarkdownToolbar.svelte';
   import { marked } from 'marked';
 
@@ -21,7 +21,7 @@
     Trash2, Pencil, FileText, Loader2, X, Save, ThumbsUp, Eye, ChevronDown, Calendar, User
   } from 'lucide-svelte';
 
-  // --- CONFIG MARKED (Options de sécurité basiques) ---
+  // --- CONFIG MARKED ---
   marked.use({
     breaks: true, // Les sauts de ligne deviennent des <br>
     gfm: true     // GitHub Flavored Markdown
@@ -37,6 +37,9 @@
   let isSubmitting = false;
   let datePickerElement;
   let flatpickrInstance;
+  
+  // Recherche
+  let textSearch = ""; // NOUVEAU : État pour la recherche texte
 
   // User & Rôles
   let currentUser = null;
@@ -45,7 +48,7 @@
   // Autocomplétion
   let allUsers = [];
   let textareaElement;
-  let editTextareaElement; // Référence pour l'édition
+  let editTextareaElement; 
   let showSuggestions = false;
   let filteredUsers = [];
   let tagSearchQuery = '';
@@ -67,7 +70,7 @@
   // Édition
   let editingLog = null;
 
-  // Config Réactions (inchangé)
+  // Config Réactions
   const reactionConfig = {
     '👍': { icon: ThumbsUp, color: 'text-green-400', activeClass: 'bg-green-500/20 border-green-500/30 text-green-400 shadow-[0_0_10px_rgba(74,222,128,0.2)]' },
     '👀': { icon: Eye, color: 'text-blue-400', activeClass: 'bg-blue-500/20 border-blue-500/30 text-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.2)]' },
@@ -97,6 +100,16 @@
   onDestroy(() => {
     if (flatpickrInstance) flatpickrInstance.destroy();
   });
+
+  // --- LOGIQUE RÉACTIVE URL (Global Search) ---
+  $: {
+      const q = $page.url.searchParams.get('search');
+      // Si un paramètre de recherche est présent et différent de l'actuel
+      if (q && q !== textSearch) {
+          textSearch = q;
+          loadLogs(true); // On recharge avec le nouveau filtre
+      }
+  }
 
   // --- AUTH & RÔLES ---
   async function loadUserAndRole() {
@@ -136,10 +149,15 @@
     const from = currentPage * ROWS_PER_PAGE;
     const to = from + ROWS_PER_PAGE - 1;
 
-    let query = supabase.from('main_courante')
+   let query = supabase.from('main_courante')
       .select(`*, profiles ( full_name, avatar_url ), log_reactions ( user_id, emoji )`)
       .order('created_at', { ascending: false }) 
       .range(from, to);
+
+    // --- FILTRE TEXTE (MODIF) ---
+    if (textSearch) {
+        query = query.ilike('message_content', `%${textSearch}%`);
+    }
 
     if (selectedAuthor !== 'all') query = query.eq('user_id', selectedAuthor);
     if (selectedDate) query = query.gte('created_at', `${selectedDate}T00:00:00`).lte('created_at', `${selectedDate}T23:59:59`);
@@ -171,7 +189,7 @@
     if(textareaElement) textareaElement.focus();
   }
 
-  // --- AUTO-COMPLÉTION (Inchangé) ---
+  // --- AUTO-COMPLÉTION ---
   function handleInput(e) {
     const value = e.target.value;
     const cursor = e.target.selectionStart;
@@ -243,7 +261,7 @@
       await supabase.from('notifications').insert(notificationsToInsert);
   }
 
-  // --- ACTIONS (Post/Edit/Delete) ---
+  // --- ACTIONS ---
   async function handlePost() {
     if (editingLog) { await saveEditedEntry(); return; }
     if (!newMessage.trim() && !newFile) return;
