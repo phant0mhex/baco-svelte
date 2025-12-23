@@ -30,7 +30,8 @@
     'taxi': Car,
     'bus': Bus,
     'document': FileText,
-    'train': Train
+    'train': Train,
+    'otto_commande': Bus
   };
 
   // --- GESTION ---

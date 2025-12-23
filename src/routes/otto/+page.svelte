@@ -64,6 +64,10 @@
     isLoading = false;
   });
 
+  $: if (form.relation && !form.relation.startsWith('TC_')) {
+      form.relation = 'TC_';
+  }
+
   // --- FILTRES ---
   $: filteredCommandes = commandes.filter(cmd => {
       const term = searchTerm.toLowerCase();
@@ -264,6 +268,11 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       if (!form.motif) return toast.error("Le motif est requis");
       if (!form.societe_id) return toast.error("Veuillez sélectionner une société");
       
+    // Blocage si le matricule après TC_ est vide
+      if (!form.relation || form.relation.trim() === 'TC_' || form.relation.length < 4) {
+          return toast.error("Le numéro de relation doit être complété (ex: TC_123)");
+      }
+
       isSaving = true;
       const user = await supabase.auth.getUser();
       const currentUserId = user.data.user?.id;
@@ -624,7 +633,12 @@ async function generatePDF() {
                         <div class="md:col-span-2"><label class={labelClass}>Motif</label><input type="text" bind:value={form.motif} class={inputClass} placeholder="Ex: Dérangement L.96..."></div>
                         <div><label class={labelClass}>Date</label><input type="date" bind:value={form.date_commande} class="{inputClass} dark:[color-scheme:dark]"></div>
                         <div><label class={labelClass}>Heure d'appel</label><input type="time" bind:value={form.heure_appel} class="{inputClass} dark:[color-scheme:dark]"></div>
-                        <div><label class={labelClass}>Réf. Relation (TC)</label><input type="text" bind:value={form.relation} class={inputClass}></div>
+                        <div><label class={labelClass}>Réf. Relation (TC)</label><input 
+        type="text" 
+        bind:value={form.relation} 
+        class={inputClass} 
+        placeholder="TC_123456" 
+    ></div>
                         <div>
                             <label class={labelClass}>Société</label>
                             <div class="relative">
