@@ -1,86 +1,90 @@
 <script>
-  import { onMount } from 'svelte';
-  import { Eraser, PenLine } from 'lucide-svelte';
-  import { fade } from 'svelte/transition';
+    import { onMount } from 'svelte';
+    import { PenLine, Save, Loader2, Trash2 } from 'lucide-svelte';
+    import { fade } from 'svelte/transition';
 
-  // --- RUNES ---
-  let { id, compact = false } = $props();
+    // --- PROPS ---
+    let { compact = false } = $props();
 
-  let content = $state("");
-  let saveStatus = $state("saved"); 
-  let timeout;
-  let textareaEl;
+    // --- ÉTAT ---
+    let noteContent = $state('');
+    let isSaving = $state(false);
+    let saveTimeout;
 
-  const STORAGE_KEY = `baco_notepad_${id}`;
+    // --- LOGIQUE ---
 
-  onMount(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-        content = saved;
+    onMount(() => {
+        // Charger la note sauvegardée au démarrage
+        const saved = localStorage.getItem('baco_notepad_content');
+        if (saved) {
+            noteContent = saved;
+        }
+    });
+
+    function handleInput() {
+        isSaving = true;
+        clearTimeout(saveTimeout);
+        
+        // Debounce de 1 seconde avant sauvegarde
+        saveTimeout = setTimeout(() => {
+            localStorage.setItem('baco_notepad_content', noteContent);
+            
+            // Petit délai artificiel pour montrer à l'utilisateur que c'est sauvegardé
+            setTimeout(() => {
+                isSaving = false;
+            }, 500);
+        }, 1000);
     }
-    setTimeout(autoResize, 50);
-  });
 
-  function autoResize() {
-    if (!textareaEl) return;
-    textareaEl.style.height = 'auto';
-    textareaEl.style.height = textareaEl.scrollHeight + 'px';
-  }
-
-  function handleInput() {
-    saveStatus = "modified";
-    autoResize();
-
-    clearTimeout(timeout);
-    timeout = setTimeout(() => {
-        saveStatus = "saving";
-        localStorage.setItem(STORAGE_KEY, content);
-        setTimeout(() => saveStatus = "saved", 800);
-    }, 1000);
-  }
-
-  function clearNote() {
-    if(confirm("Effacer cette note ?")) {
-        content = "";
-        localStorage.removeItem(STORAGE_KEY);
-        saveStatus = "saved";
-        autoResize();
+    function clearNote() {
+        if(confirm('Effacer toutes les notes ?')) {
+            noteContent = '';
+            localStorage.removeItem('baco_notepad_content');
+        }
     }
-  }
 </script>
 
-<div class="flex flex-col h-full bg-[#0f1115]/50 rounded-xl border border-white/5 backdrop-blur-sm overflow-hidden shadow-sm hover:shadow-md transition-shadow">
-    <div class="flex justify-between items-center {compact ? 'px-2 py-1.5' : 'px-4 py-3'} border-b border-white/5 bg-white/5 shrink-0">
-        <div class="flex items-center gap-2 text-yellow-400">
-            <PenLine class="{compact ? 'w-3 h-3' : 'w-4 h-4'}" />
+<div class="glass-panel {compact ? 'p-2' : 'p-4'} rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md h-full flex flex-col transition-all duration-300 group relative">
+    
+    <div class="flex justify-between items-center {compact ? 'mb-2' : 'mb-3'} shrink-0 h-6">
+        <div class="flex items-center gap-2 text-pink-300">
+            <PenLine class="{compact ? 'w-4 h-4' : 'w-5 h-5'}" />
             {#if !compact}
-                <span class="text-sm font-bold uppercase tracking-wider">Note Rapide</span>
-            {:else}
-                <span class="text-xs font-bold uppercase tracking-wider">Note</span>
+                <span class="text-base font-bold text-white">Bloc-notes</span>
             {/if}
         </div>
-        
-        <div class="flex items-center gap-2">
-            {#if saveStatus === 'saving'}
-                <span transition:fade class="text-[10px] text-blue-400 font-medium">Sauvegarde...</span>
-            {:else if saveStatus === 'saved'}
-                <span transition:fade class="text-[10px] text-green-500/50 font-medium">Enregistré</span>
-            {/if}
 
-            <button onclick={clearNote} class="p-1 hover:bg-red-500/20 text-gray-500 hover:text-red-400 rounded transition-colors" title="Effacer">
-                <Eraser class="{compact ? 'w-3 h-3' : 'w-3.5 h-3.5'}" />
-            </button>
+        <div class="flex items-center gap-2">
+            {#if isSaving}
+                <span class="text-[10px] text-green-400 flex items-center gap-1" transition:fade>
+                    <Loader2 class="w-3 h-3 animate-spin"/>
+                </span>
+            {:else}
+                <div class="h-3 w-3" transition:fade></div> {/if}
+
+            {#if !compact && noteContent.length > 0}
+                <button 
+                    onclick={clearNote}
+                    class="text-gray-500 hover:text-red-400 transition-colors p-1"
+                    title="Effacer tout"
+                >
+                    <Trash2 size={14} />
+                </button>
+            {/if}
         </div>
     </div>
 
-    <div class="flex-grow relative w-full">
+    <div class="flex-grow relative w-full bg-black/20 rounded-xl border border-white/5 overflow-hidden group/input">
         <textarea 
-            bind:this={textareaEl}
-            bind:value={content}
+            bind:value={noteContent}
             oninput={handleInput}
-            placeholder="Numéro de bus, rappel, nom..."
-            rows="1"
-            class="w-full h-full min-h-full bg-transparent {compact ? 'p-2 text-xs' : 'p-4 text-sm'} text-gray-300 placeholder-gray-600 resize-none focus:outline-none custom-scrollbar leading-relaxed overflow-hidden block"
+            placeholder="Une idée rapide ?"
+            class="w-full h-full bg-transparent {compact ? 'p-2 text-xs' : 'p-3 text-sm'} text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:bg-white/[0.02] transition-colors leading-relaxed custom-scrollbar"
+            spellcheck="false"
         ></textarea>
+        
+        <div class="absolute bottom-2 right-2 pointer-events-none opacity-0 group-hover/input:opacity-50 transition-opacity">
+            <PenLine class="w-12 h-12 text-white/5 -rotate-12" />
+        </div>
     </div>
 </div>
