@@ -47,7 +47,7 @@
     pmr: { label: 'PMR', component: WidgetPmr, defaultW: 2, defaultH: 1, icon: Accessibility, desc: 'Assistances & Rampes.' },
     links: { label: 'Raccourcis', component: WidgetLinks, defaultW: 1, defaultH: 1, icon: Link, desc: 'Liens utiles.' },
     planning: { label: 'Planning', component: WidgetPlanning, defaultW: 1, defaultH: 2, icon: Calendar, desc: 'Effectifs du jour.' },
-    journal: { label: 'Journal', component: WidgetJournal, defaultW: 4, defaultH: 1, icon: BookOpen, desc: 'Main courante.' },
+    journal: { label: 'Journal', component: WidgetJournal, defaultW: 2, defaultH: 1, icon: BookOpen, desc: 'Main courante.' },
     teamboard: { label: 'Tableau Équipe', component: WidgetTeamBoard, defaultW: 2, defaultH: 1, icon: Users, desc: 'Comms équipe.' },
   };
 
