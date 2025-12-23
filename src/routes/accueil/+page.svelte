@@ -1,7 +1,6 @@
-
 <script>
   import { onMount, onDestroy, tick } from 'svelte';
-  import { fade } from 'svelte/transition';
+  import { fade, fly } from 'svelte/transition';
   import { get } from 'svelte/store'; 
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast';
@@ -25,17 +24,20 @@
   import { 
     LayoutGrid, Cloud, Loader2, Plus, X, 
     Sun, Car, TrainFront, Accessibility, Link, Calendar, BookOpen, PenLine, Briefcase,
-    Settings2, Users, Palette, Check, AlertTriangle
+    Settings2, Users, Palette, Check
   } from 'lucide-svelte';
 
+  // --- CSS GRIDSTACK ---
   import 'gridstack/dist/gridstack.min.css';
 
   let { data } = $props();
   
+  // --- RUNES ---
   let session = $derived(data.session);
   let savedConfig = $derived(data.savedConfig);
   let widgetsData = $derived(data.widgetsData);
 
+  // --- CONFIGURATION WIDGETS ---
   const WIDGET_REGISTRY = {
     weather: { label: 'Météo', component: WidgetWeather, defaultW: 1, defaultH: 1, icon: Sun, desc: 'Prévisions et conditions.' },
     shift: { label: 'Mon Service', component: WidgetShift, defaultW: 2, defaultH: 1, icon: Briefcase, desc: 'Suivi de shift.' },
@@ -56,16 +58,19 @@
     { type: 'trains', x: 2, y: 0, w: 2, h: 1 }
   ];
 
+  // --- ÉTAT ---
   let items = $state([]);
   let isSaving = $state(false);
   let isDrawerOpen = $state(false);
   let drawerTab = $state('widgets');
+  
+  // NOUVEAU : État pour gérer l'affichage propre de la grille
   let isGridReady = $state(false); 
 
   let grid = null;
   let GridStackModule = null; 
   let saveTimeout;
-  let resizeObserver;
+  let resizeObserver; // Pour stocker l'observateur
 
   // --- INITIALISATION ---
   onMount(async () => {
@@ -73,11 +78,18 @@
         const module = await import('gridstack');
         GridStackModule = module.GridStack || module.default || module;
         
-        if (data.savedTheme) selectTheme(data.savedTheme, false);
+        console.log("État Session Supabase:", session ? "Connecté" : "Non connecté (null)");
 
+        // Application du thème sauvegardé
+        if (data.savedTheme) {
+            selectTheme(data.savedTheme, false);
+        }
+
+        // Chargement de la config
         let loadedItems = [];
-        if (savedConfig && savedConfig.length > 0) loadedItems = savedConfig;
-        else {
+        if (savedConfig && savedConfig.length > 0) {
+            loadedItems = savedConfig;
+        } else {
             const local = localStorage.getItem('baco_dashboard_config_v3');
             if (local) loadedItems = JSON.parse(local);
             else loadedItems = DEFAULT_LAYOUT.map(i => ({ ...i, id: crypto.randomUUID() }));
@@ -91,18 +103,21 @@
             return item;
         });
 
-        // On attend que Svelte ait généré le HTML
         await tick();
 
-        // On observe la taille pour initialiser au bon moment
+        // --- LA SOLUTION : RESIZE OBSERVER ---
+        // On n'initialise PAS Gridstack tout de suite avec un timer.
+        // On attend que le conteneur ait une vraie largeur physique.
         const el = document.querySelector('.grid-stack');
         if (el) {
             resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
-                    // Largeur > 300px et pas encore initialisé
+                    // Si la largeur est > 300px (donc visible et non compressée par la transition)
+                    // ET que Gridstack n'est pas encore lancé
                     if (entry.contentRect.width > 300 && !grid) {
                         initGridStack();
-                        resizeObserver.disconnect(); // On arrête d'observer une fois lancé
+                        // Une fois lancé, on arrête d'observer pour la perf
+                        resizeObserver.disconnect();
                     }
                 }
             });
@@ -117,7 +132,7 @@
   onDestroy(() => {
      if (resizeObserver) resizeObserver.disconnect();
      if (grid) {
-         try { grid.destroy(false); } catch(e) {} // false = ne détruit pas le DOM, juste l'instance
+         try { grid.destroy(false); } catch(e) {}
          grid = null;
      }
   });
@@ -128,26 +143,32 @@
       if (!el) return;
 
       try {
-          // Initialisation standard sur les enfants existants
           grid = GridStackModule.init({
               column: 4,
               cellHeight: 280,
               margin: 10,
               float: false,
-              disableOneColumnMode: true, 
-              oneColumnSize: 0,          
-              minWidth: 768,              
+              
+              // --- CONFIGURATION CRITIQUE ANTI-STACKING ---
+              disableOneColumnMode: true, // Interdit le mode pile
+              oneColumnSize: 0,           // Désactive le seuil de bascule
+              minWidth: 768,              // Force la grille
+              // -------------------------------------------
+              
               animate: true,
               disableDrag: true,
               disableResize: true,
-              draggable: { handle: '.widget-drag-handle', scroll: true }
+              draggable: {
+                handle: '.widget-drag-handle',
+                scroll: true 
+              }
           }, el);
 
-          // Force l'affichage propre
           grid.batchUpdate(); 
           grid.compact();
           grid.batchUpdate(false); 
 
+          // C'EST PRÊT : On révèle la grille à l'utilisateur
           isGridReady = true;
 
           grid.on('change', () => {
@@ -159,61 +180,11 @@
       }
   }
 
-  // --- GESTION DES WIDGETS ---
-
-  async function addWidget(type) {
-    if (!WIDGET_REGISTRY[type]) return;
-    const def = WIDGET_REGISTRY[type];
-    
-    // 1. Créer la donnée
-    const newItem = {
-        id: crypto.randomUUID(),
-        type,
-        x: 0, y: 0, 
-        w: def.defaultW, h: def.defaultH,
-        autoPosition: true 
-    };
-    
-    // 2. Mettre à jour Svelte
-    items = [...items, newItem];
-    
-    toast.success(`${def.label} ajouté`);
-    
-    // 3. Attendre le rendu DOM
-    await tick();
-
-    // 4. Dire à Gridstack qu'il y a un nouveau widget
-    if (grid) {
-        const newEl = document.querySelector(`[gs-id="${newItem.id}"]`);
-        if (newEl) {
-            try {
-                grid.makeWidget(newEl); // C'est ici qu'on transforme le DIV en Widget
-                grid.compact();
-                // Scroll en bas pour voir le nouveau widget
-                newEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            } catch (e) { console.warn("Erreur makeWidget:", e); }
-        }
-    }
-  }
-
-  function removeWidget(id) {
-      // 1. Supprimer de Gridstack (DOM + Instance)
-      const el = document.querySelector(`[gs-id="${id}"]`);
-      if (el && grid) {
-          try {
-              grid.removeWidget(el, false); // false = laisser Svelte gérer la suppression du DOM
-          } catch (e) { console.warn("Erreur removeWidget:", e); }
-      }
-      
-      // 2. Supprimer de la liste Svelte (Source de vérité)
-      items = items.filter(i => i.id !== id);
-      triggerSave();
-  }
-
-  // --- UTILITAIRES ---
+  // --- LOGIQUE GRIDSTACK ---
 
   function toggleDrawer() {
       isDrawerOpen = !isDrawerOpen;
+      
       if (grid) {
           try {
               if (isDrawerOpen) {
@@ -225,16 +196,74 @@
                   grid.enableResize(false);
                   if (grid.el) grid.el.classList.add('grid-stack-locked');
               }
-          } catch (err) {}
+          } catch (err) {
+              console.warn("Erreur toggleDrawer:", err);
+          }
       }
+  }
+
+  function addWidget(type) {
+    if (!WIDGET_REGISTRY[type]) return;
+    const def = WIDGET_REGISTRY[type];
+    
+    const newItem = {
+        id: crypto.randomUUID(),
+        type,
+        x: 0, y: 0, 
+        w: def.defaultW, h: def.defaultH,
+        autoPosition: true 
+    };
+    items = [...items, newItem];
+    
+    toast.success(`${def.label} ajouté`);
+    
+    tick().then(() => {
+        if (grid) {
+            try {
+                grid.compact();
+                window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+            } catch (e) { console.warn("Erreur compactage:", e); }
+        }
+    });
+  }
+
+  function removeWidget(id) {
+      const el = document.querySelector(`[gs-id="${id}"]`);
+      if (el && grid) {
+          try {
+              grid.removeWidget(el, false);
+          } catch (e) { console.warn("Erreur removeWidget:", e); }
+      }
+      items = items.filter(i => i.id !== id);
+      triggerSave();
+  }
+
+  function widgetAction(node, item) {
+      const attachWidget = () => {
+          if (grid) {
+              try { grid.makeWidget(node); } catch (err) {}
+          } else {
+             // Si la grille n'est pas encore prête, on réessaie dans 50ms
+             setTimeout(attachWidget, 50);
+          }
+      };
+      
+      setTimeout(attachWidget, 50);
+
+      return {
+          destroy() {
+              if (grid) {
+                  try { grid.removeWidget(node, false); } catch (e) { }
+              }
+          }
+      };
   }
 
   function updateItemsFromGrid() {
       if (!grid) return;
       try {
           const gridItems = grid.getGridItems();
-          // On met à jour sans recréer tout le tableau pour éviter les sauts
-          const updatedItems = items.map(item => {
+          items = items.map(item => {
               const el = gridItems.find(el => el.getAttribute('gs-id') === item.id);
               if (el) {
                   return {
@@ -248,23 +277,22 @@
               }
               return item;
           });
-          // Optimisation : update uniquement si changement réel (évite loop infini)
-          if(JSON.stringify(updatedItems) !== JSON.stringify(items)) {
-             items = updatedItems;
-          }
       } catch (e) { console.error("Erreur updateItems:", e); }
   }
 
-  // --- SAUVEGARDE & THÈMES (Inchangé) ---
+  // --- LOGIQUE DE SAUVEGARDE & THÈMES ---
+
   function saveToLocal(newItems) {
     localStorage.setItem('baco_dashboard_config_v3', JSON.stringify(newItems));
   }
 
   function triggerSave() {
     saveToLocal(items);
+    
     if (session?.user) {
         isSaving = true;
         clearTimeout(saveTimeout);
+        
         saveTimeout = setTimeout(async () => {
             try {
                 const client = data.supabase || supabase;
@@ -277,9 +305,14 @@
                     theme: currentTheme,
                     updated_at: new Date()
                 }, { onConflict: 'user_id' });
+
                 if (error) console.error("ERREUR SUPABASE:", error);
-            } catch (err) { console.error("Erreur sauvegarde:", err);
-            } finally { isSaving = false; }
+                
+            } catch (err) {
+                console.error("Erreur sauvegarde réseau:", err);
+            } finally {
+                isSaving = false;
+            }
         }, 1500);
     }
   }
@@ -292,33 +325,13 @@
           triggerSave();
       }
   }
-
-  async function resetLayout() {
-        if(!confirm("Réinitialiser totalement la disposition ?")) return;
-        
-        // 1. On remet la config par défaut
-        // On génère de nouveaux ID pour forcer Svelte à tout recréer proprement
-        items = DEFAULT_LAYOUT.map(i => ({ ...i, id: crypto.randomUUID() }));
-        
-        // 2. On nettoie le localStorage
-        localStorage.removeItem('baco_dashboard_config_v3');
-        
-        // 3. On nettoie Supabase (si connecté)
-        if (session?.user) {
-            const client = data.supabase || supabase;
-            await client.from('user_preferences').delete().eq('user_id', session.user.id);
-        }
-
-        // 4. On force le rechargement pour être propre
-        window.location.reload();
-    }
 </script>
 
 <style>
     /* FORCE LA LARGEUR ET LE COMPORTEMENT */
     :global(.grid-stack) {
         width: 100% !important; 
-      
+        min-width: 100% !important;
         /* Une hauteur min pour que le ResizeObserver ait qqch à détecter au début */
         min-height: 500px; 
     }
@@ -327,7 +340,7 @@
         min-width: 0;
         position: absolute; /* Gridstack a besoin de ça */
     }
-
+    
     :global(.grid-stack-item-content) {
         height: 100% !important; 
         overflow: visible !important; 
@@ -344,8 +357,6 @@
         z-index: 1000 !important;
     }
 </style>
-
-
 
 <div 
     class="space-y-6 relative pb-20 transition-all duration-300 ease-in-out"
@@ -382,12 +393,12 @@
     </div>
   </div>
 
-  <div class="grid-stack w-full min-h-[500px] relative z-0 transition-opacity duration-500 ease-out {isGridReady ? 'opacity-100' : 'opacity-0'}">
+  <div class="grid-stack w-full min-h-[500px] transition-opacity duration-500 ease-out {isGridReady ? 'opacity-100' : 'opacity-0'}">
       {#each items as item (item.id)}
          <div 
             class="grid-stack-item"
             gs-id={item.id} gs-x={item.x} gs-y={item.y} gs-w={item.w} gs-h={item.h}
-            
+            use:widgetAction={item} 
          >
             <div class="grid-stack-item-content p-2">
                 <div class="relative w-full h-full group">
