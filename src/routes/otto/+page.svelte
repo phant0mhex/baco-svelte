@@ -10,7 +10,7 @@
     Bus, Calendar, Clock, MapPin, CheckSquare, Square, 
     FileText, Save, Trash2, Plus, Loader2, ArrowLeft,
     Printer, Download, Building2, Hash, Users, ArrowRightLeft, MinusCircle,
-    Search, Filter, X, CheckCircle, User, UserCheck, ChevronDown
+    Search, Filter, X, CheckCircle, User, UserCheck, ChevronDown, Mail, ClipboardCopy, Check
   } from 'lucide-svelte';
   import { toast } from '$lib/stores/toast.js';
 
@@ -19,7 +19,9 @@
   let isLoading = true;
   let isSaving = false;
   let commandes = [];
-  
+  let showEmailExport = false;
+  let hasCopied = false;
+
   // User info pour le PDF (Créateur courant si nouvelle commande)
   let currentUserProfile = null;
 
@@ -124,6 +126,27 @@
     // MODIF : On charge les nouvelles colonnes
     const { data } = await supabase.from('societes_bus').select('id, nom, adresse, telephone, email').order('nom');
     if (data) availableSocietes = data;
+  }
+
+  // Génération dynamique du message
+  $: emailBody = `Bonjour, voici le réquisitoire pour le trajet de ce ${new Date(form.date_commande).toLocaleDateString('fr-BE')} entre ${form.origine || '?'} et ${form.destination || '?'} - ${form.relation}
+
+Merci pour vos services,
+
+Cordialement,
+
+${form.validator?.full_name || currentUserProfile?.full_name || 'Équipe PACO'}
+PACO Sud_Ouest`;
+
+  async function copyToClipboard() {
+    try {
+      await navigator.clipboard.writeText(emailBody);
+      hasCopied = true;
+      toast.success("Message copié !");
+      setTimeout(() => hasCopied = false, 2000);
+    } catch (err) {
+      toast.error("Erreur lors de la copie");
+    }
   }
 
   // --- LOGIQUE METIER ---
@@ -313,6 +336,21 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       img.src = url;
     });
   };
+
+  function sendEmail() {
+    const society = availableSocietes.find(s => s.id === form.societe_id);
+    const emailTo = society?.email || "";
+    const subject = encodeURIComponent(`Réquisitoire Bus - ${form.relation} - ${new Date(form.date_commande).toLocaleDateString('fr-BE')}`);
+    
+    // Le corps du texte formaté pour l'URL
+    const body = encodeURIComponent(emailBody);
+
+    // Construction du lien mailto
+    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${body}`;
+    
+    toast.info("N'oubliez pas de joindre le PDF à l'e-mail Outlook !");
+  }
+
 
 async function generatePDF() {
     const doc = new jsPDF();
@@ -672,6 +710,13 @@ async function generatePDF() {
             <button on:click={() => generatePDF()} class="px-5 py-2.5 rounded-full text-sm font-bold text-emerald-400/90 bg-emerald-500/5 border border-emerald-500/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 backdrop-blur-md">
                 <Printer class="w-4 h-4" /> <span class="hidden sm:inline">Télécharger PDF</span>
             </button>
+            <button 
+    on:click={() => showEmailExport = true} 
+    class="px-5 py-2.5 rounded-full text-sm font-bold text-blue-400 bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all flex items-center gap-2"
+>
+    <Mail class="w-4 h-4" /> <span>E-mail</span>
+</button>
+
             <button on:click={() => saveCommande('brouillon')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-medium text-gray-400 bg-white/5 border border-white/5 hover:bg-white/10 hover:text-white hover:border-white/10 transition-all duration-300 hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
                 <Save class="w-4 h-4" /> <span>Brouillon</span>
             </button>
@@ -684,3 +729,54 @@ async function generatePDF() {
 
   {/if}
 </div>
+
+{#if showEmailExport}
+  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade>
+    <div class="bg-[#1a1d24] border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl" in:fly={{ y: 20 }}>
+      <div class="flex justify-between items-center mb-4">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <Mail class="text-blue-400" size={20} /> Export E-mail
+        </h3>
+        <button on:click={() => showEmailExport = false} class="text-gray-500 hover:text-white">
+          <X size={20} />
+        </button>
+      </div>
+
+      <div class="relative group">
+        <textarea 
+          readonly
+          class="w-full h-64 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-gray-300 focus:ring-2 focus:ring-blue-500/50 outline-none resize-none font-mono"
+          bind:value={emailBody}
+        ></textarea>
+        
+        <button 
+          on:click={copyToClipboard}
+          class="absolute top-3 right-3 p-2 rounded-lg bg-blue-600 text-white hover:bg-blue-500 shadow-lg transition-all flex items-center gap-2 text-xs font-bold"
+        >
+          {#if hasCopied}
+            <Check size={14} /> Copié
+          {:else}
+            <ClipboardCopy size={14} /> Copier
+          {/if}
+        </button>
+      </div>
+
+   <div class="mt-6 flex justify-between gap-3">
+  <button 
+    on:click={() => showEmailExport = false}
+    class="px-4 py-2 rounded-xl bg-white/5 text-gray-400 font-bold hover:bg-white/10 transition-colors"
+  >
+    Fermer
+  </button>
+
+  <button 
+    on:click={sendEmail}
+    class="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold hover:bg-blue-500 transition-all flex items-center justify-center gap-2 shadow-lg shadow-blue-500/20"
+  >
+    <Mail size={18} />
+    Ouvrir dans Outlook
+  </button>
+</div>
+    </div>
+  </div>
+{/if}

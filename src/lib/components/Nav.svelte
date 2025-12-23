@@ -13,7 +13,7 @@ import { zenMode } from '$lib/stores/zen';
     Bus, Car, Database, Train, Tag, Map, Folder, BookCopy, 
     ClipboardPaste, Search, CalendarDays, Bell, UserCog, 
     ShieldCheck, LogOut, Menu, X, ChevronLeft, ChevronRight, 
-    Cake, FileClock, Maximize 
+    Cake, FileClock, Maximize,  
   } from 'lucide-svelte';
 
   export let user;
@@ -295,6 +295,10 @@ function getWeekNumber(date) {
               
               <a href="/planning" class={getLinkClass('planning')}>
                   <CalendarDays class="w-4 h-4" /><span>Planning</span> 
+              </a>
+
+              <a href="/otto" class={getLinkClass('otto')}>
+                  <Bus class="w-4 h-4" /><span>C3</span>
               </a>
           </div>
 
