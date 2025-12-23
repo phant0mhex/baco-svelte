@@ -44,23 +44,20 @@
         handleInput();
     }
 
-    // 3. Sauvegarde avec Nom Complet [CORRIGÉ]
-   async function saveToSupabase() {
+    // 3. Sauvegarde
+    async function saveToSupabase() {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return; 
 
-        // Par défaut, on prend une valeur de secours
         let userName = user.user_metadata?.full_name || user.email?.split('@')[0] || "Inconnu";
 
         try {
-            // On cherche le vrai nom complet dans la table 'profiles'
             const { data: profile } = await supabase
                 .from('profiles')
                 .select('full_name')
                 .eq('id', user.id)
                 .single();
 
-            // Si trouvé, on l'utilise
             if (profile && profile.full_name) {
                 userName = profile.full_name;
             }
@@ -71,7 +68,7 @@
         const { error } = await supabase.from('team_board').upsert({ 
             id: 1, 
             content, 
-            last_author: userName, // On utilise bien le nom complet ici
+            last_author: userName,
             updated_at: new Date()
         });
 
@@ -116,7 +113,7 @@
             bind:value={content}
             oninput={handleInput}
             placeholder="Écrivez un message pour l'équipe..."
-            class="w-full h-full bg-transparent {compact ? 'p-2 text-xs' : 'p-3 text-sm'} text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:bg-white/[0.02] transition-colors leading-relaxed custom-scrollbar pb-8 rounded-xl"
+            class="emoji-safe-area w-full h-full bg-transparent {compact ? 'p-2 text-xs' : 'p-3 text-sm'} text-gray-200 placeholder-gray-600 resize-none focus:outline-none focus:bg-white/[0.02] transition-colors leading-loose custom-scrollbar pb-8 rounded-xl"
         ></textarea>
         
         <div class="absolute bottom-2 right-2 pointer-events-none opacity-50">
@@ -132,3 +129,12 @@
         </div>
     </div>
 </div>
+
+<style>
+    /* Force un affichage sécurisé pour les émojis */
+    .emoji-safe-area {
+        line-height: 2 !important; /* Force l'interligne (leading-loose) */
+        padding-top: 0.75rem; /* Espace vertical suffisant */
+        padding-bottom: 2rem; /* Espace pour le bouton en bas */
+    }
+</style>
