@@ -452,10 +452,3 @@
 
     </div>
 </div>
-
-
-<style>
-    /* AVANT : overflow: hidden !important */
-    /* APRÈS : on autorise le visible pour laisser passer les popups */
- 
-</style>
