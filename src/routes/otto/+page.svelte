@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { fly, fade, slide } from 'svelte/transition';
-  import jsPDF from 'jspdf';
+  import jsPDF from 'jspdf'; // Correction de la casse pour le build Vercel
   import autoTable from 'jspdf-autotable';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -47,7 +47,7 @@
     arrets: [],
     origine: '',
     destination: '',
-    is_direct: true, // Par défaut sur Direct
+    is_direct: true, 
     is_mail_sent: false,
     is_aller_retour: false,
     nombre_voyageurs: null,
@@ -101,12 +101,9 @@
         Société: cmd.societes_bus?.nom || 'Inconnue',
         Statut: cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon',
         Date: new Date(cmd.date_commande).toLocaleDateString('fr-BE'),
-        'Heure Appel': cmd.heure_appel || '',
         Origine: cmd.origine || '',
         Destination: cmd.destination || '',
-        Motif: cmd.motif || '',
-        'Mail Envoyé': cmd.is_mail_sent ? 'Oui' : 'Non',
-        Créateur: cmd.creator?.full_name || ''
+        Motif: cmd.motif || ''
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(dataToExport);
@@ -146,12 +143,7 @@
   async function loadCommandes() {
     const { data, error } = await supabase
       .from('otto_commandes')
-      .select(`
-        *, 
-        creator:user_id(full_name), 
-        validator:validated_by(full_name),
-        societes_bus(nom, adresse, telephone, email)
-      `)
+      .select(`*, creator:user_id(full_name), validator:validated_by(full_name), societes_bus(nom, adresse, telephone, email)`)
       .order('created_at', { ascending: false });
     
     if (error) {
@@ -187,19 +179,7 @@ Merci pour vos services,
 
 Cordialement,
 
-${form.validator?.full_name || currentUserProfile?.full_name || 'Équipe PACO'}
-PACO Sud_Ouest`;
-
-  async function copyToClipboard() {
-    try {
-      await navigator.clipboard.writeText(emailBody);
-      hasCopied = true;
-      toast.success("Message copié !");
-      setTimeout(() => hasCopied = false, 2000);
-    } catch (err) {
-      toast.error("Erreur lors de la copie");
-    }
-  }
+${form.validator?.full_name || currentUserProfile?.full_name || 'Équipe PACO'}`;
 
   $: if (form.lignes.length > 0) loadStopsForLines(form.lignes);
   else availableStops = [];
@@ -295,7 +275,8 @@ PACO Sud_Ouest`;
           heure_appel: form.heure_appel,
           societe_id: form.societe_id,
           lignes: form.lignes,
-          arrets: form.is_direct ? [] : form.arrets, // On vide les arrêts si c'est Direct
+          // MODIFICATION : On force le tableau vide si is_direct est vrai
+          arrets: form.is_direct ? [] : form.arrets, 
           is_direct: form.is_direct,
           origine: form.origine,
           destination: form.destination,
@@ -353,14 +334,6 @@ PACO Sud_Ouest`;
     });
   };
 
-  function sendEmail() {
-    const society = availableSocietes.find(s => s.id === form.societe_id);
-    const emailTo = society?.email || "";
-    const subject = encodeURIComponent(`Réquisitoire Bus - ${form.relation} - ${new Date(form.date_commande).toLocaleDateString('fr-BE')}`);
-    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${encodeURIComponent(emailBody)}`;
-    toast.info("N'oubliez pas de joindre le PDF !");
-  }
-
   async function generatePDF() {
     const doc = new jsPDF();
     const society = availableSocietes.find(s => s.id === form.societe_id);
@@ -402,7 +375,6 @@ PACO Sud_Ouest`;
     doc.text("NON planifié / Real Time", 105, y + 12, { align: 'center' });
     doc.setTextColor(0);
     doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
     doc.text("Partie A – Service opérationnels SNCB", 105, y + 17, { align: 'center' });
 
     y += 25;
@@ -412,8 +384,6 @@ PACO Sud_Ouest`;
 
     doc.setFont("helvetica", "bold"); doc.text("Date de circulation :", labelX, y);
     doc.setFont("helvetica", "normal"); doc.text(new Date(form.date_commande).toLocaleDateString('fr-BE'), valueX, y);
-    
-    // TYPE DE SERVICE DANS LE PDF
     doc.setFont("helvetica", "bold"); doc.text("Type :", 110, y);
     doc.setFont("helvetica", "normal"); doc.text(form.is_direct ? "DIRECT (Sans arrêt)" : "OMNIBUS (Avec arrêts)", 130, y);
 
@@ -492,7 +462,7 @@ PACO Sud_Ouest`;
 
   <header class="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20 }}>
     <div class="flex items-center gap-3">
-        <div class="p-3 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 shadow-[0_0_15px_rgba(249,115,22,0.15)]">
+        <div class="p-3 rounded-xl bg-orange-500/10 text-orange-400 border border-orange-500/20 shadow-sm">
           <Bus class="w-8 h-8" />
         </div>
         <div>
@@ -519,7 +489,7 @@ PACO Sud_Ouest`;
     {#if view === 'list'}
         <div class="bg-black/20 border border-white/5 rounded-2xl p-4 flex flex-col xl:flex-row gap-4 justify-between items-center" in:fly={{ y: 10 }}>
             <div class="relative w-full xl:w-96 group">
-                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-orange-400 transition-colors">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
                     <Search class="w-5 h-5" />
                 </div>
                 <input type="text" bind:value={searchTerm} placeholder="Rechercher..." class="w-full bg-black/40 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 transition-all"/>
@@ -527,10 +497,10 @@ PACO Sud_Ouest`;
 
             <div class="flex flex-col sm:flex-row gap-4 w-full xl:w-auto items-center">
                 <div class="relative group w-full sm:w-auto">
-                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within:text-orange-400">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center text-gray-500">
                         <Calendar class="w-4 h-4" />
                     </div>
-                    <input type="date" bind:value={dateFilter} class="w-full sm:w-40 bg-black/40 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-white text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 dark:[color-scheme:dark]"/>
+                    <input type="date" bind:value={dateFilter} class="w-full sm:w-40 bg-black/40 border border-white/10 rounded-xl py-2 pl-10 pr-4 text-white text-sm dark:[color-scheme:dark]"/>
                     {#if dateFilter}<button on:click={() => dateFilter = ""} class="absolute right-2 top-2.5 text-gray-500 hover:text-white"><X size={14}/></button>{/if}
                 </div>
 
@@ -558,28 +528,15 @@ PACO Sud_Ouest`;
                         <div class="flex-grow min-w-0 w-full">
                             <div class="flex items-center gap-3 mb-3 flex-wrap">
                                 <span class="text-xl font-extrabold text-white tracking-tight">{cmd.relation}</span>
-                                
                                 <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase border {cmd.is_direct ? 'bg-orange-500/10 text-orange-400 border-orange-500/20' : 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'}">
                                     {cmd.is_direct ? 'Direct' : 'Omnibus'}
                                 </span>
-
-                                <span class="flex items-center gap-1.5 px-3 py-1 bg-blue-600/20 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-bold uppercase shadow-sm">
+                                <span class="flex items-center gap-1.5 px-3 py-1 bg-blue-600/20 text-blue-300 border border-blue-500/30 rounded-lg text-xs font-bold uppercase">
                                     <Building2 size={12} /> {cmd.societes_bus?.nom || 'Inconnu'}
                                 </span>
                                 <span class="text-xs px-2 py-0.5 rounded border font-bold {cmd.status === 'envoye' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}">
                                     {cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon'}
                                 </span>
-                                {#if cmd.is_mail_sent}
-                                  <span class="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-bold uppercase">
-                                      <CheckCircle size={12} /> Mail envoyé
-                                  </span>
-                                {/if}
-                            </div>
-                            <div class="flex flex-wrap gap-4 text-sm text-gray-400 bg-black/20 p-3 rounded-xl border border-white/5 mb-3">
-                                <div class="flex items-center gap-2"><Calendar size={14} class="text-orange-400"/> <span class="text-gray-200">{new Date(cmd.date_commande).toLocaleDateString()}</span></div>
-                                <div class="flex items-center gap-2"><Clock size={14} class="text-orange-400"/> <span>{cmd.heure_appel?.slice(0,5) || '--:--'}</span></div>
-                                <div class="flex items-center gap-2"><Bus size={14} class="text-orange-400"/> <span>{cmd.bus_data?.length || 1} bus</span></div>
-                                <div class="flex items-center gap-2 truncate text-gray-500"><span class="w-px h-4 bg-white/10 mx-1"></span>{cmd.motif}</div>
                             </div>
                             <div class="flex items-center gap-2 text-sm text-gray-400 mb-3">
                                 <span class="text-gray-300">{cmd.origine || '?'}</span>
@@ -602,10 +559,9 @@ PACO Sud_Ouest`;
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-4">
                     <h3 class="text-sm font-bold text-orange-400 uppercase tracking-wide mb-4 flex items-center gap-2"><FileText size={16}/> Mission</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2"><label class={labelClass}>Motif</label><input type="text" bind:value={form.motif} class={inputClass} placeholder="Ex: Dérangement L.96..."></div>
+                        <div class="md:col-span-2"><label class={labelClass}>Motif</label><input type="text" bind:value={form.motif} class={inputClass} placeholder="Dérangement..."></div>
                         <div><label class={labelClass}>Date</label><input type="date" bind:value={form.date_commande} class="{inputClass} dark:[color-scheme:dark]"></div>
-                        <div><label class={labelClass}>Heure d'appel</label><input type="time" bind:value={form.heure_appel} class="{inputClass} dark:[color-scheme:dark]"></div>
-                        <div><label class={labelClass}>Réf. Relation (TC)</label><input type="text" bind:value={form.relation} class={inputClass} placeholder="TC_123456"></div>
+                        <div><label class={labelClass}>Relation</label><input type="text" bind:value={form.relation} class={inputClass} placeholder="TC_123"></div>
                         <div>
                             <label class={labelClass}>Société</label>
                             <div class="relative">
@@ -614,8 +570,8 @@ PACO Sud_Ouest`;
                                     <ChevronDown size={16} class="text-gray-500 {showCompanyDropdown ? 'rotate-180' : ''} transition-transform"/>
                                 </button>
                                 {#if showCompanyDropdown}
-                                    <div class="fixed inset-0 z-40 bg-transparent" on:click={() => showCompanyDropdown = false}></div>
-                                    <div class="absolute top-full left-0 w-full mt-2 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-60 overflow-y-auto" transition:slide>
+                                    <div class="fixed inset-0 z-40" on:click={() => showCompanyDropdown = false}></div>
+                                    <div class="absolute top-full left-0 w-full mt-2 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl z-50 max-h-60 overflow-y-auto" transition:slide>
                                         {#each availableSocietes as soc}
                                             <button type="button" on:click={() => selectSociete(soc.id)} class="w-full text-left px-4 py-3 hover:bg-white/10 text-gray-300 flex justify-between items-center">
                                                 {soc.nom}
@@ -632,53 +588,46 @@ PACO Sud_Ouest`;
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-4">
                     <div class="flex flex-wrap justify-between items-center gap-4 mb-4">
                         <h3 class="text-sm font-bold text-blue-400 uppercase tracking-wide flex items-center gap-2"><MapPin size={16}/> Parcours</h3>
-                        
                         <div class="flex items-center gap-4">
-                            <label class="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors border border-white/10">
+                            <label class="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg hover:bg-white/10 border border-white/10">
                                 <input type="checkbox" bind:checked={form.is_direct} class="hidden">
-                                <span class="text-[10px] font-bold {form.is_direct ? 'text-orange-400' : 'text-gray-500'}">DIRECT</span>
-                                <div class="relative w-8 h-4 bg-gray-700 rounded-full transition-colors">
+                                <span class="text-[10px] font-bold {form.is_direct ? 'text-orange-400' : 'text-gray-500'} uppercase">Direct</span>
+                                <div class="relative w-8 h-4 bg-gray-700 rounded-full">
                                     <div class="absolute top-1 left-1 w-2 h-2 bg-white rounded-full transition-transform {form.is_direct ? '' : 'translate-x-4'}"></div>
                                 </div>
-                                <span class="text-[10px] font-bold {!form.is_direct ? 'text-yellow-400' : 'text-gray-500'}">OMNIBUS</span>
+                                <span class="text-[10px] font-bold {!form.is_direct ? 'text-yellow-400' : 'text-gray-500'} uppercase">Omnibus</span>
                             </label>
 
-                            <label class="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors border border-white/10">
+                            <label class="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg border border-white/10">
                                 <input type="checkbox" bind:checked={form.is_aller_retour} class="hidden">
                                 <span class="text-xs font-bold {form.is_aller_retour ? 'text-blue-400' : 'text-gray-500'}">A/R</span>
-                                {#if form.is_aller_retour}<ArrowRightLeft size={14} class="text-blue-400"/>{:else}<span class="text-gray-600 text-xs">→</span>{/if}
+                                {#if form.is_aller_retour}<ArrowRightLeft size={14} class="text-blue-400"/>{:else}<span>→</span>{/if}
                             </label>
                         </div>
                     </div>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div><label class={labelClass}>Origine</label><input type="text" list="stations" bind:value={form.origine} class={inputClass} placeholder="Gare"></div>
-                        <div><label class={labelClass}>Destination</label><input type="text" list="stations" bind:value={form.destination} class={inputClass} placeholder="Gare"></div>
-                        <datalist id="stations">{#each uniqueStationNames as st} <option value={st} /> {/each}</datalist>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-white/5">
-                        <div><label class={labelClass}>Voyageurs</label><input type="number" bind:value={form.nombre_voyageurs} class={inputClass}></div>
-                        <div><label class={labelClass}>PMR</label><input type="number" bind:value={form.nombre_pmr} class={inputClass}></div>
-                        <div><label class={labelClass}>Capacité</label><input type="number" bind:value={form.capacite_bus} class={inputClass}></div>
+                        <input type="text" list="stations" bind:value={form.origine} class={inputClass} placeholder="Origine">
+                        <input type="text" list="stations" bind:value={form.destination} class={inputClass} placeholder="Destination">
                     </div>
                 </div>
 
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-sm font-bold text-green-400 uppercase tracking-wide flex items-center gap-2"><Bus size={16}/> Véhicules</h3>
-                        <button on:click={addBus} class="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg font-bold border border-green-500/30">+ Bus</button>
+                        <button on:click={addBus} class="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg border border-green-500/30">+ Bus</button>
                     </div>
                     <div class="space-y-4">
                         {#each form.bus_data as bus, i}
                             <div class="bg-white/5 rounded-xl border border-white/10 overflow-hidden">
-                                <div class="flex justify-between items-center px-4 py-2 bg-black/20 border-b border-white/5">
-                                    <span class="text-xs font-mono font-bold text-orange-400">BUS #{i+1}</span>
-                                    <button on:click={() => removeBus(i)} class="text-gray-500 hover:text-red-400"><MinusCircle size={16}/></button>
+                                <div class="flex justify-between items-center px-4 py-1 bg-black/20">
+                                    <span class="text-[10px] font-bold text-orange-400 uppercase">Bus #{i+1}</span>
+                                    <button on:click={() => removeBus(i)} class="text-gray-500 hover:text-red-400"><MinusCircle size={14}/></button>
                                 </div>
-                                <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <input type="text" bind:value={bus.plaque} class="bg-black/30 border border-white/10 rounded px-3 py-2 text-sm text-white" placeholder="Plaque">
-                                    <input type="time" bind:value={bus.heure_prevue} class="bg-black/30 border border-white/10 rounded px-3 py-2 text-sm text-white">
-                                    <input type="time" bind:value={bus.heure_confirmee} class="bg-black/30 border border-green-900/30 rounded px-3 py-2 text-sm text-green-300">
-                                    <input type="time" bind:value={bus.heure_demob} class="bg-black/30 border border-white/10 rounded px-3 py-2 text-sm text-white">
+                                <div class="p-3 grid grid-cols-4 gap-2">
+                                    <input type="text" bind:value={bus.plaque} class="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-xs text-white uppercase" placeholder="Plaque">
+                                    <input type="time" bind:value={bus.heure_prevue} class="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-xs text-white">
+                                    <input type="time" bind:value={bus.heure_confirmee} class="bg-black/30 border border-green-900/30 rounded px-2 py-1.5 text-xs text-green-300">
+                                    <input type="time" bind:value={bus.heure_demob} class="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-xs text-white">
                                 </div>
                             </div>
                         {/each}
@@ -687,51 +636,35 @@ PACO Sud_Ouest`;
             </div>
 
             <div class="space-y-6">
-                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
-                    <h3 class="text-sm font-bold text-purple-400 uppercase tracking-wide mb-4 sticky top-0 bg-[#16181d] py-2 z-10 flex items-center gap-2"><Hash size={16}/> Lignes</h3>
+                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 max-h-[400px] overflow-y-auto">
+                    <h3 class="text-sm font-bold text-purple-400 uppercase mb-4 sticky top-0 bg-[#16181d] py-1 flex items-center gap-2"><Hash size={16}/> Lignes</h3>
                     <div class="flex flex-wrap gap-2">
                         {#each availableLines as line}
-                            <button on:click={() => toggleLine(line)} class="px-3 py-1.5 rounded-lg text-xs font-bold border transition-all {form.lignes.includes(line) ? 'bg-purple-600 text-white border-purple-500 shadow-md' : 'bg-white/5 border-white/10 text-gray-400'}">{line}</button>
+                            <button on:click={() => toggleLine(line)} class="px-3 py-1.5 rounded-lg text-xs font-bold border {form.lignes.includes(line) ? 'bg-purple-600 text-white' : 'bg-white/5 text-gray-400'}">{line}</button>
                         {/each}
                     </div>
                 </div>
 
                 {#if !form.is_direct && form.lignes.length > 0}
-                    <div class="bg-black/20 border border-white/5 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar" transition:slide>
-                        <h3 class="text-sm font-bold text-yellow-400 uppercase tracking-wide mb-4 sticky top-0 bg-[#16181d] py-2 z-10 flex items-center gap-2"><MapPin size={16}/> Arrêts Intermédiaires</h3>
-                        {#if availableStops.length === 0}
-                            <p class="text-xs text-gray-500">Chargement...</p>
-                        {:else}
-                            <div class="space-y-1">
-                                {#each availableStops as stop}
-                                    <button on:click={() => toggleStop(stop)} class="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-3 transition-colors {form.arrets.includes(stop) ? 'bg-yellow-500/10 text-yellow-300 border border-yellow-500/20' : 'text-gray-400'}">
-                                        {#if form.arrets.includes(stop)}<CheckSquare class="w-4 h-4"/>{:else}<Square class="w-4 h-4"/>{/if}
-                                        {stop}
-                                    </button>
-                                {/each}
-                            </div>
-                        {/if}
+                    <div class="bg-black/20 border border-white/5 rounded-2xl p-6 max-h-[400px] overflow-y-auto" transition:slide>
+                        <h3 class="text-sm font-bold text-yellow-400 uppercase mb-4 sticky top-0 bg-[#16181d] py-1 flex items-center gap-2"><MapPin size={16}/> Arrêts</h3>
+                        <div class="space-y-1">
+                            {#each availableStops as stop}
+                                <button on:click={() => toggleStop(stop)} class="w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-3 {form.arrets.includes(stop) ? 'bg-yellow-500/10 text-yellow-300' : 'text-gray-400'}">
+                                    {#if form.arrets.includes(stop)}<CheckSquare class="w-4 h-4"/>{:else}<Square class="w-4 h-4"/>{/if}
+                                    {stop}
+                                </button>
+                            {/each}
+                        </div>
                     </div>
                 {/if}
             </div>
         </div>
 
-        <div class="fixed bottom-4 left-4 right-4 z-50 flex flex-wrap justify-end items-center gap-4 p-4 border border-white/10 bg-[#0f1115]/80 backdrop-blur-2xl shadow-2xl rounded-2xl" in:fly={{ y: 20 }}>
-            <label class="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 border border-white/10 cursor-pointer mr-auto">
-                <div class="relative flex items-center">
-                    <input type="checkbox" bind:checked={form.is_mail_sent} class="sr-only peer">
-                    <div class="w-10 h-5 bg-gray-600 rounded-full peer peer-checked:bg-emerald-500"></div>
-                    <div class="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
-                </div>
-                <span class="text-xs font-bold {form.is_mail_sent ? 'text-emerald-400' : 'text-gray-400'} uppercase">
-                    {form.is_mail_sent ? 'Mail envoyé' : 'Mail non envoyé'}
-                </span>
-            </label>
-            
-            <button on:click={() => showEmailExport = true} class="px-5 py-2.5 rounded-full text-sm font-bold text-blue-400 bg-blue-500/5 border border-blue-500/10 flex items-center gap-2"><Mail class="w-4 h-4" /> E-mail</button>
-            <button on:click={() => generatePDF()} class="px-5 py-2.5 rounded-full text-sm font-bold text-emerald-400/90 bg-emerald-500/5 border border-emerald-500/10 flex items-center gap-2"><Printer class="w-4 h-4" /> PDF</button>
-            <button on:click={() => saveCommande('brouillon')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-medium text-gray-400 bg-white/5 flex items-center gap-2"><Save class="w-4 h-4" /> Brouillon</button>
-            <button on:click={() => saveCommande('envoye')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-bold text-red-400 bg-red-500/10 border border-red-500/20 flex items-center gap-2 shadow-lg shadow-red-900/20">
+        <div class="fixed bottom-4 left-4 right-4 z-50 flex flex-wrap justify-end items-center gap-4 p-4 border border-white/10 bg-[#0f1115]/80 backdrop-blur-2xl rounded-2xl shadow-2xl">
+            <button on:click={() => generatePDF()} class="px-5 py-2.5 rounded-full text-sm font-bold text-emerald-400 bg-emerald-500/5 border border-emerald-500/10 flex items-center gap-2"><Printer class="w-4 h-4" /> PDF</button>
+            <button on:click={() => saveCommande('brouillon')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm text-gray-400 bg-white/5 flex items-center gap-2"><Save class="w-4 h-4" /> Brouillon</button>
+            <button on:click={() => saveCommande('envoye')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-bold text-red-400 bg-red-500/10 border border-red-500/20 flex items-center gap-2 shadow-lg shadow-red-900/30">
                 {#if isSaving}<Loader2 class="w-4 h-4 animate-spin"/>{:else}<CheckCircle class="w-4 h-4" />{/if} Clôturer
             </button>
         </div>
@@ -739,24 +672,3 @@ PACO Sud_Ouest`;
     {/if}
   {/if}
 </div>
-
-{#if showEmailExport}
-  <div class="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" transition:fade>
-    <div class="bg-[#1a1d24] border border-white/10 rounded-2xl p-6 w-full max-w-lg shadow-2xl" in:fly={{ y: 20 }}>
-      <div class="flex justify-between items-center mb-4">
-        <h3 class="text-lg font-bold text-white flex items-center gap-2"><Mail class="text-blue-400" size={20} /> Export E-mail</h3>
-        <button on:click={() => showEmailExport = false} class="text-gray-500 hover:text-white"><X size={20} /></button>
-      </div>
-      <div class="relative group">
-        <textarea readonly class="w-full h-64 bg-black/40 border border-white/10 rounded-xl p-4 text-sm text-gray-300 outline-none resize-none font-mono" bind:value={emailBody}></textarea>
-        <button on:click={copyToClipboard} class="absolute top-3 right-3 p-2 rounded-lg bg-blue-600 text-white flex items-center gap-2 text-xs font-bold">
-          {#if hasCopied}<Check size={14} /> Copié{:else}<ClipboardCopy size={14} /> Copier{/if}
-        </button>
-      </div>
-      <div class="mt-6 flex justify-between gap-3">
-        <button on:click={() => showEmailExport = false} class="px-4 py-2 rounded-xl bg-white/5 text-gray-400 font-bold">Fermer</button>
-        <button on:click={sendEmail} class="flex-1 px-4 py-2 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center gap-2 shadow-lg"><Mail size={18} /> Ouvrir Outlook</button>
-      </div>
-    </div>
-  </div>
-{/if}
