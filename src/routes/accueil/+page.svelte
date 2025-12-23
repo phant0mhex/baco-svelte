@@ -251,8 +251,10 @@ onMount(async () => {
                 }, { onConflict: 'user_id' });
                 
             } catch (err) {
-                console.error("Erreur sauvegarde", err);
-            } finally {
+    console.error("ERREUR CRITIQUE SUPABASE:", err);
+    console.log("Détails erreur:", err.message, err.details, err.hint);
+    alert("Erreur de sauvegarde: " + err.message); // Alerte temporaire pour être sûr de la voir
+} finally {
                 isSaving = false;
             }
         }, 1500); // Debounce de 1.5s
