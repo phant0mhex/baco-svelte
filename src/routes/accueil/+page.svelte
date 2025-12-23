@@ -292,6 +292,26 @@
           triggerSave();
       }
   }
+
+  async function resetLayout() {
+        if(!confirm("Réinitialiser totalement la disposition ?")) return;
+        
+        // 1. On remet la config par défaut
+        // On génère de nouveaux ID pour forcer Svelte à tout recréer proprement
+        items = DEFAULT_LAYOUT.map(i => ({ ...i, id: crypto.randomUUID() }));
+        
+        // 2. On nettoie le localStorage
+        localStorage.removeItem('baco_dashboard_config_v3');
+        
+        // 3. On nettoie Supabase (si connecté)
+        if (session?.user) {
+            const client = data.supabase || supabase;
+            await client.from('user_preferences').delete().eq('user_id', session.user.id);
+        }
+
+        // 4. On force le rechargement pour être propre
+        window.location.reload();
+    }
 </script>
 
 <style>
@@ -324,6 +344,15 @@
         z-index: 1000 !important;
     }
 </style>
+
+<div class="p-6 border-t border-white/10 mt-auto">
+    <button 
+        onclick={resetLayout}
+        class="w-full py-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 font-bold hover:bg-red-500 hover:text-white transition-all flex items-center justify-center gap-2"
+    >
+        <AlertTriangle size={18} /> Réinitialiser l'affichage
+    </button>
+</div>
 
 <div 
     class="space-y-6 relative pb-20 transition-all duration-300 ease-in-out"
@@ -360,7 +389,7 @@
     </div>
   </div>
 
-  <div class="grid-stack w-full min-h-[500px] transition-opacity duration-500 ease-out {isGridReady ? 'opacity-100' : 'opacity-0'}">
+  <div class="grid-stack w-full min-h-[500px] relative z-0 transition-opacity duration-500 ease-out {isGridReady ? 'opacity-100' : 'opacity-0'}">
       {#each items as item (item.id)}
          <div 
             class="grid-stack-item"
