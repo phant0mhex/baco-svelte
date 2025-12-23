@@ -123,7 +123,7 @@
      }
   });
 
-  function initGridStack() {
+function initGridStack() {
       if (grid || !GridStackModule) return;
       const el = document.querySelector('.grid-stack');
       if (!el) return;
@@ -134,21 +134,26 @@
               cellHeight: 280,
               margin: 10,
               float: false,
-              disableOneColumnMode: false, // Important : empêche le passage forcé en 1 colonne mobile
+              disableOneColumnMode: false,
               animate: true,
-              disableDrag: true,   // Verrouillé par défaut
-              disableResize: true, // Verrouillé par défaut
+              disableDrag: true,
+              disableResize: true,
               draggable: {
                 handle: '.widget-drag-handle',
                 scroll: true 
               }
           }, el);
 
-          // --- FORÇAGE DU LAYOUT ---
-          // Ces 3 lignes forcent Gridstack à recalculer les positions proprement
-          grid.batchUpdate();
+          // --- CORRECTION DU BUG L.commit ---
+          // On démarre le batch (bloque le rendu)
+          grid.batchUpdate(); 
+          
+          // On compacte les widgets
           grid.compact();
-          grid.commit();
+          
+          // On termine le batch (débloque le rendu et applique les changements)
+          // C'est ça qui remplace le "commit()" qui n'existait pas
+          grid.batchUpdate(false); 
 
           grid.on('change', () => {
               updateItemsFromGrid();
@@ -158,7 +163,6 @@
           console.error("Erreur init GridStack:", err);
       }
   }
-
   // --- LOGIQUE GRIDSTACK ---
 
   function toggleDrawer() {
