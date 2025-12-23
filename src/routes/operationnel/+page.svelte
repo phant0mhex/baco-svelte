@@ -24,6 +24,11 @@
   let isModalOpen = false;
   let isSaving = false;
 
+  let showDocPicker = false;
+  let bucketFiles = []; 
+  let currentProcedureDocs = []; // Liste des noms de fichiers liés
+
+
   // Objet Procédure en cours d'édition
   let editingProcedure = {
     id: null,
@@ -44,13 +49,15 @@
     }
   }
 
-  async function loadProcedures() {
+async function loadProcedures() {
     isLoading = true;
+    
+    // 1. Récupération des procédures (inchangé)
     let query = supabase
       .from('procedures')
       .select(`*, profiles ( full_name )`)
       .order('titre', { ascending: true });
-      
+
     if (selectedCategory !== 'all') {
       query = query.eq('categorie', selectedCategory);
     }
@@ -59,45 +66,151 @@
       query = query.or(`titre.ilike.%${searchQuery}%,contenu.ilike.%${searchQuery}%`);
     }
 
-    const { data, error } = await query;
+    const { data: procs, error } = await query;
+
     if (error) {
       console.error("Erreur: " + error.message);
       toast.error("Impossible de charger les procédures.");
     } else {
-      procedures = data;
+      
+      // 2. --- AJOUT : Récupération des documents liés ---
+      const procIds = procs.map(p => p.id);
+      
+      // On cherche toutes les liaisons pour les procédures chargées
+      const { data: links, error: linkError } = await supabase
+         .from('liaisons_contenu')
+         .select('source_content_id, target_content_id')
+         .eq('source_content_type', 'procedure')
+         .eq('target_content_type', 'document')
+         .in('source_content_id', procIds);
+
+         // AFFICHEZ CECI DANS LA CONSOLE DU NAVIGATEUR (F12)
+      console.log("Procédures IDs:", procIds);
+      console.log("Liens trouvés:", links);
+      console.log("Erreur éventuelle:", linkError);
+
+      // On "colle" les documents dans chaque objet procédure
+     procedures = procs.map(proc => {
+          const docs = links 
+            // CORRECTION ICI : On convertit tout en String pour comparer "10" avec "10"
+            ? links.filter(l => String(l.source_content_id) === String(proc.id)).map(l => l.target_content_id)
+            : [];
+          return { ...proc, attached_docs: docs };
+      });
+      // --------------------------------------------------
     }
     isLoading = false;
   }
 
-  // --- ACTIONS (CRUD) ---
-  async function saveProcedure() {
+async function saveProcedure() {
     isSaving = true;
     const { data: { user } } = await supabase.auth.getUser();
+    
+    // --- CORRECTION : DÉFINITION DE PAYLOAD ---
     const payload = {
         titre: editingProcedure.titre,
         categorie: editingProcedure.categorie,
         contenu: editingProcedure.contenu,
         updated_at: new Date()
     };
-    
+    // ------------------------------------------
+
+    let savedId = editingProcedure.id; // Par défaut, l'id existant
     let error;
+
     if (editingProcedure.id) {
+        // UPDATE
         const res = await supabase.from('procedures').update(payload).eq('id', editingProcedure.id);
         error = res.error;
     } else {
-        const res = await supabase.from('procedures').insert([payload]);
+        // INSERT : On utilise .select() pour récupérer l'ID généré
+        const res = await supabase.from('procedures').insert([payload]).select();
         error = res.error;
+        if (res.data && res.data[0]) {
+            savedId = res.data[0].id; // On récupère le nouvel ID
+        }
     }
 
-    isSaving = false;
-    if (error) {
-        toast.error("Erreur lors de la sauvegarde : " + error.message);
-    } else {
-        toast.success(editingProcedure.id ? "Procédure modifiée avec succès !" : "Nouvelle procédure créée !");
+    if (!error && savedId) {
+        // --- SAUVEGARDE DES LIENS ---
+        // On attend que les liens soient sauvés avant de fermer
+        await saveLinks(savedId, user?.id);
+        // ----------------------------
+        
+        toast.success(editingProcedure.id ? "Procédure modifiée !" : "Procédure créée !");
         closeModal();
         loadProcedures();
         loadCategories();
+    } else {
+        toast.error("Erreur : " + (error?.message || "Inconnue"));
     }
+    isSaving = false;
+  }
+
+// 1. Charger les fichiers du bucket (inchangé)
+  async function loadBucketFiles() {
+      const { data, error } = await supabase
+        .storage
+        .from('documents')
+        .list('', { limit: 100, offset: 0, sortBy: { column: 'name', order: 'asc' } });
+      
+      if (!error) {
+          bucketFiles = data;
+          showDocPicker = true;
+      }
+  }
+
+  // 2. Charger les liaisons existantes pour une procédure
+  async function loadLinkedDocs(procedureId) {
+      if (!procedureId) {
+          currentProcedureDocs = [];
+          return;
+      }
+
+      const { data, error } = await supabase
+          .from('liaisons_contenu')
+          .select('target_content_id')
+          .eq('source_content_type', 'procedure')
+          .eq('source_content_id', procedureId)
+          .eq('target_content_type', 'document');
+
+      if (!error && data) {
+          // On récupère juste les noms de fichiers
+          currentProcedureDocs = data.map(l => l.target_content_id);
+      }
+  }
+
+  // 3. Sauvegarder les liaisons (à appeler après la sauvegarde de la procédure)
+  async function saveLinks(procedureId, userId) {
+      // A. On nettoie les anciennes liaisons "documents" de cette procédure
+      await supabase
+          .from('liaisons_contenu')
+          .delete()
+          .eq('source_content_type', 'procedure')
+          .eq('source_content_id', procedureId)
+          .eq('target_content_type', 'document');
+
+      // B. On insère les nouvelles
+      if (currentProcedureDocs.length > 0) {
+          const linksToInsert = currentProcedureDocs.map(docName => ({
+              source_content_type: 'procedure',
+              source_content_id: procedureId, // UUID de la procédure
+              target_content_type: 'document',
+              target_content_id: docName,     // Nom du fichier
+              created_by: userId
+          }));
+
+          await supabase.from('liaisons_contenu').insert(linksToInsert);
+      }
+  }
+
+  // 4. Basculer la sélection (pour le modal)
+  function toggleFileSelection(fileName) {
+      if (currentProcedureDocs.includes(fileName)) {
+          currentProcedureDocs = currentProcedureDocs.filter(f => f !== fileName);
+      } else {
+          currentProcedureDocs = [...currentProcedureDocs, fileName];
+      }
   }
 
   async function deleteProcedure(id, titre) {
@@ -113,11 +226,14 @@
   }
 
   // --- MODAL ---
-  function openModal(proc = null) {
+function openModal(proc = null) {
     if (proc) {
         editingProcedure = { ...proc };
+        // CHARGEMENT DES LIENS
+        loadLinkedDocs(proc.id); 
     } else {
         editingProcedure = { id: null, titre: "", categorie: "", contenu: "" };
+        currentProcedureDocs = []; // Reset pour nouvelle procédure
     }
     isModalOpen = true;
   }
@@ -245,6 +361,22 @@
                 </div>
               </div>
 
+              {#if proc.attached_docs && proc.attached_docs.length > 0}
+                <div class="px-6 pb-4 flex flex-wrap gap-2">
+                    {#each proc.attached_docs as doc}
+                        <a 
+                            href={supabase.storage.from('documents').getPublicUrl(doc).data.publicUrl} 
+                            target="_blank"
+                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors z-10 relative"
+                            on:click|stopPropagation
+                        >
+                            <FileText class="w-3.5 h-3.5" />
+                            {doc}
+                        </a>
+                    {/each}
+                </div>
+              {/if}
+
               <div class="px-6 py-3 bg-black/20 text-right text-xs text-gray-500 border-t border-white/5 font-mono">
                 Dernière màj : {new Date(proc.updated_at || Date.now()).toLocaleDateString('fr-FR')}
               </div>
@@ -275,7 +407,7 @@
         </button>
       </div>
       
-      <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar flex-grow">
+      <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-grow">
         
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
@@ -313,6 +445,37 @@
              <EasyEditor bind:value={editingProcedure.contenu} />
           </div>
         </div>
+
+        <div class="pt-4 border-t border-white/5">
+            <label class="block text-sm font-medium text-gray-400 mb-3">Documents liés</label>
+            
+            <div class="flex flex-wrap gap-2 mb-3">
+                {#each currentProcedureDocs as docName}
+                    <span class="bg-blue-500/10 text-blue-300 border border-blue-500/20 px-3 py-1.5 rounded-lg text-sm flex items-center gap-2 group hover:border-red-500/30 hover:bg-red-500/10 transition-colors">
+                        <FileText class="w-3.5 h-3.5 text-blue-400 group-hover:text-red-400 transition-colors"/> 
+                        <span class="truncate max-w-[200px]">{docName}</span>
+                        <button 
+                            type="button" 
+                            on:click={() => toggleFileSelection(docName)} 
+                            class="ml-1 text-blue-400 group-hover:text-red-400 focus:outline-none"
+                            title="Retirer"
+                        >
+                            <X class="w-3.5 h-3.5" />
+                        </button>
+                    </span>
+                {/each}
+            </div>
+
+            <button 
+                type="button"
+                on:click={loadBucketFiles} 
+                class="text-sm bg-white/5 hover:bg-white/10 border border-white/10 px-4 py-2.5 rounded-xl transition-all flex items-center gap-2 text-gray-300 hover:text-white group"
+            >
+                <FolderOpen class="w-4 h-4 text-blue-400 group-hover:scale-110 transition-transform" /> 
+                Sélectionner depuis le stock
+            </button>
+        </div>
+
       </div>
       
       <div class="flex justify-end items-center p-5 border-t border-white/10 bg-white/5 gap-3">
@@ -333,6 +496,49 @@
   </div>
 {/if}
 
+{#if showDocPicker}
+    <div class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md" transition:fade>
+        <div class="bg-[#1a1d24] border border-white/10 rounded-2xl w-full max-w-lg shadow-2xl flex flex-col max-h-[80vh]">
+            
+            <div class="p-4 border-b border-white/10 flex justify-between items-center bg-white/5">
+                <h3 class="font-bold text-white">Documents disponibles</h3>
+                <button on:click={() => showDocPicker = false} class="text-gray-400 hover:text-white">
+                    <X class="w-5 h-5"/>
+                </button>
+            </div>
+
+            <div class="overflow-y-auto p-2 space-y-1 flex-1 custom-scrollbar">
+                {#if bucketFiles.length === 0}
+                    <div class="text-center py-8 text-gray-500">
+                        <p>Aucun fichier trouvé dans le dossier "documents".</p>
+                    </div>
+                {:else}
+                    {#each bucketFiles as file}
+                        <button 
+                            class="w-full text-left px-4 py-3 rounded-xl flex items-center justify-between transition-colors
+                            {currentProcedureDocs.includes(file.name) ? 'bg-blue-600/20 border border-blue-500/50' : 'hover:bg-white/5 border border-transparent'}"
+                            on:click={() => toggleFileSelection(file.name)}
+                        >
+                            <div class="flex items-center gap-3 overflow-hidden">
+                                <FileText class="w-5 h-5 text-gray-400"/>
+                                <span class="truncate text-gray-200 text-sm">{file.name}</span>
+                            </div>
+                            {#if currentProcedureDocs.includes(file.name)}
+                                <div class="w-2 h-2 rounded-full bg-blue-400 shadow-[0_0_5px_currentColor]"></div>
+                            {/if}
+                        </button>
+                    {/each}
+                {/if}
+            </div>
+
+            <div class="p-4 border-t border-white/10 bg-white/5 text-right">
+                <button on:click={() => showDocPicker = false} class="px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-medium">
+                    Terminer
+                </button>
+            </div>
+        </div>
+    </div>
+{/if}
 <style>
   /* 1. La zone de texte principale (CodeMirror) */
   :global(.EasyMDEContainer .CodeMirror) {
