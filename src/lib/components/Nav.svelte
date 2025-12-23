@@ -318,34 +318,43 @@ function getWeekNumber(date) {
                   <button on:click={(e) => toggleDropdown('calendar', e)} class={iconBtnClass}>
                        <CalendarDays class="w-5 h-5" />
                   </button>
-                  {#if activeDropdown === 'calendar'}
-                      <div transition:fly={{ y: 10, duration: 200 }} class="{dropdownBaseClass} right-0 w-[280px] p-4">
-                          <div class="flex justify-between items-center mb-4">
-                              <button on:click|stopPropagation={goToPreviousMonth} class="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><ChevronLeft class="w-4 h-4" /></button>
-                              <span class="text-white font-bold text-sm cursor-pointer hover:text-blue-400 transition-colors" on:click={goToToday}>{monthNames[displayedMonth]} {displayedYear}</span>
-                              <button on:click|stopPropagation={goToNextMonth} class="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><ChevronRight class="w-4 h-4" /></button>
-                          </div>
-                          <div class="grid grid-cols-7 gap-1 text-center mb-2">
-                              {#each dayNames as day}<div class="text-[10px] font-bold text-gray-500 uppercase">{day}</div>{/each}
-                          </div>
-                         <div class="grid grid-cols-7 gap-1 text-center">
-    {#each days as day}
-        <div class="w-full aspect-square rounded-md flex items-center justify-center text-xs font-medium relative
-            {day.isCurrentMonth ? 'text-gray-300' : 'text-gray-600'} 
-            {day.isToday ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/50' : 'hover:bg-white/10 cursor-pointer'}">
-
-            {#if day.isStartOfWeek}
-                <span class="absolute top-0.5 left-0.5 text-[8px] font-mono opacity-50 {day.isToday ? 'text-white' : 'text-blue-400'}">
-                    S{day.weekNum}
-                </span>
-            {/if}
-
-            {day.dayOfMonth}
+                {#if activeDropdown === 'calendar'}
+    <div transition:fly={{ y: 10, duration: 200 }} class="{dropdownBaseClass} right-0 w-[320px] p-4">
+        
+        <div class="flex justify-between items-center mb-4">
+            <button on:click|stopPropagation={goToPreviousMonth} class="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><ChevronLeft class="w-4 h-4" /></button>
+            <span class="text-white font-bold text-sm cursor-pointer hover:text-blue-400 transition-colors" on:click={goToToday}>{monthNames[displayedMonth]} {displayedYear}</span>
+            <button on:click|stopPropagation={goToNextMonth} class="p-1 rounded-lg hover:bg-white/10 text-gray-400 hover:text-white"><ChevronRight class="w-4 h-4" /></button>
         </div>
-    {/each}
-</div>
-                      </div>
-                  {/if}
+
+        <div class="grid grid-cols-[2rem_repeat(7,1fr)] gap-1 text-center mb-2 items-center">
+            <div class="text-[9px] font-bold text-blue-500/50 uppercase tracking-tighter">Sem</div>
+            {#each dayNames as day}
+                <div class="text-[10px] font-bold text-gray-500 uppercase">{day}</div>
+            {/each}
+        </div>
+
+        <div class="grid grid-cols-[2rem_repeat(7,1fr)] gap-1 text-center items-center">
+            {#each days as day, index}
+                
+                {#if index % 7 === 0}
+                    <div class="text-[10px] font-mono font-bold text-blue-400 animate-pulse select-none">
+                        {day.weekNum}
+                    </div>
+                {/if}
+
+                <div class="w-full aspect-square rounded-md flex items-center justify-center text-xs font-medium relative transition-all duration-200
+                    {day.isCurrentMonth ? 'text-gray-300' : 'text-gray-600'} 
+                    {day.isToday 
+                        ? 'bg-blue-600 text-white shadow-[0_0_10px_rgba(37,99,235,0.5)] scale-110 z-10 font-bold' 
+                        : 'hover:bg-white/10 cursor-pointer hover:scale-105'}"
+                >
+                    {day.dayOfMonth}
+                </div>
+            {/each}
+        </div>
+    </div>
+{/if}
               </div>
 
               <div class="relative">
