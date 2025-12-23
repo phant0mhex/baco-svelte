@@ -1,17 +1,27 @@
+import { supabase } from '$lib/supabase'; // Assurez-vous que le chemin est bon
+
 export const ssr = false;
 
 export async function load({ parent }) {
-    // 1. On récupère la session et le client Supabase depuis le layout racine
-    const { supabase, session } = await parent();
+    // 1. On essaie de récupérer la session depuis le layout racine
+    const parentData = await parent();
+    let session = parentData.session;
+
+    // 2. CORRECTION : Si le parent ne donne rien, on va chercher la session nous-mêmes
+    // C'est ce qui manque actuellement.
+    if (!session) {
+        const { data } = await supabase.auth.getSession();
+        session = data.session;
+    }
 
     let savedConfig = [];
     let savedTheme = 'default';
 
-    // 2. Si l'utilisateur est connecté, on va chercher ses préférences
+    // 3. Si on a récupéré une session (via parent OU manuellement), on charge les préférences
     if (session?.user) {
         const { data, error } = await supabase
             .from('user_preferences')
-            .select('dashboard_config, theme') // On récupère bien les DEUX colonnes
+            .select('dashboard_config, theme')
             .eq('user_id', session.user.id)
             .single();
 
@@ -21,10 +31,10 @@ export async function load({ parent }) {
         }
     }
 
-    // 3. On renvoie les données à la page (+page.svelte)
+    // 4. On renvoie tout à la page +page.svelte
     return {
         savedConfig,
         savedTheme,
-        session
+        session // <--- Maintenant cette variable n'est plus nulle
     };
 }
