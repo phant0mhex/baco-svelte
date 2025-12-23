@@ -5,17 +5,15 @@
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
   
-  // --- IMPORTS COMPOSANTS ---
   import Nav from '$lib/components/Nav.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import GlobalSearch from '$lib/components/GlobalSearch.svelte';
   import ToastContainer from '$lib/components/ToastContainer.svelte';
   import ConfirmModal from '$lib/components/ConfirmModal.svelte';
   
-  // --- NOUVEAUX IMPORTS ---
   import DashboardSkeleton from '$lib/components/DashboardSkeleton.svelte';
   import { zenMode } from '$lib/stores/zen';
-  import { toast } from '$lib/stores/toast.js'; // <-- AJOUTER CET IMPORT
+  import { toast } from '$lib/stores/toast.js'; // Vérifiez que l'import est correct
   import { Minimize } from 'lucide-svelte';
   import { fly, fade } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
@@ -24,11 +22,10 @@
   let user = null;
   let loading = true;
   let isChristmasTheme = false;
-  let isHidden = false; // <-- DÉCLARATION DE LA VARIABLE MANQUANTE
+  let isHidden = false; // Initialisé à faux
 
   $: isLoginPage = $page.url.pathname === '/';
 
-  // --- LOGIQUE ---
   function handleKeydown(event) {
     if (event.key === 'Escape' && $zenMode) {
         zenMode.set(false);
@@ -36,34 +33,39 @@
   }
 
   onMount(async () => {
-    // 1. Logique de flou (Visibility)
+    // --- 1. GESTION DE LA VISIBILITÉ (FLOU) ---
     const handleVisibilityChange = () => {
+      // Met à jour isHidden si l'onglet est caché OU si la fenêtre n'a plus le focus
       isHidden = document.hidden || !document.hasFocus();
     };
 
-    // 2. Logique PrintScreen
+    // --- 2. GESTION DE LA TOUCHE PRINT SCREEN ---
     const handlePrintScreen = async (e) => {
       if (e.key === 'PrintScreen' || e.keyCode === 44) {
         toast.warning("Capture d'écran détectée : Les données sensibles sont protégées.");
         try {
           await navigator.clipboard.writeText("Contenu protégé - BACO");
         } catch (err) {
-          console.log("Erreur presse-papier");
+          console.error("Erreur presse-papier:", err);
         }
       }
     };
 
+    // Ajout des écouteurs
     window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('blur', handleVisibilityChange);
     window.addEventListener('focus', () => isHidden = false);
     window.addEventListener('keyup', handlePrintScreen);
 
-    // 3. Auth & Initialisation
+    // --- 3. AUTHENTICATION ---
     const { data: { session } } = await supabase.auth.getSession();
     user = session?.user;
 
-    if (!user && !isLoginPage) goto('/');
-    if (user && isLoginPage) goto('/accueil');
+    if (!user && !isLoginPage) {
+        goto('/');
+    } else if (user && isLoginPage) {
+        goto('/accueil');
+    }
 
     if (typeof localStorage !== 'undefined') {
       isChristmasTheme = localStorage.getItem('bacoChristmasTheme') !== 'false';
@@ -76,7 +78,7 @@
       if (event === 'SIGNED_OUT') goto('/');
     });
 
-    // UN SEUL RETURN pour tout nettoyer
+    // --- 4. NETTOYAGE UNIQUE ---
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('blur', handleVisibilityChange);
@@ -141,11 +143,10 @@
 
     <ToastContainer />
     <ConfirmModal />
-  </div> 
+  </div>
 {/if}
 
 <style>
-  /* Interdire l'impression */
   @media print {
     :global(body) { display: none !important; }
   }
