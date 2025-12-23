@@ -308,7 +308,7 @@
                     {#if WIDGET_REGISTRY[item.type]}
                         {@const WidgetComponent = WIDGET_REGISTRY[item.type].component}
                         
-                        <div class="h-full w-full rounded-2xl overflow-hidden transition-all duration-300 relative
+                        <div class="h-full w-full rounded-2xl transition-all duration-300 relative
                             {isDrawerOpen ? 'ring-2 ring-blue-500/50 scale-[0.98]' : ''}">
                             
                             {#if isDrawerOpen}
@@ -443,3 +443,29 @@
 
     </div>
 </div>
+
+
+<style>
+    /* AVANT : overflow: hidden !important */
+    /* APRÈS : on autorise le visible pour laisser passer les popups */
+    :global(.grid-stack-item-content) {
+        height: 100% !important; 
+        overflow: visible !important; /* <--- CHANGEMENT ICI */
+    }
+
+    /* Le reste ne change pas */
+    :global(.grid-stack-placeholder > .placeholder-content) {
+        background-color: rgba(59, 130, 246, 0.2) !important;
+        border: 2px dashed rgba(59, 130, 246, 0.5);
+        border-radius: 1rem;
+    }
+    :global(.grid-stack-locked .ui-resizable-handle) {
+        display: none !important;
+    }
+    
+    /* AJOUT : Gestion du Z-Index pour que le popup passe DEVANT les autres widgets */
+    /* Quand on survole un widget, on le met au premier plan */
+    :global(.grid-stack-item:hover) {
+        z-index: 1000 !important;
+    }
+</style>
