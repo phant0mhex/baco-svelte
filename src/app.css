@@ -96,8 +96,10 @@
 /* Par défaut, on cache tous les éléments de Noël pour ne pas polluer les autres thèmes */
 .garland, 
 .garland-lights, 
-
-
+.sleigh-reindeer, 
+.snowfall-effect {
+    display: none;
+}
 
 /* Quand la classe .theme-christmas est active sur le body/html, on les affiche */
 .theme-christmas .garland, 
