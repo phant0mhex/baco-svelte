@@ -66,7 +66,7 @@
   
   // NOUVEAU : État pour gérer l'affichage propre de la grille
   let isGridReady = $state(false); 
-
+let gridStackEl;
   let grid = null;
   let GridStackModule = null; 
   let saveTimeout;
@@ -108,27 +108,22 @@
         // --- LA SOLUTION : RESIZE OBSERVER ---
         // On n'initialise PAS Gridstack tout de suite avec un timer.
         // On attend que le conteneur ait une vraie largeur physique.
-        const el = document.querySelector('.grid-stack');
-        if (el) {
+        if (gridStackEl) {
             resizeObserver = new ResizeObserver((entries) => {
                 for (const entry of entries) {
-                    // Si la largeur est > 300px (donc visible et non compressée par la transition)
-                    // ET que Gridstack n'est pas encore lancé
                     if (entry.contentRect.width > 300 && !grid) {
                         initGridStack();
-                        // Une fois lancé, on arrête d'observer pour la perf
                         resizeObserver.disconnect();
                     }
                 }
             });
-            resizeObserver.observe(el);
+            resizeObserver.observe(gridStackEl); // On observe l'élément précis
         }
         
     } catch (e) {
         console.error("Erreur critique au chargement:", e);
     }
   });
-
   onDestroy(() => {
      if (resizeObserver) resizeObserver.disconnect();
      if (grid) {
@@ -137,24 +132,20 @@
      }
   });
 
-  function initGridStack() {
+function initGridStack() {
       if (grid || !GridStackModule) return;
-      const el = document.querySelector('.grid-stack');
-      if (!el) return;
+      if (!gridStackEl) return; // On vérifie notre référence
 
       try {
+          // On initialise DIRECTEMENT sur l'élément lié, sans le chercher dans le DOM
           grid = GridStackModule.init({
               column: 4,
               cellHeight: 280,
               margin: 10,
               float: false,
-              
-              // --- CONFIGURATION CRITIQUE ANTI-STACKING ---
-              disableOneColumnMode: true, // Interdit le mode pile
-              oneColumnSize: 0,           // Désactive le seuil de bascule
-              minWidth: 768,              // Force la grille
-              // -------------------------------------------
-              
+              disableOneColumnMode: true,
+              oneColumnSize: 0,
+              minWidth: 768,
               animate: true,
               disableDrag: true,
               disableResize: true,
@@ -162,14 +153,20 @@
                 handle: '.widget-drag-handle',
                 scroll: true 
               }
-          }, el);
+          }, gridStackEl); // <--- ICI : gridStackEl au lieu de el
 
           grid.batchUpdate(); 
           grid.compact();
           grid.batchUpdate(false); 
 
-          // C'EST PRÊT : On révèle la grille à l'utilisateur
           isGridReady = true;
+          
+          setTimeout(() => {
+              if(grid) {
+                  grid.engine.nodes.forEach(n => { if(n.el) grid.update(n.el); });
+                  grid.compact();
+              }
+          }, 200);
 
           grid.on('change', () => {
               updateItemsFromGrid();
@@ -227,8 +224,9 @@
     });
   }
 
-  function removeWidget(id) {
-      const el = document.querySelector(`[gs-id="${id}"]`);
+function removeWidget(id) {
+      // On cherche l'élément SEULEMENT à l'intérieur de notre grille
+      const el = gridStackEl?.querySelector(`[gs-id="${id}"]`);
       if (el && grid) {
           try {
               grid.removeWidget(el, false);
@@ -238,16 +236,21 @@
       triggerSave();
   }
 
-  function widgetAction(node, item) {
+  
+function widgetAction(node, item) {
+      // Si la grille n'est pas encore prête, on ne fait RIEN.
+      // On laisse initGridStack() s'occuper d'initialiser tous les widgets présents au démarrage.
+      if (!isGridReady) return;
+
+      // Si on arrive ici, c'est que la grille tourne déjà et que cet élément vient d'être ajouté (ex: clic bouton)
+      // On l'ajoute donc manuellement.
       const attachWidget = () => {
-          if (grid) {
-              try { grid.makeWidget(node); } catch (err) {}
-          } else {
-             // Si la grille n'est pas encore prête, on réessaie dans 50ms
-             setTimeout(attachWidget, 50);
+          if (grid && !node.gridstackNode) {
+              try { grid.makeWidget(node); } catch (err) { console.warn(err); }
           }
       };
       
+      // Petit délai pour laisser le DOM se stabiliser lors d'un ajout dynamique
       setTimeout(attachWidget, 50);
 
       return {
@@ -393,7 +396,8 @@
     </div>
   </div>
 
-  <div class="grid-stack w-full min-h-[500px] transition-opacity duration-500 ease-out {isGridReady ? 'opacity-100' : 'opacity-0'}">
+  <div class="grid-stack w-full min-h-[500px] transition-opacity duration-500 ease-out {isGridReady ? 'opacity-100' : 'opacity-0'}"
+  bind:this={gridStackEl}>
       {#each items as item (item.id)}
          <div 
             class="grid-stack-item"
