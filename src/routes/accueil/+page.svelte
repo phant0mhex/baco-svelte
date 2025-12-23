@@ -2,6 +2,7 @@
   import { onMount, onDestroy, tick } from 'svelte';
   import { fade, fly } from 'svelte/transition';
   import { supabase } from '$lib/supabase';
+  import { get } from 'svelte/store';
   import { toast } from '$lib/stores/toast';
   import { heartbeat } from '$lib/stores/heartbeat';
 
@@ -69,16 +70,25 @@
   let saveTimeout;
 
   // --- INITIALISATION ---
-  onMount(async () => {
-    // 1. Import dynamique pour éviter l'erreur 500 (SSR)
+onMount(async () => {
+    // 1. Import dynamique Gridstack (existant)
     const module = await import('gridstack');
     GridStackModule = module.GridStack;
 
-    // 2. Chargement de la config
+    // --- AJOUT : Application du thème sauvegardé ---
+    // data.savedTheme vient de notre nouveau fichier +page.js
+    if (data.savedTheme) {
+        selectTheme(data.savedTheme);
+    }
+    // -----------------------------------------------
+
+    // 2. Chargement de la config (existant)
+    // Vous pouvez simplifier cette partie car data.savedConfig est maintenant toujours défini (vide ou rempli)
     let loadedItems = [];
     if (savedConfig && savedConfig.length > 0) {
         loadedItems = savedConfig;
     } else {
+        // Fallback localStorage ou Défaut
         const local = localStorage.getItem('baco_dashboard_config_v3');
         if (local) loadedItems = JSON.parse(local);
         else loadedItems = DEFAULT_LAYOUT.map(i => ({ ...i, id: crypto.randomUUID() }));
@@ -221,31 +231,43 @@
 
   function triggerSave() {
     saveToLocal(items);
+    
     if (session?.user) {
         isSaving = true;
         clearTimeout(saveTimeout);
+        
         saveTimeout = setTimeout(async () => {
             try {
                 const client = data.supabase || supabase;
+                
+                // Récupération de la valeur brute du thème depuis le store
+                const currentTheme = get(currentThemeId);
+
                 await client.from('user_preferences').upsert({ 
                     user_id: session.user.id, 
-                    dashboard_config: items,
+                    dashboard_config: items, // La grille
+                    theme: currentTheme,     // <--- Le thème sauvegardé
                     updated_at: new Date()
                 }, { onConflict: 'user_id' });
+                
             } catch (err) {
                 console.error("Erreur sauvegarde", err);
             } finally {
                 isSaving = false;
             }
-        }, 1500);
+        }, 1500); // Debounce de 1.5s
     }
   }
 
-  function selectTheme(key) {
+function selectTheme(key) {
       currentThemeId.set(key);
       applyTheme(key);
       toast.success(`Thème ${themesConfig[key].name} activé`);
+      
+      // On force la sauvegarde immédiate de la préférence
+      triggerSave(); // <--- AJOUT ICI
   }
+
 </script>
 
 <style>
