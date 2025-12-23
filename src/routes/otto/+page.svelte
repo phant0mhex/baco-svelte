@@ -504,7 +504,7 @@ async function generatePDF() {
 </script>
 
 <svelte:head>
-  <title>Otto | Commande Bus</title>
+  <title>C3 | Commande Bus</title>
 </svelte:head>
 
 <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
@@ -515,7 +515,7 @@ async function generatePDF() {
           <Bus class="w-8 h-8" />
         </div>
         <div>
-          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Otto</h1>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">C3</h1>
           <p class="text-gray-500 text-sm mt-1">Commandes de Bus & Substitution.</p>
         </div>
     </div>
