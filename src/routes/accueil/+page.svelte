@@ -19,12 +19,13 @@
   import WidgetNotepad from '$lib/components/widgets/WidgetNotepad.svelte';
   import WidgetShift from '$lib/components/widgets/WidgetShift.svelte';
   import WidgetTeamBoard from '$lib/components/widgets/WidgetTeamBoard.svelte';
+  import WidgetOtto from '$lib/components/widgets/WidgetOtto.svelte';
 
   // --- ICONS ---
   import { 
     LayoutGrid, Cloud, Loader2, Plus, X, 
     Sun, Car, TrainFront, Accessibility, Link, Calendar, BookOpen, PenLine, Briefcase,
-    Settings2, Users, Palette, Check
+    Settings2, Users, Palette, Check, Bus
   } from 'lucide-svelte';
 
   // --- CSS GRIDSTACK ---
@@ -49,13 +50,22 @@
     planning: { label: 'Planning', component: WidgetPlanning, defaultW: 1, defaultH: 2, icon: Calendar, desc: 'Effectifs du jour.' },
     journal: { label: 'Journal', component: WidgetJournal, defaultW: 2, defaultH: 1, icon: BookOpen, desc: 'Main courante.' },
     teamboard: { label: 'Tableau Équipe', component: WidgetTeamBoard, defaultW: 2, defaultH: 1, icon: Users, desc: 'Comms équipe.' },
+    otto: { 
+    label: 'Commandes C3', 
+    component: WidgetOtto, 
+    defaultW: 1, 
+    defaultH: 1, 
+    icon: Bus, 
+    desc: 'Réquisitoires et suivis de bus.' 
+  },
   };
 
   const DEFAULT_LAYOUT = [
     { type: 'weather', x: 0, y: 0, w: 1, h: 1 },
     { type: 'planning', x: 1, y: 0, w: 1, h: 2 },
     { type: 'links', x: 0, y: 1, w: 1, h: 1 },
-    { type: 'trains', x: 2, y: 0, w: 2, h: 1 }
+    { type: 'trains', x: 2, y: 0, w: 2, h: 1 },
+    { type: 'otto', x: 2, y: 1, w: 1, h: 1 }
   ];
 
   // --- ÉTAT ---
@@ -236,7 +246,7 @@ function removeWidget(id) {
       triggerSave();
   }
 
-  
+
 function widgetAction(node, item) {
       // Si la grille n'est pas encore prête, on ne fait RIEN.
       // On laisse initGridStack() s'occuper d'initialiser tous les widgets présents au démarrage.

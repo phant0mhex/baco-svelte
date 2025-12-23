@@ -48,6 +48,7 @@
     arrets: [],
     origine: '',
     destination: '',
+    is_mail_sent: false,
     is_aller_retour: false,
     nombre_voyageurs: null,
     nombre_pmr: null,
@@ -290,6 +291,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
           is_aller_retour: form.is_aller_retour,
           nombre_voyageurs: form.nombre_voyageurs,
           nombre_pmr: form.nombre_pmr,
+          is_mail_sent: form.is_mail_sent,
           capacite_bus: form.capacite_bus,
           bus_data: form.bus_data,
           status: targetStatus
@@ -589,6 +591,11 @@ async function generatePDF() {
                                 <span class="text-xs px-2 py-0.5 rounded border ml-auto md:ml-0 font-bold {cmd.status === 'envoye' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'}">
                                     {cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon'}
                                 </span>
+                                {#if cmd.is_mail_sent}
+      <span class="flex items-center gap-1.5 px-3 py-1 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-bold uppercase shadow-[0_0_10px_rgba(16,185,129,0.1)]">
+          <CheckCircle size={12} /> Mail envoyé
+      </span>
+    {/if}
                             </div>
                             <div class="flex flex-wrap gap-4 text-sm text-gray-400 bg-black/20 p-3 rounded-xl border border-white/5 mb-3">
                                 <div class="flex items-center gap-2"><Calendar size={14} class="text-orange-400"/> <span class="text-gray-200 font-medium">{new Date(cmd.date_commande).toLocaleDateString()}</span></div>
@@ -721,6 +728,21 @@ async function generatePDF() {
         </div>
 
 <div class="fixed bottom-4 left-4 right-4 z-50 flex flex-wrap justify-end items-center gap-4 p-4 border border-white/10 bg-[#0f1115]/80 backdrop-blur-2xl shadow-2xl rounded-2xl" in:fly={{ y: 20 }}>
+    
+    <label class="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-all mr-auto">
+        <div class="relative flex items-center">
+            <input 
+                type="checkbox" 
+                bind:checked={form.is_mail_sent} 
+                class="sr-only peer"
+            >
+            <div class="w-10 h-5 bg-gray-600 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
+            <div class="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+        </div>
+        <span class="text-xs font-bold {form.is_mail_sent ? 'text-emerald-400' : 'text-gray-400'} uppercase tracking-wider">
+            {form.is_mail_sent ? 'Mail envoyé' : 'Mail non envoyé'}
+        </span>
+    </label>
     
     <button 
         on:click={() => showEmailExport = true} 
