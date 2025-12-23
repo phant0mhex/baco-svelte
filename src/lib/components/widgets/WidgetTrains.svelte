@@ -58,6 +58,12 @@
         loadTrains();
     }
 
+    const formatTrainNum = (vehicleStr) => {
+    if (!vehicleStr) return '';
+    // Enlève le préfixe "BE.NMBS." pour ne garder que le type et le numéro (ex: IC1234, S1, P8008)
+    return vehicleStr.replace('BE.NMBS.', '');
+};
+
     const formatTrainTime = (ts) => new Date(ts * 1000).toLocaleTimeString('fr-BE', { hour: '2-digit', minute: '2-digit' });
 </script>
 
@@ -119,12 +125,18 @@
                             <span class="font-mono font-bold {compact ? 'text-xs' : 'text-base'} {isCanceled ? 'text-gray-500 line-through' : 'text-blue-300'}">
                                 {formatTrainTime(train.time)}
                             </span>
-                            <div>
-                                <span class="block font-bold text-gray-200 {compact ? 'text-xs' : 'text-sm'} leading-tight">{train.station}</span>
-                                {#if train.delay > 0 && !isCanceled}
-                                    <span class="text-[10px] font-bold text-red-400 flex items-center gap-0.5">
-                                        +{Math.floor(train.delay / 60)}'
-                                    </span>
+                           <div>
+                                <span class="block font-bold text-gray-200 {compact ? 'text-xs' : 'text-sm'} leading-tight">{train.station}</span>
+                                
+                                <span class="block text-[10px] text-blue-400/80 font-mono leading-none mt-0.5 mb-0.5">
+                                    {formatTrainNum(train.vehicle)}
+                                </span>
+
+                                {#if train.delay > 0 && !isCanceled}
+                                    <span class="text-[10px] font-bold text-red-400 flex items-center gap-0.5">
+                                        +{Math.floor(train.delay / 60)}'
+                                    </span>
+                                    
                                 {/if}
                                 {#if isCanceled}
                                     <span class="text-[9px] font-bold text-red-500 uppercase">Supprimé</span>
