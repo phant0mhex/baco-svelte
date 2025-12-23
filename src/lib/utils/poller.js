@@ -1,51 +1,61 @@
 import { onMount, onDestroy } from 'svelte';
+import { browser } from '$app/environment';
+import { triggerHeartbeat } from '$lib/stores/heartbeat'; // <-- IMPORT AJOUTÉ
 
 /**
- * Lance une fonction de mise à jour à intervalles réguliers.
- * S'arrête automatiquement si l'onglet n'est plus visible pour économiser les ressources.
- *
- * @param {Function} callback - La fonction async à appeler (ex: fetchTraffic)
- * @param {number} intervalMs - Intervalle en ms (défaut: 30000ms = 30s)
+ * Hook pour appeler une fonction périodiquement
+ * @param {Function} fn - La fonction async à appeler
+ * @param {number} intervalMs - L'intervalle en ms
  */
-export function usePolling(callback, intervalMs = 30000) {
-    let interval;
+export function usePolling(fn, intervalMs = 60000) {
+    let intervalId;
 
-    function start() {
-        stop(); // Sécurité pour éviter les doublons
-        interval = setInterval(() => {
-            if (typeof document !== 'undefined' && !document.hidden) {
-                callback();
-            }
-        }, intervalMs);
-    }
+    // Fonction wrapper qui gère le trigger visuel
+    const run = async () => {
+        if (!browser) return;
+        
+        // On ne poll pas si l'onglet est caché (économie de ressources)
+        if (document.hidden) return;
 
-    function stop() {
-        if (interval) clearInterval(interval);
-    }
-
-    function handleVisibilityChange() {
-        if (document.hidden) {
-            stop();
-        } else {
-            // Reprendre immédiatement et relancer le timer quand l'utilisateur revient
-            callback(); 
-            start();
+        try {
+            await fn();
+            triggerHeartbeat(); // <-- ON DÉCLENCHE LE FLASH SI SUCCÈS
+        } catch (error) {
+            console.error("Polling error:", error);
+            // On pourrait imaginer un triggerHeartbeatError() rouge ici
         }
-    }
+    };
 
     onMount(() => {
-        // Premier appel immédiat au montage
-        callback();
-        start();
-        if (typeof document !== 'undefined') {
-            document.addEventListener('visibilitychange', handleVisibilityChange);
-        }
+        if (!browser) return;
+
+        // Appel immédiat
+        run();
+
+        // Lancement du cycle
+        intervalId = setInterval(run, intervalMs);
+
+        // Réveil quand l'onglet redevient visible
+        const handleVisibilityChange = () => {
+            if (!document.hidden) {
+                run();
+                // On redémarre l'intervalle pour être propre
+                clearInterval(intervalId);
+                intervalId = setInterval(run, intervalMs);
+            }
+        };
+
+        document.addEventListener("visibilitychange", handleVisibilityChange);
+
+        return () => {
+            clearInterval(intervalId);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
+        };
     });
 
     onDestroy(() => {
-        stop();
-        if (typeof document !== 'undefined') {
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        if (browser) {
+            clearInterval(intervalId);
         }
     });
 }

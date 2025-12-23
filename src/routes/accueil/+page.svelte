@@ -3,6 +3,7 @@
   import { fade, fly } from 'svelte/transition';
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast';
+  import { heartbeat } from '$lib/stores/heartbeat';
 
   // --- STORES & THÈMES (Réintégration) ---
   import { themesConfig, currentThemeId, applyTheme } from '$lib/stores/theme';
@@ -272,6 +273,12 @@
     </div>
 
     <div class="flex items-center gap-4">
+        <div class="flex items-center gap-2 px-2 py-1 bg-black/20 rounded-full border border-white/5" title="Activité Réseau">
+        <div class="w-2 h-2 rounded-full transition-all duration-150 shadow-[0_0_10px_currentColor]
+            {$heartbeat ? 'bg-green-400 scale-125 shadow-green-500' : 'bg-gray-600 scale-100 opacity-50'}">
+        </div>
+        <span class="text-[10px] font-mono text-gray-400">LIVE</span>
+    </div>
         {#if isSaving}
             <span class="text-xs text-blue-300 flex items-center gap-1" transition:fade>
                 <Loader2 class="w-3 h-3 animate-spin"/> Sauvegarde...
