@@ -367,9 +367,13 @@
                 <p class="text-gray-500 text-sm mt-1">Planification & Gestion des Congés</p>
             </div>
         </div>
-        <button on:click={handleNewRequest} class="px-5 py-2 bg-green-600/80 hover:bg-green-500 text-white rounded-xl font-bold border border-green-500/30 transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95">
-            <Plus class="w-5 h-5" /> Nouvelle Demande
-        </button>
+     <button 
+  on:click={handleNewRequest} 
+  class="btn-themed px-5 py-2 rounded-xl font-bold border transition-all flex items-center gap-2 shadow-lg hover:scale-105 active:scale-95"
+  style="--primary-rgb: var(--color-primary);"
+>
+  <Plus class="w-5 h-5" /> Nouvelle Demande
+</button>
     </header>
 
     {#if isLoading}
@@ -597,4 +601,19 @@
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
+
+    .btn-themed {
+    /* Utilisation de la variable passée dans l'attribut style */
+    background-color: rgba(var(--primary-rgb), 0.2);
+    border-color: rgba(var(--primary-rgb), 0.3);
+    color: rgb(var(--primary-rgb));
+  }
+
+  .btn-themed:hover {
+    /* Modification de l'opacité au survol */
+    background-color: rgba(var(--primary-rgb), 0.3);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
+  }
 </style>
+
