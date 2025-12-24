@@ -181,16 +181,18 @@
           </div>
         {/if}
         
-        <label class="cursor-pointer bg-blue-600/20 hover:bg-blue-600/30 text-blue-100 border border-blue-500/30 px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group shadow-lg shadow-blue-900/10">
-          <Upload size={20} class="group-hover:-translate-y-0.5 transition-transform" /> 
-          <span class="font-semibold hidden sm:inline">Importer</span>
-          <input 
-            type="file" 
-            class="hidden" 
-            on:change={handleUpload}
-            disabled={isUploading} 
-          />
-        </label>
+       <label 
+  class="cursor-pointer border px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group shadow-lg shadow-black/20"
+  style="
+    background-color: rgba(var(--color-primary), 0.2); 
+    border-color: rgba(var(--color-primary), 0.3);
+    color: rgb(var(--color-primary));
+  "
+>
+  <Upload size={20} class="group-hover:-translate-y-0.5 transition-transform" /> 
+  <span class="font-semibold hidden sm:inline">Importer</span>
+  <input type="file" class="hidden" on:change={handleUpload} />
+</label>
     </div>
   </header>
 
