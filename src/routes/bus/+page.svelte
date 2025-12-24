@@ -439,13 +439,11 @@ async function loadSocietes() {
 </header>
 
 <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" in:fly={{ y: 20, duration: 600, delay: 100 }} style="--primary-rgb: var(--color-primary);">
-    
     <div class="lg:col-span-3 space-y-4">
         <div class="bg-black/20 border border-white/5 rounded-2xl p-5 h-full">
             <h3 class="text-xs font-bold uppercase text-gray-500 mb-4 flex items-center gap-2">
                 <Filter class="w-4 h-4" /> District
             </h3>
-            
             {#if loadingStructure}
                 <div class="flex justify-center py-4"><Loader2 class="animate-spin text-gray-600"/></div>
             {:else}
@@ -473,7 +471,6 @@ async function loadSocietes() {
                 <div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div>
                 Lignes disponibles {#if selectedDistrict}({selectedDistrict}){/if}
             </h3>
-
             {#if !selectedDistrict}
                 <div class="h-20 flex items-center justify-center text-gray-600 italic">
                     <p>← Veuillez d'abord sélectionner un district.</p>
@@ -517,11 +514,9 @@ async function loadSocietes() {
             <h3 class="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
                 <div class="w-1 h-6 bg-themed-solid rounded-full"></div> Sociétés concernées {#if searchTerm}(Recherche: "{searchTerm}"){/if}
             </h3>
-            
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 {#each societesAffichees as societe}
                     <div class="group societe-card flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-xl transition-all duration-200 cursor-pointer {selectedSocieteIds.includes(societe.id) ? 'active' : ''}">
-                        
                         <label class="flex items-center space-x-3 cursor-pointer flex-grow mr-2 w-full h-full">
                             <input 
                                 type="checkbox" 
@@ -531,80 +526,67 @@ async function loadSocietes() {
                             >
                             <span class="font-bold text-gray-300 group-hover:text-white transition-colors">{societe.nom}</span>
                         </label>
-
                         {#if isAdmin}
                             <div class="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button on:click={() => openModal(societe)} class="p-2 text-gray-400 hover:text-themed rounded-lg transition-colors">
-                                    <Pencil class="w-4 h-4" />
-                                </button>
-                                <button on:click={() => deleteSociete(societe.id, societe.nom)} class="p-2 text-gray-400 hover:text-red-400 rounded-lg transition-colors">
-                                    <Trash2 class="w-4 h-4" />
-                                </button>
+                                <button on:click={() => openModal(societe)} class="p-2 text-gray-400 hover:text-themed rounded-lg transition-colors"><Pencil class="w-4 h-4" /></button>
+                                <button on:click={() => deleteSociete(societe.id, societe.nom)} class="p-2 text-gray-400 hover:text-red-400 rounded-lg transition-colors"><Trash2 class="w-4 h-4" /></button>
                             </div>
                         {/if}
                     </div>
                 {/each}
             </div>
         </div>
-    {/if}
-</div>
 
-  
-
-    {#if selectedSocieteIds.length > 0}
-      {#if loadingDetails}
-        <div class="flex justify-center p-10"><Loader2 class="w-8 h-8 animate-spin text-blue-500/50"/></div>
-      {:else}
-        
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8" in:fly={{ y: 20, duration: 400 }}>
-          
-            {#if contactsAffiches.length > 0}
-            <div class="bg-black/20 border border-white/5 rounded-2xl p-6 h-fit">
-                <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
-                    <div class="w-1.5 h-1.5 rounded-full bg-green-500"></div> Contacts Bureaux
-                </h3>
-                <ul class="space-y-3">
-                {#each contactsAffiches as c}
-                    <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center hover:bg-white/10 transition-colors group">
-                    <div>
-                        <span class="block font-bold text-gray-200">{c.nom}</span>
-                        <span class="text-xs text-gray-500 uppercase tracking-wide">{c.societes_bus.nom}</span>
+        {#if selectedSocieteIds.length > 0}
+            {#if loadingDetails}
+                <div class="flex justify-center p-10"><Loader2 class="w-8 h-8 animate-spin themed-spinner"/></div>
+            {:else}
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8" in:fly={{ y: 20, duration: 400 }}>
+                    {#if contactsAffiches.length > 0}
+                    <div class="bg-black/20 border border-white/5 rounded-2xl p-6 h-fit">
+                        <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
+                            <div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div> Contacts Bureaux
+                        </h3>
+                        <ul class="space-y-3">
+                        {#each contactsAffiches as c}
+                            <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center hover:bg-white/10 transition-colors group">
+                                <div>
+                                    <span class="block font-bold text-gray-200">{c.nom}</span>
+                                    <span class="text-xs text-gray-500 uppercase tracking-wide">{c.societes_bus.nom}</span>
+                                </div>
+                                <a href="etrali:{cleanPhone(c.tel)}" class="contact-link flex items-center gap-2 font-mono px-3 py-1.5 rounded-lg border transition-all">
+                                    <Phone size={14} /> {formatPhone(c.tel)}
+                                </a>
+                            </li>
+                        {/each}
+                        </ul>
                     </div>
-                    <a href="etrali:{cleanPhone(c.tel)}" class="flex items-center gap-2 text-green-400 hover:text-green-300 font-mono bg-green-500/10 px-3 py-1.5 rounded-lg border border-green-500/20 group-hover:bg-green-500/20 transition-all">
-                        <Phone size={14} /> {formatPhone(c.tel)}
-                    </a>
-                    </li>
-                {/each}
-                </ul>
-            </div>
-            {/if}
+                    {/if}
 
-            {#if chauffeursAffiches.length > 0}
-            <div class="bg-black/20 border border-white/5 rounded-2xl p-6 h-fit">
-                <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
-                  <div class="w-1.5 h-1.5 rounded-full bg-yellow-500"></div> Chauffeurs / Garde
-                </h3>
-                <ul class="space-y-3">
-                {#each chauffeursAffiches as c}
-                    <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center hover:bg-white/10 transition-colors group">
-                    <div>
-                        <span class="block font-bold text-gray-200">{c.nom}</span>
-                        <span class="text-xs text-gray-500 uppercase tracking-wide">{c.societes_bus.nom}</span>
+                    {#if chauffeursAffiches.length > 0}
+                    <div class="bg-black/20 border border-white/5 rounded-2xl p-6 h-fit">
+                        <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2">
+                          <div class="w-1.5 h-1.5 rounded-full border border-themed-solid"></div> Chauffeurs / Garde
+                        </h3>
+                        <ul class="space-y-3">
+                        {#each chauffeursAffiches as c}
+                            <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center hover:bg-white/10 transition-colors group">
+                                <div>
+                                    <span class="block font-bold text-gray-200">{c.nom}</span>
+                                    <span class="text-xs text-gray-500 uppercase tracking-wide">{c.societes_bus.nom}</span>
+                                </div>
+                                <a href="etrali:{cleanPhone(c.tel)}" class="contact-link flex items-center gap-2 font-mono px-3 py-1.5 rounded-lg border transition-all">
+                                    <Phone size={14} /> {formatPhone(c.tel)}
+                                </a>
+                            </li>
+                        {/each}
+                        </ul>
                     </div>
-                    <a href="etrali:{cleanPhone(c.tel)}" class="flex items-center gap-2 text-yellow-400 hover:text-yellow-300 font-mono bg-yellow-500/10 px-3 py-1.5 rounded-lg border border-yellow-500/20 group-hover:bg-yellow-500/20 transition-all">
-                        <Phone size={14} /> {formatPhone(c.tel)}
-                    </a>
-                    </li>
-                {/each}
-                </ul>
-            </div>
+                    {/if}
+                </div>
             {/if}
-        </div>
-
-      {/if}
+        {/if}
     {/if}
-
-  </div>
 </div>
 
 {#if showModal}
