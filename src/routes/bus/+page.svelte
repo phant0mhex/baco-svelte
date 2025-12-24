@@ -414,9 +414,9 @@ async function loadSocietes() {
 
 <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
 
-  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }}>
+  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }} style="--primary-rgb: var(--color-primary);">
     <div class="flex items-center gap-3">
-        <div class="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 shadow-[0_0_15px_rgba(59,130,246,0.15)]">
+        <div class="main-icon-container p-3 rounded-xl border transition-all duration-500">
           <Bus class="w-8 h-8" />
         </div>
         <div>
@@ -428,18 +428,17 @@ async function loadSocietes() {
     <div class="flex gap-3">
         {#if isAdmin}
             <button 
-  on:click={() => openModal()} 
-  class="btn-add px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group border shadow-lg"
-  style="--primary-rgb: var(--color-primary);"
->
-  <Plus class="w-5 h-5 group-hover:rotate-90 transition-transform" />
-  <span class="font-semibold hidden sm:inline">Ajouter</span>
-</button>
+              on:click={() => openModal()} 
+              class="btn-add px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group border shadow-lg"
+            >
+              <Plus class="w-5 h-5 group-hover:rotate-90 transition-transform" />
+              <span class="font-semibold hidden sm:inline">Ajouter</span>
+            </button>
         {/if}
     </div>
-  </header>
+</header>
 
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" in:fly={{ y: 20, duration: 600, delay: 100 }}>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-6" in:fly={{ y: 20, duration: 600, delay: 100 }} style="--primary-rgb: var(--color-primary);">
     
     <div class="lg:col-span-3 space-y-4">
         <div class="bg-black/20 border border-white/5 rounded-2xl p-5 h-full">
@@ -454,14 +453,12 @@ async function loadSocietes() {
                     {#each districts as district}
                         <button 
                             on:click={() => selectDistrict(district)}
-                            class="w-full text-left px-4 py-3 rounded-xl border transition-all duration-200 flex justify-between items-center group
-                            {selectedDistrict === district 
-                                ? 'bg-blue-500/10 border-blue-500/40 text-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.1)]' 
-                                : 'bg-white/5 border-white/5 text-gray-400 hover:bg-white/10 hover:text-gray-200 hover:border-white/10'}"
+                            class="district-btn w-full text-left px-4 py-3 rounded-xl border transition-all duration-200 flex justify-between items-center group
+                            {selectedDistrict === district ? 'active' : 'inactive'}"
                         >
                             <span class="font-bold tracking-wide">{district}</span>
                             {#if selectedDistrict === district}
-                                <div class="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.8)]"></div>
+                                <div class="dot-active"></div>
                             {/if}
                         </button>
                     {/each}
@@ -473,7 +470,7 @@ async function loadSocietes() {
     <div class="lg:col-span-9 space-y-4">
         <div class="bg-black/20 border border-white/5 rounded-2xl p-5 min-h-[140px]">
             <h3 class="text-xs font-bold uppercase text-gray-500 mb-4 flex items-center gap-2">
-                <div class="w-1.5 h-1.5 rounded-full bg-blue-500"></div>
+                <div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div>
                 Lignes disponibles {#if selectedDistrict}({selectedDistrict}){/if}
             </h3>
 
@@ -489,23 +486,68 @@ async function loadSocietes() {
                 <div class="flex flex-wrap gap-3">
                     {#each linesByDistrict[selectedDistrict] as line}
                         <button 
-                        on:click={() => toggleLine(line)}
-                        class="flex items-center space-x-2 px-4 py-2 border rounded-full transition-all duration-300 text-sm font-medium shadow-sm hover:scale-105 active:scale-95
-                        {selectedLines.includes(line) 
-                            ? 'bg-blue-500/20 border-blue-500/40 text-blue-300 shadow-[0_0_10px_rgba(59,130,246,0.2)]' 
-                            : 'bg-white/5 border-white/10 text-gray-400 hover:bg-white/10 hover:text-white hover:border-white/20'}"
+                            on:click={() => toggleLine(line)}
+                            class="line-badge flex items-center space-x-2 px-4 py-2 border rounded-full transition-all duration-300 text-sm font-medium shadow-sm hover:scale-105 active:scale-95
+                            {selectedLines.includes(line) ? 'active' : 'inactive'}"
                         >
-                        {#if selectedLines.includes(line)}
-                            <Check class="w-3.5 h-3.5 text-blue-400" />
-                        {/if}
-                        <span>{line}</span>
+                            {#if selectedLines.includes(line)}
+                                <Check class="w-3.5 h-3.5" />
+                            {/if}
+                            <span>{line}</span>
                         </button>
                     {/each}
                 </div>
             {/if}
         </div>
     </div>
-  </div>
+</div>
+
+<div class="space-y-8 min-h-[400px]" style="--primary-rgb: var(--color-primary);">
+    {#if selectedLines.length === 0 && !searchTerm}
+        <div class="flex flex-col items-center justify-center h-48 text-gray-600 bg-black/10 rounded-2xl border border-dashed border-white/5 mt-8" in:fade>
+            <p>Sélectionnez une ligne pour voir les sociétés.</p>
+        </div>
+    {:else if loadingSocietes}
+        <div class="flex flex-col items-center justify-center h-64 text-gray-500">
+            <Loader2 class="w-10 h-10 animate-spin themed-spinner mb-3"/>
+            <p>Recherche des sociétés...</p>
+        </div>
+    {:else if societesAffichees.length > 0}
+        <div in:fly={{ y: 20, duration: 400 }}>
+            <h3 class="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
+                <div class="w-1 h-6 bg-themed-solid rounded-full"></div> Sociétés concernées {#if searchTerm}(Recherche: "{searchTerm}"){/if}
+            </h3>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                {#each societesAffichees as societe}
+                    <div class="group societe-card flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-xl transition-all duration-200 cursor-pointer {selectedSocieteIds.includes(societe.id) ? 'active' : ''}">
+                        
+                        <label class="flex items-center space-x-3 cursor-pointer flex-grow mr-2 w-full h-full">
+                            <input 
+                                type="checkbox" 
+                                checked={selectedSocieteIds.includes(societe.id)}
+                                on:change={() => toggleSociete(societe.id)}
+                                class="checkbox-themed rounded w-5 h-5 bg-black/40 border-gray-600 cursor-pointer"
+                            >
+                            <span class="font-bold text-gray-300 group-hover:text-white transition-colors">{societe.nom}</span>
+                        </label>
+
+                        {#if isAdmin}
+                            <div class="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <button on:click={() => openModal(societe)} class="p-2 text-gray-400 hover:text-themed rounded-lg transition-colors">
+                                    <Pencil class="w-4 h-4" />
+                                </button>
+                                <button on:click={() => deleteSociete(societe.id, societe.nom)} class="p-2 text-gray-400 hover:text-red-400 rounded-lg transition-colors">
+                                    <Trash2 class="w-4 h-4" />
+                                </button>
+                            </div>
+                        {/if}
+                    </div>
+                {/each}
+            </div>
+        </div>
+    {/if}
+</div>
 
   <div class="space-y-8 min-h-[400px]">
     
@@ -724,44 +766,79 @@ async function loadSocietes() {
 {/if}
 
 <style>
-  .btn-add {
-    /* Fond léger basé sur le thème (20% d'opacité) */
-    background-color: rgba(var(--primary-rgb), 0.2);
-    /* Bordure assortie (30% d'opacité) */
-    border-color: rgba(var(--primary-rgb), 0.3);
-    /* Texte à la couleur du thème */
-    color: rgb(var(--primary-rgb));
-    /* Ombre légère basée sur la couleur du thème */
-    shadow-color: rgba(var(--primary-rgb), 0.1);
-  }
+ /* VARIABLES GLOBALES DU COMPOSANT */
+    .bg-themed-solid { background-color: rgb(var(--primary-rgb)); }
+    .text-themed { color: rgb(var(--primary-rgb)); }
+    .themed-spinner { color: rgba(var(--primary-rgb), 0.5); }
 
-  .btn-add:hover {
-    /* Augmentation de l'opacité au survol */
-    background-color: rgba(var(--primary-rgb), 0.3);
-    border-color: rgba(var(--primary-rgb), 0.5);
-    /* Lueur (glow) dynamique */
-    box-shadow: 0 10px 15px -3px rgba(var(--primary-rgb), 0.2);
-  }
+    /* HEADER */
+    .main-icon-container {
+        background-color: rgba(var(--primary-rgb), 0.1);
+        color: rgb(var(--primary-rgb));
+        border-color: rgba(var(--primary-rgb), 0.2);
+        box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.15);
+    }
 
-  .btn-add:active {
-    transform: scale(0.95);
-  }
+    /* BUTTONS */
+    .btn-add {
+        background-color: rgba(var(--primary-rgb), 0.2);
+        border-color: rgba(var(--primary-rgb), 0.3);
+        color: rgb(var(--primary-rgb));
+    }
+    .btn-add:hover {
+        background-color: rgba(var(--primary-rgb), 0.3);
+        border-color: rgba(var(--primary-rgb), 0.5);
+        box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.2);
+    }
 
-  .btn-submit {
-    /* Utilise la couleur primaire du thème avec 80% d'opacité */
-    background-color: rgba(var(--primary-rgb), 0.8);
-    /* Lueur (glow) dynamique basée sur le thème actuel */
-    box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.3);
-  }
+    .btn-submit {
+        background-color: rgba(var(--primary-rgb), 0.8);
+        box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.3);
+    }
+    .btn-submit:hover:not(:disabled) {
+        background-color: rgb(var(--primary-rgb));
+        box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.5);
+    }
 
-  .btn-submit:hover:not(:disabled) {
-    /* Opacité pleine et lueur accentuée au survol */
-    background-color: rgb(var(--primary-rgb));
-    box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.5);
-    transform: translateY(-1px);
-  }
+    /* DISTRICTS */
+    .district-btn.active {
+        background-color: rgba(var(--primary-rgb), 0.1);
+        border-color: rgba(var(--primary-rgb), 0.4);
+        color: rgb(var(--primary-rgb));
+    }
+    .district-btn.inactive {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.05);
+        color: rgb(156, 163, 175);
+    }
+    .dot-active {
+        width: 0.5rem;
+        height: 0.5rem;
+        border-radius: 9999px;
+        background-color: rgb(var(--primary-rgb));
+        box-shadow: 0 0 8px rgb(var(--primary-rgb));
+    }
 
-  .btn-submit:active:not(:disabled) {
-    transform: scale(0.98);
-  }
+    /* LINE BADGES */
+    .line-badge.active {
+        background-color: rgba(var(--primary-rgb), 0.2);
+        border-color: rgba(var(--primary-rgb), 0.4);
+        color: rgb(var(--primary-rgb));
+        box-shadow: 0 0 10px rgba(var(--primary-rgb), 0.2);
+    }
+    .line-badge.inactive {
+        background-color: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.1);
+        color: rgb(156, 163, 175);
+    }
+
+    /* SOCIETE CARDS & CHECKBOX */
+    .societe-card.active {
+        background-color: rgba(var(--primary-rgb), 0.05);
+        border-color: rgba(var(--primary-rgb), 0.3);
+        box-shadow: inset 0 0 0 1px rgba(var(--primary-rgb), 0.2);
+    }
+    .checkbox-themed {
+        accent-color: rgb(var(--primary-rgb));
+    }
 </style>
