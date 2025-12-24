@@ -185,7 +185,48 @@
 
 <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
   
+<header 
+  class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" 
+  in:fly={{ y: -20, duration: 600 }}
+  style="--primary-rgb: var(--color-primary);"
+>
+  <div class="flex items-center gap-3">
+    <div class="main-icon-container p-3 rounded-xl border transition-all duration-500">
+      <Users size={32} />
+    </div>
+    <div>
+      <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Clients PMR</h1>
+      <p class="text-gray-500 text-sm mt-1">Répertoire et suivi des voyageurs PMR.</p>
+    </div>
+  </div>
 
+  <div class="flex items-center gap-3">
+    <div class="flex bg-black/20 rounded-xl p-1 border border-white/5">
+      <button 
+        on:click={() => setView('grid')} 
+        class="view-btn p-2 rounded-lg transition-all {viewMode === 'grid' ? 'active' : 'inactive'}" 
+        title="Vue Grille"
+      >
+        <LayoutGrid size={18} />
+      </button>
+      <button 
+        on:click={() => setView('list')} 
+        class="view-btn p-2 rounded-lg transition-all {viewMode === 'list' ? 'active' : 'inactive'}" 
+        title="Vue Liste"
+      >
+        <List size={18} />
+      </button>
+    </div>
+    
+    <button 
+      on:click={() => openModal()} 
+      class="btn-themed px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group border shadow-lg"
+    >
+      <Plus size={20} class="group-hover:rotate-90 transition-transform" />
+      <span class="font-semibold hidden sm:inline">Nouveau Client</span>
+    </button>
+  </div>
+</header>
 
   <main>
     
