@@ -428,21 +428,21 @@ function openModal(proc = null) {
                 </div>
               </div>
 
-              {#if proc.attached_docs && proc.attached_docs.length > 0}
-                <div class="px-6 pb-4 flex flex-wrap gap-2">
-                    {#each proc.attached_docs as doc}
-                        <a 
-                            href={supabase.storage.from('documents').getPublicUrl(doc).data.publicUrl} 
-                            target="_blank"
-                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-300 text-xs font-medium border border-blue-500/20 hover:bg-blue-500/20 transition-colors z-10 relative"
-                            on:click|stopPropagation
-                        >
-                            <FileText class="w-3.5 h-3.5" />
-                            {doc}
-                        </a>
-                    {/each}
-                </div>
-              {/if}
+{#if proc.attached_docs && proc.attached_docs.length > 0}
+  <div class="px-6 pb-4 flex flex-wrap gap-2" style="--primary-rgb: var(--color-primary);">
+    {#each proc.attached_docs as doc}
+      <a 
+        href={supabase.storage.from('documents').getPublicUrl(doc).data.publicUrl} 
+        target="_blank"
+        class="doc-badge inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all z-10 relative"
+        on:click|stopPropagation
+      >
+        <FileText class="w-3.5 h-3.5" />
+        <span class="truncate max-w-[150px]">{doc}</span>
+      </a>
+    {/each}
+  </div>
+{/if}
 
               <div class="px-6 py-3 bg-black/20 text-right text-xs text-gray-500 border-t border-white/5 font-mono">
                 Dernière màj : {new Date(proc.updated_at || Date.now()).toLocaleDateString('fr-FR')}
@@ -805,5 +805,22 @@ function openModal(proc = null) {
   /* Optionnel : l'icône de recherche s'illumine aussi au focus */
   .input-themed:focus + :global(.search-icon) {
     color: rgb(var(--primary-rgb));
+  }
+
+  .doc-badge {
+    /* Fond très léger (10% d'opacité) */
+    background-color: rgba(var(--primary-rgb), 0.1);
+    /* Texte à la couleur du thème */
+    color: rgb(var(--primary-rgb));
+    /* Bordure très fine */
+    border-color: rgba(var(--primary-rgb), 0.2);
+  }
+
+  .doc-badge:hover {
+    /* Augmentation de l'opacité au survol */
+    background-color: rgba(var(--primary-rgb), 0.2);
+    border-color: rgba(var(--primary-rgb), 0.4);
+    /* Petite lueur au survol */
+    box-shadow: 0 0 8px rgba(var(--primary-rgb), 0.2);
   }
 </style>
