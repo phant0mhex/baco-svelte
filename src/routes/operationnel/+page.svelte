@@ -332,17 +332,15 @@ function openModal(proc = null) {
     
     <aside class="w-full lg:w-1/4 space-y-6" in:fly={{ x: -20, duration: 600, delay: 200 }}>
       
-      <div class="relative group">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <Search class="w-5 h-5 text-gray-400 group-focus-within:text-blue-400 transition-colors" />
-        </div>
-        <input 
-          type="search" 
-          bind:value={searchQuery} 
-          on:input={loadProcedures} 
-          placeholder="Rechercher..." 
-          class="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:bg-white/10 transition-all shadow-inner"
-        />
+     <div class="relative w-full" style="--primary-rgb: var(--color-primary);">
+  <Search class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 search-icon" />
+  <input 
+    type="search" 
+    bind:value={searchQuery} 
+    on:input={loadProcedures} 
+    placeholder="Rechercher..." 
+    class="input-themed w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-10 pr-4 text-white placeholder-gray-500 focus:outline-none focus:bg-white/10 transition-all shadow-inner"
+  />
       </div>
       
    <div class="glass-panel rounded-2xl p-4 space-y-2" style="--primary-rgb: var(--color-primary);">
@@ -395,7 +393,10 @@ function openModal(proc = null) {
               
               <div class="px-6 py-4 border-b border-white/5 bg-white/5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
-                  <h2 class="text-xl font-bold text-white group-hover:text-blue-300 transition-colors flex items-center gap-2">
+                 <h2 
+  class="title-themed text-xl font-bold text-white transition-all flex items-center gap-2"
+  style="--primary-rgb: var(--color-primary);"
+>
                     {proc.titre}
                   </h2>
                   <span class="inline-flex items-center rounded-lg bg-blue-500/10 px-2.5 py-0.5 text-xs font-medium text-blue-300 border border-blue-500/20 mt-2">
@@ -784,5 +785,25 @@ function openModal(proc = null) {
     border-radius: 9999px;
     background-color: rgb(var(--primary-rgb));
     box-shadow: 0 0 5px rgb(var(--primary-rgb));
+  }
+
+  :global(.group:hover) .title-themed {
+    color: rgb(var(--primary-rgb));
+    /* Ajout d'une légère lueur textuelle (text-shadow) pour l'effet "glow" */
+    text-shadow: 0 0 8px rgba(var(--primary-rgb), 0.5);
+  }
+
+  .input-themed:focus {
+    /* Bordure dynamique */
+    border-color: rgba(var(--primary-rgb), 0.5);
+    /* Lueur de focus (ring) utilisant la couleur primaire */
+    box-shadow: 
+      inset 0 2px 4px 0 rgb(0 0 0 / 0.05),
+      0 0 0 3px rgba(var(--primary-rgb), 0.3);
+  }
+
+  /* Optionnel : l'icône de recherche s'illumine aussi au focus */
+  .input-themed:focus + :global(.search-icon) {
+    color: rgb(var(--primary-rgb));
   }
 </style>
