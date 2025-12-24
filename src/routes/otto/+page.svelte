@@ -531,7 +531,12 @@ async function generatePDF() {
     </div>
     
     {#if view === 'list'}
-        <button on:click={openNew} class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all">
+        <button on:click={openNew} class="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all" style="
+    background-color: rgba(var(--color-primary), 0.2); 
+    border-color: rgba(var(--color-primary), 0.3);
+    color: rgb(var(--color-primary));
+  "
+>
             <Plus class="w-5 h-5" /> Nouvelle Commande
         </button>
     {:else}
