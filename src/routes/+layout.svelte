@@ -97,15 +97,7 @@
       </div>
     {/if}
 
-    {#if user}
-      <div class="fixed inset-0 pointer-events-none z-[9999] opacity-[0.015] flex flex-wrap gap-20 overflow-hidden select-none">
-        {#each Array(20) as _}
-          <span class="text-white text-xl font-bold rotate-[-45deg] whitespace-nowrap">
-            {user.email} - {new Date().toLocaleString()}
-          </span>
-        {/each}
-      </div>
-    {/if}
+  
 
     <main class="flex-grow grid grid-cols-1 grid-rows-1 {isLoginPage ? '' : ($zenMode ? 'h-screen overflow-hidden' : 'container mx-auto px-4 py-8')}">
       {#key $page.url.pathname}
