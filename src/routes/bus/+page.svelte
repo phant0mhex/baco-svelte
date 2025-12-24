@@ -549,60 +549,7 @@ async function loadSocietes() {
     {/if}
 </div>
 
-  <div class="space-y-8 min-h-[400px]">
-    
-    {#if selectedLines.length === 0 && !searchTerm}
-      <div class="flex flex-col items-center justify-center h-48 text-gray-600 bg-black/10 rounded-2xl border border-dashed border-white/5 mt-8" in:fade>
-        <p>Sélectionnez une ligne pour voir les sociétés.</p>
-      </div>
-
-    {:else if loadingSocietes}
-      <div class="flex flex-col items-center justify-center h-64 text-gray-500">
-        <Loader2 class="w-10 h-10 animate-spin text-blue-500/50 mb-3"/>
-        <p>Recherche des sociétés...</p>
-      </div>
-
-    {:else if societesAffichees.length === 0}
-      <div class="flex flex-col items-center justify-center h-64 text-gray-500 bg-black/20 rounded-2xl border border-dashed border-white/10">
-        <p>Aucune société trouvée pour ces lignes (ou recherche).</p>
-      </div>
-
-    {:else}
-      <div in:fly={{ y: 20, duration: 400 }}>
-        <h3 class="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-            <div class="w-1 h-6 bg-blue-500 rounded-full"></div> Sociétés concernées {#if searchTerm}(Recherche: "{searchTerm}"){/if}
-        </h3>
-        
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {#each societesAffichees as societe}
-            <div class="group flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 hover:border-blue-500/20 rounded-xl transition-all duration-200 cursor-pointer {selectedSocieteIds.includes(societe.id) ? 'bg-blue-500/5 border-blue-500/30 ring-1 ring-blue-500/20' : ''}">
-              
-              <label class="flex items-center space-x-3 cursor-pointer flex-grow mr-2 w-full h-full">
-                <input 
-                  type="checkbox" 
-                  checked={selectedSocieteIds.includes(societe.id)}
-                  on:change={() => toggleSociete(societe.id)}
-                  class="rounded text-blue-600 focus:ring-blue-500 w-5 h-5 bg-black/40 border-gray-600 cursor-pointer"
-                >
-                <span class="font-bold text-gray-300 group-hover:text-white transition-colors">{societe.nom}</span>
-              </label>
-
-              {#if isAdmin}
-                <div class="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button on:click={() => openModal(societe)} class="p-2 text-gray-400 hover:text-blue-400 hover:bg-white/10 rounded-lg transition-colors">
-                    <Pencil class="w-4 h-4" />
-                  </button>
-                  <button on:click={() => deleteSociete(societe.id, societe.nom)} class="p-2 text-gray-400 hover:text-red-400 hover:bg-white/10 rounded-lg transition-colors">
-                    <Trash2 class="w-4 h-4" />
-                  </button>
-                </div>
-              {/if}
-
-            </div>
-          {/each}
-        </div>
-      </div>
-    {/if}
+  
 
     {#if selectedSocieteIds.length > 0}
       {#if loadingDetails}
