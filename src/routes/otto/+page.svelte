@@ -462,13 +462,8 @@ async function generatePDF() {
     
     doc.setDrawColor(200); doc.line(20, y-4, 190, y-4); doc.setDrawColor(0);
     doc.setFont("helvetica", "bold"); doc.text("Lieu Origine :", labelX, y);
-    
-    y += 10;
-    doc.setDrawColor(200); doc.line(20, y-4, 190, y-4); doc.setDrawColor(0);
 
-    doc.setFont("helvetica", "bold"); doc.text("Lieu Origine :", labelX, y);
-    doc.setFont("helvetica", "normal"); doc.text(form.origine || '?', valueX, y);
-    y += 6;
+
 
     // Arrêts triés (uniquement si Omnibus)
     if (!form.is_direct && form.arrets?.length > 0) {
