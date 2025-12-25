@@ -442,6 +442,27 @@ async function generatePDF() {
     doc.setFont("helvetica", "bold"); doc.text("Type :", 110, y);
     doc.setFont("helvetica", "normal"); doc.text(form.is_direct ? "DIRECT (Sans arrêt)" : "OMNIBUS (Avec arrêts)", 130, y);
 
+    // --- DEBUT AJOUT : CADRE MOTIF ---
+    y += 12; // On descend d'un cran
+    
+    // Dessiner le cadre (Rectangle : x, y, largeur, hauteur)
+    doc.setDrawColor(0); // Couleur noire
+    doc.rect(20, y - 6, 170, 10); 
+
+    // Texte à l'intérieur
+    doc.setFont("helvetica", "bold");
+    doc.text("Motif :", 25, y);
+    
+    doc.setFont("helvetica", "normal");
+    // On affiche le motif (avec une valeur par défaut vide si null)
+    doc.text(form.motif || '', 45, y);
+    // --- FIN AJOUT ---
+
+    y += 10; // On descend encore pour la suite (Ligne de séparation)
+    
+    doc.setDrawColor(200); doc.line(20, y-4, 190, y-4); doc.setDrawColor(0);
+    doc.setFont("helvetica", "bold"); doc.text("Lieu Origine :", labelX, y);
+    
     y += 10;
     doc.setDrawColor(200); doc.line(20, y-4, 190, y-4); doc.setDrawColor(0);
 
