@@ -55,11 +55,15 @@
     nombre_voyageurs: null,
     nombre_pmr: null,
     capacite_bus: 50,
+    sent_at: null,      // Date d'envoi/clôture
+    sent_by_name: null,
     bus_data: [
         { plaque: '', heure_prevue: '', heure_confirmee: '', heure_demob: '' }
     ]
   };
   
+  $: isLocked = form.status === 'envoye';
+
   let form = JSON.parse(JSON.stringify(initialForm));
 
   onMount(async () => {
@@ -307,7 +311,8 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       isSaving = true;
       const user = await supabase.auth.getUser();
       const currentUserId = user.data.user?.id;
-      
+      const currentUserName = currentUserProfile?.full_name || 'Utilisateur inconnu';
+
       const payload = {
           motif: form.motif,
           relation: form.relation,
@@ -330,7 +335,21 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       };
 
       if (!form.id) payload.user_id = currentUserId;
-      if (targetStatus === 'envoye') payload.validated_by = currentUserId;
+     if (targetStatus === 'envoye') {
+          payload.validated_by = currentUserId;
+          // AJOUT : On enregistre la date et l'auteur si on clôture
+          // On ne l'écrase pas si ça existe déjà (cas de ré-enregistrement) sauf si on veut mettre à jour
+          if (!form.sent_at) {
+            payload.sent_at = new Date().toISOString();
+            payload.sent_by_name = currentUserName;
+            // Mise à jour locale pour affichage immédiat
+            form.sent_at = payload.sent_at;
+            form.sent_by_name = payload.sent_by_name;
+          }
+      } else {
+          // Si on repasse en brouillon, on peut optionnellement vider ces champs
+          // payload.sent_at = null; 
+      }
 
       let error;
       if (form.id) {
@@ -350,6 +369,12 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
           await loadCommandes();
           goBackToList();
       }
+  }
+
+  // AJOUT : Fonction pour déverrouiller
+  async function unlockCommande() {
+      if(!confirm("Voulez-vous déverrouiller ce bon pour modification ?")) return;
+      await saveCommande('brouillon');
   }
 
   async function deleteCommande(id) {
@@ -608,7 +633,10 @@ async function generatePDF() {
                 </div>
             {:else}
                 {#each filteredCommandes as cmd}
-                    <div class="bg-black/20 border border-white/5 hover:border-orange-500/30 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4 transition-all group">
+<div class="bg-black/20 border border-white/5 rounded-2xl p-6 flex flex-col md:flex-row justify-between items-center gap-4 transition-all group 
+        {cmd.status === 'envoye' ? 'opacity-60 grayscale-[30%] hover:opacity-100 hover:grayscale-0' : 'hover:border-orange-500/30'}">
+        
+        
                         <div class="flex-grow min-w-0 w-full">
                             <div class="flex items-center gap-3 mb-3 flex-wrap">
                                 <span class="text-xl font-extrabold text-white tracking-tight">{cmd.relation}</span>
@@ -669,19 +697,19 @@ async function generatePDF() {
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-4">
                     <h3 class="text-sm font-bold text-orange-400 uppercase tracking-wide mb-4 flex items-center gap-2"><FileText size={16}/> Mission</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div class="md:col-span-2"><label class={labelClass}>Motif</label><input type="text" bind:value={form.motif} class={inputClass} placeholder="Ex: Dérangement L.96..."></div>
-                        <div><label class={labelClass}>Date</label><input type="date" bind:value={form.date_commande} class="{inputClass} dark:[color-scheme:dark]"></div>
-                        <div><label class={labelClass}>Heure d'appel</label><input type="time" bind:value={form.heure_appel} class="{inputClass} dark:[color-scheme:dark]"></div>
+                        <div class="md:col-span-2"><label class={labelClass}>Motif</label><input type="text" bind:value={form.motif} disabled={isLocked} class={inputClass} placeholder="Ex: Dérangement L.96..."></div>
+                        <div><label class={labelClass}>Date</label><input type="date" bind:value={form.date_commande} disabled={isLocked} class="{inputClass} dark:[color-scheme:dark]"></div>
+                        <div><label class={labelClass}>Heure d'appel</label><input type="time" bind:value={form.heure_appel}  disabled={isLocked} class="{inputClass} dark:[color-scheme:dark]"></div>
                         <div><label class={labelClass}>Réf. Relation (TC)</label><input 
                     type="text" 
                     bind:value={form.relation} 
-                    class={inputClass} 
+                    disabled={isLocked} class={inputClass} 
                     placeholder="TC_123456" 
                 ></div>
                         <div>
                             <label class={labelClass}>Société</label>
                             <div class="relative">
-                                <button type="button" on:click={() => showCompanyDropdown = !showCompanyDropdown} class="{inputClass} flex items-center justify-between text-left">
+                               <button type="button" disabled={isLocked} on:click={() => !isLocked && (showCompanyDropdown = !showCompanyDropdown)} class="{inputClass} flex items-center justify-between text-left">
                                     <span class="{form.societe_id ? 'text-white' : 'text-gray-500'} truncate">{availableSocietes.find(s => s.id === form.societe_id)?.nom || '-- Sélectionner --'}</span>
                                     <ChevronDown size={16} class="text-gray-500 {showCompanyDropdown ? 'rotate-180' : ''} transition-transform"/>
                                 </button>
@@ -706,7 +734,7 @@ async function generatePDF() {
                         
                         <div class="flex items-center gap-4">
                             <label class="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors border border-white/10">
-                                <input type="checkbox" bind:checked={form.is_direct} class="hidden">
+                                <input type="checkbox" bind:checked={form.is_direct} disabled={isLocked} class="hidden">
                                 <span class="text-[10px] font-bold {form.is_direct ? 'text-orange-400' : 'text-gray-500'}">DIRECT</span>
                                 <div class="relative w-8 h-4 bg-gray-700 rounded-full transition-colors">
                                     <div class="absolute top-1 left-1 w-2 h-2 bg-white rounded-full transition-transform {form.is_direct ? '' : 'translate-x-4'}"></div>
@@ -715,7 +743,7 @@ async function generatePDF() {
                             </label>
 
                             <label class="flex items-center gap-2 cursor-pointer bg-white/5 px-3 py-1.5 rounded-lg hover:bg-white/10 transition-colors border border-white/10">
-                                <input type="checkbox" bind:checked={form.is_aller_retour} class="hidden">
+                                <input type="checkbox" bind:checked={form.is_aller_retour} disabled={isLocked} class="hidden">
                                 <span class="text-xs font-bold {form.is_aller_retour ? 'text-blue-400' : 'text-gray-500'}">A/R</span>
                                 {#if form.is_aller_retour}<ArrowRightLeft size={14} class="text-blue-400"/>{:else}<span class="text-gray-600 text-xs">→</span>{/if}
                             </label>
@@ -735,7 +763,7 @@ async function generatePDF() {
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-6">
                     <div class="flex justify-between items-center mb-4">
                         <h3 class="text-sm font-bold text-green-400 uppercase tracking-wide flex items-center gap-2"><Bus size={16}/> Véhicules & Horaires</h3>
-                        <button on:click={addBus} class="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg hover:bg-green-500/30 transition-colors flex items-center gap-1 font-bold border border-green-500/30"><Plus size={14}/> Ajouter Bus</button>
+                        <button on:click={addBus} disabled={isLocked} class="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg hover:bg-green-500/30 transition-colors flex items-center gap-1 font-bold border border-green-500/30"><Plus size={14}/> Ajouter Bus</button>
                     </div>
                     <div class="space-y-4">
                         {#each form.bus_data as bus, i}
@@ -744,10 +772,10 @@ async function generatePDF() {
                                     <div class="flex items-center gap-2">
                                         <span class="text-xs font-mono font-bold text-orange-400 bg-orange-500/10 px-2 py-1 rounded border border-orange-500/20">BUS #{i+1}</span>
                                     </div>
-                                    <button on:click={() => removeBus(i)} class="text-gray-500 hover:text-red-400 transition-colors p-1"><MinusCircle size={16}/></button>
+                                    <button on:click={() => removeBus(i)} disabled={isLocked} class="text-gray-500 hover:text-red-400 transition-colors p-1"><MinusCircle size={16}/></button>
                                 </div>
                                 <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                                    <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Plaque</label><input type="text" bind:value={bus.plaque} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white uppercase outline-none focus:border-green-500/50" placeholder="1-ABC-123"></div>
+                                    <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Plaque</label><input type="text" bind:value={bus.plaque} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white uppercase outline-none focus:border-green-500/50" placeholder="1-ABC-123"></div>
                                     <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">H. Prévue</label><input type="time" bind:value={bus.heure_prevue} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
                                     <div><label class="text-[10px] text-green-500/70 uppercase font-bold mb-1.5 block">H. Confirmée</label><input type="time" bind:value={bus.heure_confirmee} class="w-full bg-black/30 border border-green-900/30 rounded-lg px-3 py-2 text-sm text-green-300 outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
                                     <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Démob.</label><input type="time" bind:value={bus.heure_demob} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
@@ -774,44 +802,43 @@ async function generatePDF() {
 
 <div class="fixed bottom-4 left-4 right-4 z-50 flex flex-wrap justify-end items-center gap-4 p-4 border border-white/10 bg-[#0f1115]/80 backdrop-blur-2xl shadow-2xl rounded-2xl" in:fly={{ y: 20 }}>
     
-    <label class="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-all mr-auto">
-        <div class="relative flex items-center">
-            <input 
-                type="checkbox" 
-                bind:checked={form.is_mail_sent} 
-                class="sr-only peer"
-            >
-            <div class="w-10 h-5 bg-gray-600 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
-            <div class="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+    {#if isLocked && form.sent_at}
+        <div class="mr-auto flex flex-col">
+            <span class="text-[10px] text-gray-500 uppercase font-bold tracking-wider">Envoyé le</span>
+            <span class="text-xs text-emerald-400 font-bold">
+                {new Date(form.sent_at).toLocaleString('fr-BE')}
+            </span>
+            <span class="text-[10px] text-gray-400">par {form.sent_by_name || '...'}</span>
         </div>
-        <span class="text-xs font-bold {form.is_mail_sent ? 'text-emerald-400' : 'text-gray-400'} uppercase tracking-wider">
-            {form.is_mail_sent ? 'Mail envoyé' : 'Mail non envoyé'}
-        </span>
-    </label>
-    
-    <button 
-        on:click={() => showEmailExport = true} 
-        class="px-5 py-2.5 rounded-full text-sm font-bold text-blue-400 bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 hover:border-blue-500/30 transition-all flex items-center gap-2"
-    >
-        <Mail class="w-4 h-4" /> <span class="hidden sm:inline">E-mail</span>
-    </button>
-
-    <button on:click={() => generatePDF()} class="px-5 py-2.5 rounded-full text-sm font-bold text-emerald-400/90 bg-emerald-500/5 border border-emerald-500/10 hover:bg-emerald-500/10 hover:border-emerald-500/30 hover:text-emerald-300 hover:shadow-[0_0_15px_rgba(16,185,129,0.15)] hover:-translate-y-0.5 transition-all duration-300 flex items-center gap-2 backdrop-blur-md">
-        <Printer class="w-4 h-4" /> <span class="hidden sm:inline">Télécharger PDF</span>
-    </button>
-
-    <button on:click={() => saveCommande('brouillon')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-medium text-gray-400 bg-white/5 border border-white/5 hover:bg-white/10 hover:text-white hover:border-white/10 transition-all duration-300 hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-        <Save class="w-4 h-4" /> <span>Brouillon</span>
-    </button>
-
-    <button on:click={() => saveCommande('envoye')} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-bold text-red-400 bg-red-500/10 border border-red-500/20 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/40 shadow-[0_0_20px_rgba(239,68,68,0.3)] transition-all duration-300 hover:-translate-y-0.5 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
-        {#if isSaving}<Loader2 class="w-4 h-4 animate-spin"/>{:else}<CheckCircle class="w-4 h-4" />{/if} <span>Clôturer</span>
-    </button>
-</div>
-        <div class="h-24"></div>
+    {:else}
+        <label class="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 border border-white/10 cursor-pointer hover:bg-white/10 transition-all mr-auto {isLocked ? 'opacity-50 pointer-events-none' : ''}">
+            <div class="relative flex items-center">
+                <input type="checkbox" bind:checked={form.is_mail_sent} disabled={isLocked} class="sr-only peer">
+                <div class="w-10 h-5 bg-gray-600 rounded-full peer peer-checked:bg-emerald-500 transition-colors"></div>
+                <div class="absolute left-1 top-1 w-3 h-3 bg-white rounded-full transition-transform peer-checked:translate-x-5"></div>
+            </div>
+            <span class="text-xs font-bold {form.is_mail_sent ? 'text-emerald-400' : 'text-gray-400'} uppercase tracking-wider">
+                {form.is_mail_sent ? 'Mail envoyé' : 'Mail non envoyé'}
+            </span>
+        </label>
     {/if}
+    
+    <button on:click={() => showEmailExport = true} class="..."> ... </button>
+    <button on:click={() => generatePDF()} class="..."> ... </button>
 
-  {/if}
+    {#if isLocked}
+        <button on:click={unlockCommande} class="px-6 py-2.5 rounded-full text-sm font-bold text-orange-400 bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/20 hover:text-orange-300 transition-all flex items-center gap-2">
+            <LockOpen class="w-4 h-4" /> <span>Déverrouiller</span>
+        </button>
+    {:else}
+        <button on:click={() => saveCommande('brouillon')} disabled={isSaving} class="...">
+            <Save class="w-4 h-4" /> <span>Brouillon</span>
+        </button>
+
+        <button on:click={() => saveCommande('envoye')} disabled={isSaving} class="...">
+            {#if isSaving}<Loader2 class="w-4 h-4 animate-spin"/>{:else}<CheckCircle class="w-4 h-4" />{/if} <span>Clôturer</span>
+        </button>
+    {/if}
 </div>
 
 {#if showEmailExport}
