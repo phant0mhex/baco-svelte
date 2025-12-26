@@ -4,7 +4,7 @@
   import { page } from '$app/stores';
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
-  import { presenceState } from '$lib/stores/presence.svelte.js';
+  
   import Nav from '$lib/components/Nav.svelte';
   import Footer from '$lib/components/Footer.svelte';
   import GlobalSearch from '$lib/components/GlobalSearch.svelte';
@@ -17,13 +17,18 @@
   import { Minimize } from 'lucide-svelte';
   import { fly, fade } from 'svelte/transition';
   import { cubicIn, cubicOut } from 'svelte/easing';
+  
+  // Import du store de présence
+  import { presenceState } from '$lib/stores/presence.svelte.js';
 
-  // --- VARIABLES ---
-  let user = null;
-  let loading = true;
-  let isScreenshotFlashing = false;
+  // --- VARIABLES (MIGRATION RUNES) ---
+  // On remplace "let x = y" par "let x = $state(y)" pour la réactivité
+  let user = $state(null);
+  let loading = $state(true);
+  let isScreenshotFlashing = $state(false);
 
-  $: isLoginPage = $page.url.pathname === '/';
+  // On remplace "$: x = ..." par "$derived(...)"
+  let isLoginPage = $derived($page.url.pathname === '/');
 
   function handleKeydown(event) {
     if (event.key === 'Escape' && $zenMode) {
@@ -31,31 +36,33 @@
     }
   }
 
+  // Initialisation de la présence (C'est ceci qui a activé le mode Runes)
+  $effect(() => {
+    if (user) {
+        presenceState.init(user);
+    }
+  });
+
   onMount(async () => {
     // --- 1. LOGIQUE DE FLOU FLASH (SCREENSHOT) ---
     const handlePrintScreen = async (e) => {
-      // On vérifie la touche PrintScreen (Code 44 ou 'PrintScreen')
       if (e.key === 'PrintScreen' || e.keyCode === 44) {
-        // Activation immédiate du flou
         isScreenshotFlashing = true;
         
         toast.warning("Sécurité : Les données ont été floutées pour la capture.");
 
-        // Tentative d'écrasement du presse-papier
         try {
           await navigator.clipboard.writeText("Contenu protégé - BACO");
         } catch (err) {
-          // Échec silencieux si le navigateur bloque l'accès
+          // Échec silencieux
         }
 
-        // On laisse le flou pendant 1.5 seconde pour couvrir le délai du système
         setTimeout(() => {
           isScreenshotFlashing = false;
         }, 1500); 
       }
     };
 
-    // IMPORTANT : On utilise 'keydown' pour flouter AVANT la capture système
     window.addEventListener('keydown', handlePrintScreen);
 
     // --- 2. AUTHENTICATION ---
@@ -81,16 +88,9 @@
       subscription.unsubscribe();
     };
   });
-
-  // Ajoutez cet effet pour initialiser la présence dès qu'on a le user
-  $effect(() => {
-    if (user) {
-        presenceState.init(user);
-    }
-  });
 </script>
 
-<svelte:window on:keydown={handleKeydown} />
+<svelte:window onkeydown={handleKeydown} />
 
 {#if loading && !isLoginPage}
   <DashboardSkeleton />
@@ -103,8 +103,6 @@
           <GlobalSearch />
       </div>
     {/if}
-
-  
 
     <main class="flex-grow grid grid-cols-1 grid-rows-1 {isLoginPage ? '' : ($zenMode ? 'h-screen overflow-hidden' : 'container mx-auto px-4 py-8')}">
       {#key $page.url.pathname}
@@ -126,7 +124,7 @@
 
     {#if $zenMode}
       <button 
-          on:click={() => zenMode.set(false)}
+          onclick={() => zenMode.set(false)}
           transition:fade
           class="fixed bottom-6 right-6 z-50 p-3 rounded-full bg-white/10 hover:bg-red-500/20 text-white/50 hover:text-white border border-white/5 backdrop-blur-md shadow-2xl transition-all hover:scale-110 group"
       >
