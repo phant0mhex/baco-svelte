@@ -235,6 +235,7 @@ async function loadStopsForLines(lines) {
 function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
     if (arretsSelectionnes.length <= 1) return arretsSelectionnes;
 
+    // 1. Mapper les noms d'arrêts vers leurs objets complets (avec ordre)
     const mapped = arretsSelectionnes.map(stopFull => {
         const [gare, rest] = stopFull.split(' (');
         const ligneNom = rest.replace(')', '');
@@ -243,14 +244,27 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
 
     let finalSorted = [];
     
+    // 2. Déterminer le sens du trajet (Origine vs Destination)
+    // On cherche l'objet correspondant à la gare d'origine et de destination dans les métadonnées chargées
+    const originNode = stopsMetadata.find(s => s.gare === form.origine);
+    const destNode = stopsMetadata.find(s => s.gare === form.destination);
+
+    // Par défaut, on trie en croissant (1, 2, 3...)
+    let isDescending = false;
+
+    // Si on trouve les deux gares, on compare leurs ordres
+    if (originNode && destNode) {
+        // Ex: Tournai (6) -> Lille (1) => 6 > 1 => True (Décroissant)
+        isDescending = originNode.ordre > destNode.ordre;
+    }
+
     lignesSelectionnees.forEach(nomLigne => {
         let arretsDeCetteLigne = mapped.filter(m => m.ligne_nom === nomLigne);
         if (arretsDeCetteLigne.length === 0) return;
 
-        const estDecroissant = (nomLigne === 'L.90C'); 
-        
+        // 3. Appliquer le tri selon le sens détecté
         arretsDeCetteLigne.sort((a, b) => {
-            return estDecroissant ? b.ordre - a.ordre : a.ordre - b.ordre;
+            return isDescending ? b.ordre - a.ordre : a.ordre - b.ordre;
         });
 
         finalSorted.push(...arretsDeCetteLigne);
@@ -258,6 +272,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
 
     return finalSorted.map(m => `${m.gare} (${m.ligne_nom})`);
 }
+
   function toggleLine(line) {
       if (form.lignes.includes(line)) form.lignes = form.lignes.filter(l => l !== line);
       else form.lignes = [...form.lignes, line];
