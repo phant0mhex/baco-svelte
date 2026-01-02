@@ -4,6 +4,7 @@
   import { fly, fade, slide } from 'svelte/transition';
   import jsPDF from 'jspdf';
   import { openConfirmModal } from '$lib/stores/modal.js';
+  import OttoTutorialModal from '$lib/components/OttoTutorialModal.svelte';
   import autoTable from 'jspdf-autotable';
   import { page } from '$app/stores';
   import { goto } from '$app/navigation';
@@ -23,6 +24,8 @@
   let commandes = [];
   let showEmailExport = false;
   let hasCopied = false;
+
+  let showTutorial = false;
 
   // User info pour le PDF (Créateur courant si nouvelle commande)
   let currentUserProfile = null;
@@ -592,6 +595,15 @@ async function generatePDF() {
     </div>
     
     {#if view === 'list'}
+
+    <button 
+  on:click={() => showTutorial = true}
+  class="p-2.5 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 hover:bg-blue-500/20 transition-all mr-2"
+  title="Tutoriel / Aide"
+>
+  <School class="w-5 h-5" />
+</button>
+
         <button 
   on:click={openNew} 
   class="btn-themed px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all border"
@@ -922,6 +934,10 @@ async function generatePDF() {
 </div>
     </div>
   </div>
+{/if}
+
+{#if showTutorial}
+  <OttoTutorialModal on:close={() => showTutorial = false} />
 {/if}
 
 <style>
