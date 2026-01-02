@@ -1,6 +1,7 @@
 <script>
   import { onMount } from 'svelte';
   import { page } from '$app/stores'; 
+  import { ACTIONS, ROLE_DEFAULTS } from '$lib/permissions';
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
   import { fly, fade, slide } from 'svelte/transition';
@@ -14,14 +15,14 @@
   // IMPORT TOAST
   import { toast } from '$lib/stores/toast.js';
 
-  // --- ÉTAT ---
-  let isLoading = true;
-  let isSaving = false;
-  let isUploading = false;
-  let targetUserId = $page.params.id;
-
-  // Données Profil
-  let profileData = {
+// --- ÉTAT (Migration Runes) ---
+  let isLoading = $state(true);
+  let isSaving = $state(false);
+  let isUploading = $state(false);
+  let targetUserId = $derived($page.params.id);
+  
+  // Utilisez $state pour que les modifications profondes (permissions) soient détectées
+  let profileData = $state({
     username: "",
     full_name: "",
     email: "", 
@@ -29,23 +30,20 @@
     fonction: "", 
     birthday: null, 
     avatar_url: null,
-    banned_until: null
-  };
+    banned_until: null,
+    permissions: {} // Important d'initialiser
+  });
 
-  // Infractions (Trust Meter)
-  let infractions = [];
-  let trustScore = 100;
-  let trustColor = "bg-green-500";
-  let trustLabel = "Chargement...";
-
-  // Gestion Infractions (Modal)
-  let showInfractionModal = false;
-  let infractionData = { type: 'yellow', reason: '' };
-  let infractionLoading = false;
-
-  // Reset Password Admin
-  let generatedPassword = "";
-  let resetLoading = false;
+  // Les autres variables réactives
+  let infractions = $state([]);
+  let trustScore = $state(100);
+  let trustColor = $state("bg-green-500");
+  let trustLabel = $state("Chargement...");
+  let showInfractionModal = $state(false);
+  let infractionData = $state({ type: 'yellow', reason: '' });
+  let generatedPassword = $state("");
+  let resetLoading = $state(false);
+  let infractionLoading = $state(false);
 
   onMount(async () => {
     await checkAdminAccess();
@@ -98,6 +96,7 @@
         full_name: profileData.full_name,
         birthday: profileData.birthday, 
         fonction: profileData.fonction, 
+        permissions: profileData.permissions,
         role: profileData.role, 
         updated_at: new Date()
       };
@@ -115,6 +114,43 @@
       isSaving = false;
     }
   }
+
+// --- LOGIQUE UI PERMISSIONS ---
+// Helper pour l'interface : détermine l'état d'une case (Hérité, Forcé ON, Forcé OFF)
+function getPermissionState(action) {
+    const custom = profileData.permissions?.[action];
+    const roleHasIt = ROLE_DEFAULTS[profileData.role]?.includes(action);
+
+    if (custom === true) return 'granted'; // Surcharge explicite OUI
+    if (custom === false) return 'denied'; // Surcharge explicite NON
+    return roleHasIt ? 'inherited_yes' : 'inherited_no';
+}
+
+function togglePermission(action) {
+    // 1. Initialisation si nécessaire
+    if (!profileData.permissions) {
+        profileData.permissions = {};
+    }
+    
+    const currentState = getPermissionState(action);
+    
+    // 2. Mutation directe (Svelte 5 détecte ça tout seul)
+    if (currentState === 'inherited_yes') {
+        profileData.permissions[action] = false;
+    } 
+    else if (currentState === 'inherited_no') {
+        profileData.permissions[action] = true;
+    } 
+    else if (currentState === 'granted') {
+        profileData.permissions[action] = false;
+    } 
+    else if (currentState === 'denied') {
+        // Le delete fonctionne aussi très bien avec les Proxies Svelte 5
+        delete profileData.permissions[action];
+    }
+    
+    // PLUS BESOIN de la ligne : profileData = { ...profileData };
+}
 
   // --- GESTION AVATAR ---
   async function handleAvatarUpload(e) {
@@ -293,11 +329,12 @@
   const inputClass = "block w-full rounded-xl border-white/10 bg-black/40 p-3 text-sm font-medium text-white placeholder-gray-600 focus:ring-2 focus:border-transparent transition-all outline-none disabled:opacity-50";
   const labelClass = "block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 ml-1";
 
-  $: borderClass = profileData.role === 'admin' 
+let borderClass = $derived(profileData.role === 'admin' 
       ? 'bg-gradient-to-br from-yellow-300/80 via-amber-400/50 to-yellow-500/80 shadow-[0_0_35px_rgba(245,158,11,0.6)] ring-1 ring-yellow-400/50' 
       : profileData.role === 'moderator'
       ? 'bg-gradient-to-br from-purple-500 to-fuchsia-600 shadow-[0_0_30px_rgba(168,85,247,0.6)] animate-pulse' 
-      : 'bg-gradient-to-br from-[rgba(var(--color-primary),0.5)] to-purple-500/50 shadow-[0_0_30px_rgba(var(--color-primary),0.2)]';
+      : 'bg-gradient-to-br from-[rgba(var(--color-primary),0.5)] to-purple-500/50 shadow-[0_0_30px_rgba(var(--color-primary),0.2)]'
+  );
 
 </script>
 
@@ -474,6 +511,45 @@
               {/if}
           </div>
         </div>
+
+        <div class="bg-black/20 border border-purple-500/10 rounded-3xl p-8 shadow-sm relative">
+    <h2 class="text-lg font-bold text-gray-200 mb-6 flex items-center gap-2">
+        <Shield size={20} class="text-purple-400" /> Granularité des Permissions
+    </h2>
+
+    <div class="grid grid-cols-1 gap-2 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+        {#each Object.entries(ACTIONS) as [key, action]}
+            {@const state = getPermissionState(action)}
+            
+            <button 
+                on:click={() => togglePermission(action)}
+                class="flex items-center justify-between p-3 rounded-xl border text-sm transition-all
+                {state === 'granted' ? 'bg-green-500/10 border-green-500/50 text-green-400' : 
+                 state === 'denied' ? 'bg-red-500/10 border-red-500/50 text-red-400' : 
+                 state === 'inherited_yes' ? 'bg-white/5 border-white/5 text-gray-400 opacity-75' : 
+                 'bg-black/20 border-transparent text-gray-600 opacity-50'}"
+            >
+                <span class="font-mono">{action}</span>
+                
+                <span class="text-xs font-bold px-2 py-1 rounded border
+                    {state === 'granted' ? 'border-green-500/30 bg-green-500/20' : 
+                     state === 'denied' ? 'border-red-500/30 bg-red-500/20' : 
+                     'border-transparent'}">
+                    
+                    {#if state === 'granted'} FORCÉ: OUI
+                    {:else if state === 'denied'} FORCÉ: NON
+                    {:else if state === 'inherited_yes'} (Hérité: Oui)
+                    {:else} (Hérité: Non)
+                    {/if}
+                </span>
+            </button>
+        {/each}
+    </div>
+    <p class="text-xs text-gray-500 mt-4 italic">
+        Cliquez pour cycler : <br>
+        Hérité &rarr; <span class="text-green-400">Forcé OUI</span> &rarr; <span class="text-red-400">Forcé NON</span> &rarr; Reset.
+    </p>
+</div>
 
         <div class="bg-black/20 border border-red-500/10 rounded-3xl p-8 shadow-sm relative">
             <h2 class="text-lg font-bold text-gray-200 mb-6 flex items-center gap-2">

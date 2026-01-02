@@ -4,6 +4,7 @@
   import { supabase } from '$lib/supabase';
   import { toast } from '$lib/stores/toast.js';
   import { page } from '$app/stores'; 
+  import { hasPermission, ACTIONS } from '$lib/permissions';
   import { openConfirmModal } from '$lib/stores/modal.js';
   import { fly, fade } from 'svelte/transition';
 
@@ -13,6 +14,9 @@
     AlertOctagon, CheckCircle, ShieldAlert, ChevronLeft, Save, Edit2, UserCog 
   } from 'lucide-svelte';
   
+let currentUserProfile = null; // C'est cette variable qui doit contenir le rôle
+  let usersList = []; // Votre liste d'utilisateurs à afficher
+
   // --- ÉTAT ---
   let users = [];
   let isLoading = true;
@@ -54,21 +58,26 @@
 
   // --- SÉCURITÉ ---
 
-  async function checkAdminAccess() {
+async function checkAdminAccess() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return goto('/');
     
     currentAdminId = user.id;
 
+    // 1. On sélectionne 'role' ET 'permissions' (nécessaire pour hasPermission)
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, permissions') 
       .eq('id', user.id)
       .single();
+
     if (profile?.role !== 'admin') {
       toast.error("Accès refusé.");
       goto('/');
     }
+
+    // 2. IMPORTANT : On remplit la variable globale pour que le HTML la voie
+    currentUserProfile = profile; 
   }
 
   // --- CHARGEMENT ---
@@ -542,15 +551,21 @@ async function pardonInfraction(infractionId) {
                         <button on:click={() => openInfractionModal(user)} class="action-icon-btn text-yellow-600 hover:text-yellow-400" title="Sanction"><FileWarning size={16}/></button>
                         <button on:click={() => openHistoryModal(user)} class="action-icon-btn hover:text-themed" style="color: rgba(var(--primary-rgb), 0.6);" title="History"><History size={16}/></button>
                         <button on:click={() => handleChangeRole(user, nextRoleData.role)} class="action-icon-btn {nextRoleData.color} hover:bg-white/5" title={nextRoleData.label}><svelte:component this={nextRoleData.icon} size={16} /></button>
+              
+              {#if hasPermission(currentUserProfile, ACTIONS.USERS_BAN)}
                         {#if isBanned}
                           <button on:click={() => handleBanUser(user, false)} class="action-icon-btn text-green-600 hover:text-green-400" title="Débannir"><UserCheck size={16}/></button>
                         {:else}
+
                           <button on:click={() => handleBanUser(user, true)} class="action-icon-btn text-red-600 hover:text-red-400" title="Bannir"><UserX size={16}/></button>
                         {/if}
+                    {/if}  
                       </div>
                     {:else}
                       <span class="text-xs text-gray-500 italic">Vous</span>
                     {/if}
+
+                    
                   </td>
                 </tr>
               {/each}
