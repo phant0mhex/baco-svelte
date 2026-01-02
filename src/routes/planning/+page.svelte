@@ -37,10 +37,10 @@
     let confirmDeleteId = null; 
 
     const LEAVE_TYPES = [
-        { value: 'CN', label: 'Congé Normal (CN)' },
+        { value: 'CN', label: 'Congé' },
         { value: 'JC', label: 'Jour de Compensation (JC)' },
-        { value: 'ZM', label: 'Zone Maladie (ZM)' },
-        { value: 'BT', label: 'Bons Temps (BT)' },
+        { value: 'ZM', label: 'Maladie (ZM)' },
+        { value: 'BT', label: 'Blessé au travail / chemin du travail (BT)' },
     ];
     
     const STATUS_OPTIONS = [
