@@ -376,7 +376,7 @@ ${data.redacteur || 'SNCB'}`;
       doc.text("BON DE COMMANDE TAXI", 115, 20, { align: "center" });
       
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
-      doc.text(`ID Commande : #${data.id || 'NOUVEAU'}`, 195, 20, { align: "right" });
+    //   doc.text(`ID Commande : #${data.id || 'NOUVEAU'}`, 195, 20, { align: "right" });
 
       // BLOC 1
       const yRow1 = 35; const hRow1 = 45;
