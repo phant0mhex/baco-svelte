@@ -147,7 +147,7 @@
                    
                 </div>
               </div>
-          {/if}
+            </div> {/if}
         </div>
       {/key}
     </div>
