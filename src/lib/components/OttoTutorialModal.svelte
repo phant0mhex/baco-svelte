@@ -51,8 +51,8 @@
           <School size={24} />
         </div>
         <div class="hidden md:block">
-          <h1 class="text-lg font-bold text-white tracking-tight">Formation</h1>
-          <p class="text-xs text-gray-500">Module Otto</p>
+          <h1 class="text-lg font-bold text-white tracking-tight">Tutoriel</h1>
+          <p class="text-xs text-gray-500">Module Otto (C3)</p>
         </div>
       </div>
     </div>
@@ -127,7 +127,7 @@
                    <div class="absolute inset-0">
                        {#if currentStep === 1}
                          <button class="hotspot" style="top: 40%; left: 15%;" on:click={(e) => handleHotspotClick(e, 'Motif & Date', 'Indiquez le motif et la date.')}>1</button>
-                         <button class="hotspot" style="top: 65%; left: 15%;" on:click={(e) => handleHotspotClick(e, 'Réf. TC', 'Obligatoire pour SAP (ex: TC_123).')}>2</button>
+                         <button class="hotspot" style="top: 65%; left: 15%;" on:click={(e) => handleHotspotClick(e, 'Réf. TC', 'Numéro de relation (ex: TC_2600044).')}>2</button>
                          <button class="hotspot" style="top: 30%; right: 15%;" on:click={(e) => handleHotspotClick(e, 'Lignes', 'Filtre les gares disponibles.')}>3</button>
                        
                        {:else if currentStep === 2}
@@ -140,7 +140,7 @@
                           <button class="hotspot" style="top: 50%; left: 45%;" on:click={(e) => handleHotspotClick(e, 'Horaires', 'Prévue vs Confirmée (Vert).')}>2</button>
 
                        {:else if currentStep === 4}
-                          <button class="hotspot" style="bottom: 50%; right: 280px;" on:click={(e) => handleHotspotClick(e, 'PDF', 'Télécharger le bon.')}>1</button>
+                          <button class="hotspot" style="bottom: 50%; right: 3200px;" on:click={(e) => handleHotspotClick(e, 'PDF', 'Télécharger le bon.')}>1</button>
                           <button class="hotspot" style="bottom: 50%; right: 50px;" on:click={(e) => handleHotspotClick(e, 'Clôturer', 'Verrouille la commande.')}>2</button>
                        {/if}
                    </div>
