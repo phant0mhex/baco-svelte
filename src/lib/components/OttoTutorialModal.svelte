@@ -140,7 +140,7 @@
                           <button class="hotspot" style="top: 50%; left: 45%;" on:click={(e) => handleHotspotClick(e, 'Horaires', 'Prévue vs Confirmée (Vert).')}>2</button>
 
                        {:else if currentStep === 4}
-                          <button class="hotspot" style="bottom: 50%; right: 3200px;" on:click={(e) => handleHotspotClick(e, 'PDF', 'Télécharger le bon.')}>1</button>
+                          <button class="hotspot" style="bottom: 50%; right: 320px;" on:click={(e) => handleHotspotClick(e, 'PDF', 'Télécharger le bon.')}>1</button>
                           <button class="hotspot" style="bottom: 50%; right: 50px;" on:click={(e) => handleHotspotClick(e, 'Clôturer', 'Verrouille la commande.')}>2</button>
                        {/if}
                    </div>
