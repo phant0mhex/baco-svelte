@@ -502,7 +502,7 @@ async function pardonInfraction(infractionId) {
                 
                 <tr class="group hover:bg-white/[0.02] transition-colors">
                  <td class="px-6 py-4 whitespace-nowrap">
-                    <a href="/admin?email={user.email}" class="flex items-center gap-4 w-full text-left group-hover:opacity-80 transition-opacity">
+                    <a href="/admin/utilisateur/{user.user_id}" class="flex items-center gap-4 w-full text-left group-hover:opacity-80 transition-opacity">
                       <img class="h-10 w-10 rounded-full object-cover border border-white/10" src={user.avatar_url || '/default-avatar.png'}>
                       <div>
                         <div class="text-sm font-bold text-gray-200" style="color: {user.email === targetEmail ? 'rgb(var(--primary-rgb))' : ''}">{user.full_name || user.email}</div>

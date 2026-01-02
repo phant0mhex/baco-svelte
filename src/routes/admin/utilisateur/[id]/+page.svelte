@@ -3,12 +3,12 @@
   import { page } from '$app/stores'; 
   import { supabase } from '$lib/supabase';
   import { goto } from '$app/navigation';
-  import { fly, fade } from 'svelte/transition';
+  import { fly, fade, slide } from 'svelte/transition';
   import { 
     User, Mail, Shield, Camera, Lock, Save, 
     FileWarning, AlertOctagon, Loader2, CheckCircle,
     Tag, Cake, ChevronLeft, Copy, KeyRound, UserX, UserCheck,
-    Plus, X, History
+    Plus, X, History, AlertTriangle
   } from 'lucide-svelte';
   
   // IMPORT TOAST
@@ -149,15 +149,13 @@
     }
   }
 
-  // --- GESTION DES SANCTIONS (NOUVEAU) ---
+  // --- GESTION DES SANCTIONS ---
   
-  // 1. Ouvrir la modale
   function openAddInfraction() {
       infractionData = { type: 'yellow', reason: '' };
       showInfractionModal = true;
   }
 
-  // 2. Soumettre une nouvelle sanction
   async function submitInfraction() {
       if (!infractionData.reason) return toast.warning("Le motif est obligatoire.");
       infractionLoading = true;
@@ -173,7 +171,7 @@
 
           toast.success("Sanction appliquée !");
           showInfractionModal = false;
-          await loadInfractions(); // Recharger pour voir l'impact sur le score
+          await loadInfractions(); 
       } catch (e) {
           toast.error("Erreur: " + e.message);
       } finally {
@@ -181,7 +179,6 @@
       }
   }
 
-  // 3. Pardonner une sanction
   async function pardonInfraction(infractionId) {
       if (!confirm("Voulez-vous pardonner cette sanction ? Elle ne comptera plus dans le score.")) return;
 
@@ -190,7 +187,7 @@
           if (error) throw error;
           
           toast.success("Sanction pardonnée.");
-          await loadInfractions(); // Recalculer le score
+          await loadInfractions(); 
       } catch (e) {
           toast.error("Erreur: " + e.message);
       }
@@ -236,7 +233,6 @@
         
         profileData.banned_until = updates.banned_until;
         toast.success(`Utilisateur ${isBanned ? 'débanni' : 'banni'} !`);
-        // On recharge aussi les infractions car un ban peut impacter l'état global
         loadInfractions(); 
     } catch(e) {
         toast.error("Erreur: " + e.message);
@@ -250,10 +246,9 @@
 
   // --- LOGIQUE TRUST METER ---
   async function loadInfractions() {
-    // On charge TOUTES les infractions (actives et inactives) pour l'historique
     const { data } = await supabase
       .from('infractions')
-      .select('*')
+      .select('*, admin:admin_id(full_name)')
       .eq('user_id', targetUserId)
       .order('created_at', { ascending: false });
     
@@ -262,13 +257,7 @@
   }
 
   function calculateTrustScore() {
-    // On ne compte que les actives pour le score
-    const activeInfractions = infractions.filter(i => {
-        if (!i.is_active) return false;
-        if (i.card_type === 'red') return true;
-        // Carton jaune expire après X temps (dépend de votre logique DB, ici on suppose que is_active suffit ou on vérifie expires_at)
-        return new Date(i.expires_at) > new Date();
-    });
+    const activeInfractions = infractions.filter(i => i.is_active);
 
     if (activeInfractions.length === 0) {
       trustScore = 100;
@@ -301,12 +290,9 @@
     }
   }
 
-  // Styles CSS Thémés
   const inputClass = "block w-full rounded-xl border-white/10 bg-black/40 p-3 text-sm font-medium text-white placeholder-gray-600 focus:ring-2 focus:border-transparent transition-all outline-none disabled:opacity-50";
   const labelClass = "block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 ml-1";
 
-
-  // --- STYLE DYNAMIQUE ---
   $: borderClass = profileData.role === 'admin' 
       ? 'bg-gradient-to-br from-yellow-300/80 via-amber-400/50 to-yellow-500/80 shadow-[0_0_35px_rgba(245,158,11,0.6)] ring-1 ring-yellow-400/50' 
       : profileData.role === 'moderator'
@@ -328,8 +314,7 @@
         </div>
         <div>
           <h1 class="text-3xl font-bold text-gray-200 tracking-tight flex items-center gap-3">
-            Édition du profil de <span style="color: rgb(var(--primary-rgb));">{profileData.full_name || 'Utilisateur'}</span>
-            
+            Édition : <span style="color: rgb(var(--primary-rgb));">{profileData.full_name || 'Utilisateur'}</span>
             {#if profileData.role === 'admin'}
               <span class="inline-flex items-center gap-1 px-3 py-1 bg-yellow-500/20 text-yellow-300 text-xs font-bold rounded-full uppercase border border-yellow-500/30">Admin</span>
             {/if}
@@ -364,7 +349,7 @@
             
             <h2 class="text-2xl font-bold text-white mt-4">{profileData.full_name || 'Sans Nom'}</h2>
             <div class="flex items-center gap-2 mt-1">
-                <p class="text-gray-400 text-sm">@{profileData.username || 'username'}</p>
+                <p class="text-gray-400 text-sm">{profileData.email}</p>
                 <p class="text-gray-600 text-xs bg-black/40 px-2 py-0.5 rounded font-mono select-all">{targetUserId}</p>
             </div>
           </div>
@@ -454,12 +439,40 @@
             <div class="w-full bg-black/40 rounded-full h-4 overflow-hidden border border-white/5 shadow-inner">
               <div class="h-4 rounded-full transition-all duration-1000 ease-out {trustColor} relative" style="width: {trustScore}%"></div>
             </div>
-            </div>
+            <p class="text-right text-xs font-bold mt-2 {trustColor === 'bg-gradient-to-r from-red-600 to-red-700' ? 'text-red-400' : 'text-gray-400'}">{trustLabel} ({trustScore}%)</p>
+          </div>
 
           <h3 class="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-2"><History size={12}/> Historique</h3>
           
           <div class="space-y-3 max-h-60 overflow-y-auto pr-2 custom-scrollbar">
-            </div>
+              {#if infractions.length === 0}
+                  <div class="text-center py-6 text-gray-500 text-sm italic">Aucune sanction enregistrée.</div>
+              {:else}
+                  {#each infractions as inf}
+                      <div class="bg-black/40 border border-white/5 rounded-xl p-3 flex justify-between items-start {inf.is_active ? '' : 'opacity-50 grayscale'}">
+                          <div class="flex gap-3">
+                              <div class="mt-1">
+                                  {#if inf.card_type === 'red'}
+                                      <AlertOctagon size={18} class="text-red-500" />
+                                  {:else}
+                                      <FileWarning size={18} class="text-yellow-500" />
+                                  {/if}
+                              </div>
+                              <div>
+                                  <p class="text-sm font-bold text-gray-200">{inf.reason}</p>
+                                  <p class="text-xs text-gray-500">
+                                      Par {inf.admin?.full_name || 'Admin'} • {new Date(inf.created_at).toLocaleDateString()}
+                                      {#if !inf.is_active} <span class="text-green-500 ml-2">(Pardonné)</span> {/if}
+                                  </p>
+                              </div>
+                          </div>
+                          {#if inf.is_active}
+                              <button on:click={() => pardonInfraction(inf.id)} class="text-xs text-gray-600 hover:text-green-400 underline p-1">Pardonner</button>
+                          {/if}
+                      </div>
+                  {/each}
+              {/if}
+          </div>
         </div>
 
         <div class="bg-black/20 border border-red-500/10 rounded-3xl p-8 shadow-sm relative">
@@ -481,6 +494,21 @@
                         {/if}
                     </button>
                 </div>
+
+                <div class="pt-4 border-t border-white/5">
+                    <label class={labelClass}>Sécurité</label>
+                    <div class="flex gap-2 mt-2">
+                        <button on:click={handleResetPassword} disabled={resetLoading} class="flex-1 bg-white/5 hover:bg-white/10 border border-white/10 text-gray-300 py-2.5 rounded-xl font-bold transition-all flex items-center justify-center gap-2">
+                            {#if resetLoading}<Loader2 class="animate-spin w-4 h-4"/>{:else}<KeyRound size={16}/>{/if} Reset Password
+                        </button>
+                    </div>
+                    {#if generatedPassword}
+                        <div class="mt-3 p-3 bg-yellow-500/10 border border-yellow-500/20 rounded-xl flex justify-between items-center" transition:slide>
+                            <span class="font-mono text-yellow-400 font-bold tracking-wider">{generatedPassword}</span>
+                            <button on:click={copyPassword} class="text-yellow-500 hover:text-white"><Copy size={16}/></button>
+                        </div>
+                    {/if}
+                </div>
             </div>
         </div>
 
@@ -492,7 +520,37 @@
   {#if showInfractionModal}
     <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
       <div class="bg-[#0f1115] w-full max-w-md rounded-2xl p-6 shadow-2xl border border-white/10" transition:fly={{ y: 20 }}>
-        </div>
+          <div class="flex justify-between items-center mb-6">
+              <h3 class="text-xl font-bold text-white flex items-center gap-2"><AlertTriangle class="text-yellow-500"/> Ajouter Sanction</h3>
+              <button on:click={() => showInfractionModal = false} class="text-gray-500 hover:text-white"><X size={20}/></button>
+          </div>
+          
+          <div class="space-y-4">
+              <div class="grid grid-cols-2 gap-3">
+                  <button 
+                      class="p-3 rounded-xl border-2 font-bold transition-all {infractionData.type === 'yellow' ? 'border-yellow-500 bg-yellow-500/10 text-yellow-400' : 'border-white/10 bg-black/40 text-gray-500'}"
+                      on:click={() => infractionData.type = 'yellow'}
+                  >
+                      Avertissement
+                  </button>
+                  <button 
+                      class="p-3 rounded-xl border-2 font-bold transition-all {infractionData.type === 'red' ? 'border-red-500 bg-red-500/10 text-red-400' : 'border-white/10 bg-black/40 text-gray-500'}"
+                      on:click={() => infractionData.type = 'red'}
+                  >
+                      Sanction Grave
+                  </button>
+              </div>
+              
+              <div>
+                  <label class={labelClass}>Motif</label>
+                  <textarea bind:value={infractionData.reason} class="{inputClass} h-24 resize-none" placeholder="Ex: Comportement inapproprié..."></textarea>
+              </div>
+              
+              <button on:click={submitInfraction} disabled={infractionLoading} class="w-full py-3 rounded-xl font-bold text-black bg-white hover:bg-gray-200 transition-colors flex justify-center items-center gap-2">
+                  {#if infractionLoading} <Loader2 class="animate-spin w-5 h-5"/> {:else} Confirmer {/if}
+              </button>
+          </div>
+      </div>
     </div>
   {/if}
 
