@@ -15,10 +15,12 @@
   // IMPORT TOAST
   import { toast } from '$lib/stores/toast.js';
 
-// --- ÉTAT (Migration Runes) ---
+  // --- ÉTAT (Migration Runes) ---
   let isLoading = $state(true);
   let isSaving = $state(false);
   let isUploading = $state(false);
+  
+  // On récupère l'ID depuis l'URL de manière réactive
   let targetUserId = $derived($page.params.id);
   
   // Utilisez $state pour que les modifications profondes (permissions) soient détectées
@@ -70,7 +72,10 @@
             .single();
         
         if (error) throw error;
-        profileData = { ...profileData, ...data };
+        // On fusionne avec l'état existant pour garder la structure réactive
+        Object.assign(profileData, data);
+        // S'assurer que permissions est un objet (pas null)
+        if (!profileData.permissions) profileData.permissions = {};
 
         // 2. Charger l'email (via RPC car table auth protégée)
         const { data: email } = await supabase.rpc('admin_get_user_email', { p_user_id: targetUserId });
@@ -116,7 +121,6 @@
   }
 
 // --- LOGIQUE UI PERMISSIONS ---
-// Helper pour l'interface : détermine l'état d'une case (Hérité, Forcé ON, Forcé OFF)
 function getPermissionState(action) {
     const custom = profileData.permissions?.[action];
     const roleHasIt = ROLE_DEFAULTS[profileData.role]?.includes(action);
@@ -136,20 +140,18 @@ function togglePermission(action) {
     
     // 2. Mutation directe (Svelte 5 détecte ça tout seul)
     if (currentState === 'inherited_yes') {
-        profileData.permissions[action] = false;
+        profileData.permissions[action] = false; // Force NON
     } 
     else if (currentState === 'inherited_no') {
-        profileData.permissions[action] = true;
+        profileData.permissions[action] = true; // Force OUI
     } 
     else if (currentState === 'granted') {
-        profileData.permissions[action] = false;
+        profileData.permissions[action] = false; // Passe à NON
     } 
     else if (currentState === 'denied') {
         // Le delete fonctionne aussi très bien avec les Proxies Svelte 5
-        delete profileData.permissions[action];
+        delete profileData.permissions[action]; // Retour à Hérité
     }
-    
-    // PLUS BESOIN de la ligne : profileData = { ...profileData };
 }
 
   // --- GESTION AVATAR ---
@@ -329,7 +331,8 @@ function togglePermission(action) {
   const inputClass = "block w-full rounded-xl border-white/10 bg-black/40 p-3 text-sm font-medium text-white placeholder-gray-600 focus:ring-2 focus:border-transparent transition-all outline-none disabled:opacity-50";
   const labelClass = "block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 ml-1";
 
-let borderClass = $derived(profileData.role === 'admin' 
+  // $derived remplace $: pour la réactivité calculée
+  let borderClass = $derived(profileData.role === 'admin' 
       ? 'bg-gradient-to-br from-yellow-300/80 via-amber-400/50 to-yellow-500/80 shadow-[0_0_35px_rgba(245,158,11,0.6)] ring-1 ring-yellow-400/50' 
       : profileData.role === 'moderator'
       ? 'bg-gradient-to-br from-purple-500 to-fuchsia-600 shadow-[0_0_30px_rgba(168,85,247,0.6)] animate-pulse' 
