@@ -3,72 +3,80 @@
 // --- 1. DÉFINITION DE TOUTES LES ACTIONS POSSIBLES ---
 export const ACTIONS = {
     // --- ADMINISTRATION ---
-    ADMIN_ACCESS: 'admin:access',      // Accès au panel admin global
-    USERS_MANAGE: 'users:manage',      // Voir/Editer les utilisateurs
-    USERS_BAN: 'users:ban',            // Bannir/Débannir
-    AUDIT_READ: 'audit:read',          // Voir les logs d'audit
+    ADMIN_ACCESS: 'admin:access',
+    USERS_MANAGE: 'users:manage',
+    USERS_BAN: 'users:ban',
+    AUDIT_READ: 'audit:read',
 
-    // --- MODULES PRINCIPAUX ---
+    // --- MODULES ---
     PLANNING_READ: 'planning:read',
-    PLANNING_WRITE: 'planning:write',  // Ajouter/Modifier des shifts
+    PLANNING_WRITE: 'planning:write',
+    PLANNING_DELETE: 'planning:delete', // Nouveau
 
     JOURNAL_READ: 'journal:read',
-    JOURNAL_WRITE: 'journal:write',    // Écrire dans le journal de bord
+    JOURNAL_WRITE: 'journal:write',
+    JOURNAL_DELETE: 'journal:delete',   // Nouveau
 
     DOCUMENTS_READ: 'documents:read',
     DOCUMENTS_WRITE: 'documents:write',
     DOCUMENTS_DELETE: 'documents:delete',
 
     REPERTOIRE_READ: 'repertoire:read',
-    REPERTOIRE_WRITE: 'repertoire:write', // Ajouter/Modifier des contacts
+    REPERTOIRE_WRITE: 'repertoire:write',
+    REPERTOIRE_DELETE: 'repertoire:delete', // Nouveau
 
-    // --- TRANSPORTS & OPÉRATIONS ---
-    BUS_READ: 'bus:read',              // Pages /bus et /lignes
+    BUS_READ: 'bus:read',
     BUS_WRITE: 'bus:write',
+    BUS_DELETE: 'bus:delete', // Nouveau
 
-    TAXI_READ: 'taxi:read',            // Pages /taxi et /generateTaxi
+    TAXI_READ: 'taxi:read',
     TAXI_WRITE: 'taxi:write',
+    TAXI_DELETE: 'taxi:delete', // Nouveau
 
-    OTTO_READ: 'otto:read',            // Page /otto
+    OTTO_READ: 'otto:read',
     OTTO_WRITE: 'otto:write',
+    OTTO_DELETE: 'otto:delete', // Nouveau
 
-    PTCAR_READ: 'ptcar:read',          // Page /ptcar
+    PTCAR_READ: 'ptcar:read',
     PTCAR_WRITE: 'ptcar:write',
+    PTCAR_DELETE: 'ptcar:delete', // Nouveau
 
-    B201_READ: 'b201:read',            // Page /b201
+    B201_READ: 'b201:read',
     B201_WRITE: 'b201:write',
+    B201_DELETE: 'b201:delete', // Nouveau
 
-    EBP_READ: 'ebp:read',              // Page /ebp
+    EBP_READ: 'ebp:read',
     EBP_WRITE: 'ebp:write',
+    EBP_DELETE: 'ebp:delete', // Nouveau
 
-    OPERATIONNEL_READ: 'ops:read',     // Page /operationnel
+    OPERATIONNEL_READ: 'ops:read',
     OPERATIONNEL_WRITE: 'ops:write',
+    OPERATIONNEL_DELETE: 'ops:delete', // Nouveau
 
-    CARTE_PN_READ: 'carte_pn:read',    // Page /carte-pn
+    CARTE_PN_READ: 'carte_pn:read',
     CARTE_PN_WRITE: 'carte_pn:write',
+    CARTE_PN_DELETE: 'carte_pn:delete', // Nouveau
 
-    // --- ASSISTANCE (PMR) ---
-    PMR_READ: 'pmr:read',              // Pages /pmr et /clients-pmr
+    PMR_READ: 'pmr:read',
     PMR_WRITE: 'pmr:write',
+    PMR_DELETE: 'pmr:delete', // Nouveau
 
-    // --- DIVERS / LOISIRS ---
-    DARTS_READ: 'darts:read',          // Page /darts
-    DARTS_WRITE: 'darts:write',        // Enregistrer des scores
+    DARTS_READ: 'darts:read',
+    DARTS_WRITE: 'darts:write',
+    DARTS_DELETE: 'darts:delete', // Nouveau
 };
 
-// --- 2. DÉFINITION DES RÔLES PAR DÉFAUT ---
 export const ROLE_DEFAULTS = {
-    // ADMIN : Accès absolu (géré par le joker '*' dans la fonction hasPermission)
+    // ADMIN : A accès à tout (*) y compris les DELETE
     admin: ['*'],
 
-    // MODERATOR : Peut tout voir et tout modifier, sauf les zones dangereuses (Ban, Audit, Delete Docs)
+    // MODERATOR : Peut lire et écrire, MAIS PAS SUPPRIMER (sécurité)
     moderator: [
-        // Admin light
-        'users:manage', 
-        // Modules Lecture/Écriture
-        'planning:read', 'planning:write',
-        'journal:read', 'journal:write',
-        'documents:read', 'documents:write', // Pas de delete
+        'users:manage',
+        
+        'planning:read', 'planning:write', // Pas de delete
+        'journal:read', 'journal:write',   // Pas de delete
+        'documents:read', 'documents:write', 
         'repertoire:read', 'repertoire:write',
         'bus:read', 'bus:write',
         'taxi:read', 'taxi:write',
