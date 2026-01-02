@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
   import { page } from '$app/stores';
+  import { goto } from '$app/navigation'; // Nécessaire pour la redirection
   import { fly, fade } from 'svelte/transition';
   import { 
     Bus, FileText, Plus, X, Pencil, Trash2, 
@@ -10,11 +11,14 @@
   import jsPDF from 'jspdf';
   import autoTable from 'jspdf-autotable';
 
+  // IMPORT TOAST & PERMISSIONS
   import { toast } from '$lib/stores/toast.js';
+  import { hasPermission, ACTIONS } from '$lib/permissions';
 
   // --- ÉTATS ---
-  let user = null;
-  let isAdmin = false;
+  let currentUser = null;
+  let isAuthorized = false; // Bloque l'affichage par défaut
+
   let districts = ['DSE', 'DSO'];
   let selectedDistrict = null; 
   let linesByDistrict = { 'DSE': [], 'DSO': [] };
@@ -39,12 +43,27 @@
   let modalForm = { id: null, nom: '', lignes: '', contacts: '', chauffeurs: '' };
 
   onMount(async () => {
+    // 1. Auth Check
     const { data: { session } } = await supabase.auth.getSession();
-    user = session?.user;
-    if (user) {
-      const { data } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-      isAdmin = data?.role === 'admin';
+    if (!session) return goto('/');
+
+    // 2. Profil & Permissions
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+    
+    currentUser = { ...session.user, ...profile };
+
+    // 3. Vérification Permission LECTURE
+    if (!hasPermission(currentUser, ACTIONS.BUS_READ)) {
+        toast.error("Accès refusé.");
+        return goto('/accueil');
     }
+
+    // 4. Autorisation OK -> Chargement
+    isAuthorized = true;
     await loadLinesReference();
     await fetchLinesStructure();
   });
@@ -165,6 +184,9 @@
   };
 
   async function openModal(societe = null) {
+    // SÉCURITÉ WRITE
+    if (!hasPermission(currentUser, ACTIONS.BUS_WRITE)) return;
+
     isEditMode = !!societe;
     modalForm = { id: societe?.id || null, nom: societe?.nom || '', lignes: '', contacts: '', chauffeurs: '' };
     if (isEditMode) {
@@ -179,6 +201,9 @@
   }
 
   async function handleSubmit() {
+    // SÉCURITÉ WRITE
+    if (!hasPermission(currentUser, ACTIONS.BUS_WRITE)) return toast.error("Action non autorisée.");
+
     modalLoading = true;
     const linesToProcess = modalForm.lignes.split(',').map(s => s.trim()).filter(Boolean);
     for (const line of linesToProcess) {
@@ -211,6 +236,9 @@
   }
 
   async function deleteSociete(id, nom) {
+    // SÉCURITÉ DELETE
+    if (!hasPermission(currentUser, ACTIONS.BUS_DELETE)) return toast.error("Suppression non autorisée.");
+
     if (!confirm(`Supprimer ${nom} ?`)) return;
     const { error } = await supabase.rpc('delete_societe_bus', { societe_id_to_delete: id });
     if (!error) { toast.success("Supprimé"); fetchLinesStructure(); loadSocietes(); }
@@ -220,163 +248,172 @@
   const labelClass = "block text-xs font-bold text-gray-400 mb-1.5 uppercase tracking-wide";
 </script>
 
-<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
-  
-  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }} style="--primary-rgb: var(--color-primary);">
-    <div class="flex items-center gap-3">
-      <div class="main-icon-container p-3 rounded-xl border transition-all duration-500">
-        <Bus class="w-8 h-8" />
-      </div>
-      <div>
-        <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Répertoire Bus</h1>
-        <p class="text-gray-500 text-sm mt-1">Gérer les lignes de substitution et contacts.</p>
-      </div>
+{#if !isAuthorized}
+    <div class="h-screen w-full flex flex-col items-center justify-center space-y-4">
+        <Loader2 class="w-10 h-10 animate-spin text-blue-500" />
+        <p class="text-gray-500 text-sm font-mono animate-pulse">Vérification des accès...</p>
     </div>
-    <div class="flex gap-3">
-      {#if isAdmin}
-        <button on:click={() => openModal()} class="btn-add px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group border shadow-lg">
-          <Plus class="w-5 h-5 group-hover:rotate-90 transition-transform" />
-          <span class="font-semibold hidden sm:inline">Ajouter</span>
-        </button>
-      {/if}
-    </div>
-  </header>
-
-  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" in:fly={{ y: 20, duration: 600, delay: 100 }} style="--primary-rgb: var(--color-primary);">
-    <div class="lg:col-span-3 space-y-4">
-      <div class="bg-black/20 border border-white/5 rounded-2xl p-5 h-full">
-        <h3 class="text-xs font-bold uppercase text-gray-500 mb-4 flex items-center gap-2"><Filter class="w-4 h-4" /> District</h3>
-        {#if loadingStructure}
-          <div class="flex justify-center py-4"><Loader2 class="animate-spin text-gray-600"/></div>
-        {:else}
-          <div class="flex flex-col gap-2">
-            {#each districts as district}
-              <button on:click={() => selectDistrict(district)} class="district-btn w-full text-left px-4 py-3 rounded-xl border transition-all {selectedDistrict === district ? 'active' : 'inactive'}">
-                <span class="font-bold tracking-wide">{district}</span>
-                {#if selectedDistrict === district}<div class="dot-active"></div>{/if}
-              </button>
-            {/each}
+{:else}
+    <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
+      
+      <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }} style="--primary-rgb: var(--color-primary);">
+        <div class="flex items-center gap-3">
+          <div class="main-icon-container p-3 rounded-xl border transition-all duration-500">
+            <Bus class="w-8 h-8" />
           </div>
-        {/if}
-      </div>
-    </div>
-
-    <div class="lg:col-span-9 space-y-4">
-      <div class="bg-black/20 border border-white/5 rounded-2xl p-5 min-h-[140px]">
-        <h3 class="text-xs font-bold uppercase text-gray-500 mb-4 flex items-center gap-2">
-          <div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div> Lignes disponibles {#if selectedDistrict}({selectedDistrict}){/if}
-        </h3>
-        {#if !selectedDistrict}
-          <p class="text-center text-gray-600 italic py-8">← Sélectionnez un district.</p>
-        {:else}
-          <div class="flex flex-wrap gap-3">
-            {#each linesByDistrict[selectedDistrict] as line}
-              <button on:click={() => toggleLine(line)} class="line-badge flex items-center space-x-2 px-4 py-2 border rounded-full transition-all text-sm font-medium {selectedLines.includes(line) ? 'active' : 'inactive'}">
-                {#if selectedLines.includes(line)}<Check class="w-3.5 h-3.5" />{/if}
-                <span>{line}</span>
-              </button>
-            {/each}
+          <div>
+            <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Répertoire Bus</h1>
+            <p class="text-gray-500 text-sm mt-1">Gérer les lignes de substitution et contacts.</p>
           </div>
-        {/if}
-      </div>
-    </div>
-  </div>
+        </div>
+        <div class="flex gap-3">
+          {#if hasPermission(currentUser, ACTIONS.BUS_WRITE)}
+            <button on:click={() => openModal()} class="btn-add px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group border shadow-lg">
+              <Plus class="w-5 h-5 group-hover:rotate-90 transition-transform" />
+              <span class="font-semibold hidden sm:inline">Ajouter</span>
+            </button>
+          {/if}
+        </div>
+      </header>
 
-  <div class="space-y-8 min-h-[400px]" style="--primary-rgb: var(--color-primary);">
-    {#if loadingSocietes}
-      <div class="flex flex-col items-center justify-center py-20"><Loader2 class="w-10 h-10 animate-spin themed-spinner mb-3"/><p class="text-gray-500">Recherche...</p></div>
-    {:else if societesAffichees.length > 0}
-      <div in:fly={{ y: 20, duration: 400 }}>
-        <h3 class="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
-          <div class="w-1 h-6 bg-themed-solid rounded-full"></div> Sociétés concernées {#if searchTerm}(Recherche: "{searchTerm}"){/if}
-        </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-          {#each societesAffichees as societe}
-            <div class="group societe-card flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-xl transition-all cursor-pointer {selectedSocieteIds.includes(societe.id) ? 'active' : ''}">
-              <label class="flex items-center space-x-3 cursor-pointer flex-grow">
-                <input type="checkbox" checked={selectedSocieteIds.includes(societe.id)} on:change={() => toggleSociete(societe.id)} class="checkbox-themed rounded w-5 h-5 bg-black/40 border-gray-600">
-                <span class="font-bold text-gray-300 group-hover:text-white">{societe.nom}</span>
-              </label>
-              {#if isAdmin}
-                <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button on:click={() => openModal(societe)} class="p-2 text-gray-400 hover:text-themed"><Pencil class="w-4 h-4" /></button>
-                  <button on:click={() => deleteSociete(societe.id, societe.nom)} class="p-2 text-gray-400 hover:text-red-400"><Trash2 class="w-4 h-4" /></button>
-                </div>
-              {/if}
-            </div>
-          {/each}
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6" in:fly={{ y: 20, duration: 600, delay: 100 }} style="--primary-rgb: var(--color-primary);">
+        <div class="lg:col-span-3 space-y-4">
+          <div class="bg-black/20 border border-white/5 rounded-2xl p-5 h-full">
+            <h3 class="text-xs font-bold uppercase text-gray-500 mb-4 flex items-center gap-2"><Filter class="w-4 h-4" /> District</h3>
+            {#if loadingStructure}
+              <div class="flex justify-center py-4"><Loader2 class="animate-spin text-gray-600"/></div>
+            {:else}
+              <div class="flex flex-col gap-2">
+                {#each districts as district}
+                  <button on:click={() => selectDistrict(district)} class="district-btn w-full text-left px-4 py-3 rounded-xl border transition-all {selectedDistrict === district ? 'active' : 'inactive'}">
+                    <span class="font-bold tracking-wide">{district}</span>
+                    {#if selectedDistrict === district}<div class="dot-active"></div>{/if}
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
+        </div>
+
+        <div class="lg:col-span-9 space-y-4">
+          <div class="bg-black/20 border border-white/5 rounded-2xl p-5 min-h-[140px]">
+            <h3 class="text-xs font-bold uppercase text-gray-500 mb-4 flex items-center gap-2">
+              <div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div> Lignes disponibles {#if selectedDistrict}({selectedDistrict}){/if}
+            </h3>
+            {#if !selectedDistrict}
+              <p class="text-center text-gray-600 italic py-8">← Sélectionnez un district.</p>
+            {:else}
+              <div class="flex flex-wrap gap-3">
+                {#each linesByDistrict[selectedDistrict] as line}
+                  <button on:click={() => toggleLine(line)} class="line-badge flex items-center space-x-2 px-4 py-2 border rounded-full transition-all text-sm font-medium {selectedLines.includes(line) ? 'active' : 'inactive'}">
+                    {#if selectedLines.includes(line)}<Check class="w-3.5 h-3.5" />{/if}
+                    <span>{line}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
 
-      {#if selectedSocieteIds.length > 0}
-        {#if loadingDetails}
-          <div class="flex justify-center p-10"><Loader2 class="w-8 h-8 animate-spin themed-spinner"/></div>
+      <div class="space-y-8 min-h-[400px]" style="--primary-rgb: var(--color-primary);">
+        {#if loadingSocietes}
+          <div class="flex flex-col items-center justify-center py-20"><Loader2 class="w-10 h-10 animate-spin themed-spinner mb-3"/><p class="text-gray-500">Recherche...</p></div>
+        {:else if societesAffichees.length > 0}
+          <div in:fly={{ y: 20, duration: 400 }}>
+            <h3 class="text-xl font-bold text-gray-200 mb-4 flex items-center gap-2">
+              <div class="w-1 h-6 bg-themed-solid rounded-full"></div> Sociétés concernées {#if searchTerm}(Recherche: "{searchTerm}"){/if}
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              {#each societesAffichees as societe}
+                <div class="group societe-card flex items-center justify-between px-4 py-3 bg-black/20 border border-white/5 rounded-xl transition-all cursor-pointer {selectedSocieteIds.includes(societe.id) ? 'active' : ''}">
+                  <label class="flex items-center space-x-3 cursor-pointer flex-grow">
+                    <input type="checkbox" checked={selectedSocieteIds.includes(societe.id)} on:change={() => toggleSociete(societe.id)} class="checkbox-themed rounded w-5 h-5 bg-black/40 border-gray-600">
+                    <span class="font-bold text-gray-300 group-hover:text-white">{societe.nom}</span>
+                  </label>
+                  
+                  <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {#if hasPermission(currentUser, ACTIONS.BUS_WRITE)}
+                        <button on:click={() => openModal(societe)} class="p-2 text-gray-400 hover:text-themed"><Pencil class="w-4 h-4" /></button>
+                    {/if}
+                    {#if hasPermission(currentUser, ACTIONS.BUS_DELETE)}
+                        <button on:click={() => deleteSociete(societe.id, societe.nom)} class="p-2 text-gray-400 hover:text-red-400"><Trash2 class="w-4 h-4" /></button>
+                    {/if}
+                  </div>
+
+                </div>
+              {/each}
+            </div>
+          </div>
+
+          {#if selectedSocieteIds.length > 0}
+            {#if loadingDetails}
+              <div class="flex justify-center p-10"><Loader2 class="w-8 h-8 animate-spin themed-spinner"/></div>
+            {:else}
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8" in:fly={{ y: 20, duration: 400 }}>
+                {#if contactsAffiches.length > 0}
+                  <div class="bg-black/20 border border-white/5 rounded-2xl p-6">
+                    <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div> Bureaux</h3>
+                    <ul class="space-y-3">
+                      {#each contactsAffiches as c}
+                        <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center group">
+                          <div><span class="block font-bold text-gray-200">{c.nom}</span><span class="text-xs text-gray-500">{c.societes_bus.nom}</span></div>
+                          <a href="etrali:{cleanPhone(c.tel)}" class="contact-link flex items-center gap-2 font-mono px-3 py-1.5 rounded-lg border transition-all"><Phone size={14} /> {formatPhone(c.tel)}</a>
+                        </li>
+                      {/each}
+                    </ul>
+                  </div>
+                {/if}
+                {#if chauffeursAffiches.length > 0}
+                  <div class="bg-black/20 border border-white/5 rounded-2xl p-6">
+                    <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full border border-themed-solid"></div> Chauffeurs</h3>
+                    <ul class="space-y-3">
+                      {#each chauffeursAffiches as c}
+                        <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center group">
+                          <div><span class="block font-bold text-gray-200">{c.nom}</span><span class="text-xs text-gray-500">{c.societes_bus.nom}</span></div>
+                          <a href="etrali:{cleanPhone(c.tel)}" class="contact-link flex items-center gap-2 font-mono px-3 py-1.5 rounded-lg border transition-all"><Phone size={14} /> {formatPhone(c.tel)}</a>
+                        </li>
+                      {/each}
+                    </ul>
+                  </div>
+                {/if}
+              </div>
+            {/if}
+          {/if}
+        {:else if searchTerm || selectedLines.length > 0}
+          <p class="text-center text-gray-500 py-20">Aucun résultat trouvé.</p>
         {:else}
-          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8" in:fly={{ y: 20, duration: 400 }}>
-            {#if contactsAffiches.length > 0}
-              <div class="bg-black/20 border border-white/5 rounded-2xl p-6">
-                <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full bg-themed-solid"></div> Bureaux</h3>
-                <ul class="space-y-3">
-                  {#each contactsAffiches as c}
-                    <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center group">
-                      <div><span class="block font-bold text-gray-200">{c.nom}</span><span class="text-xs text-gray-500">{c.societes_bus.nom}</span></div>
-                      <a href="etrali:{cleanPhone(c.tel)}" class="contact-link flex items-center gap-2 font-mono px-3 py-1.5 rounded-lg border transition-all"><Phone size={14} /> {formatPhone(c.tel)}</a>
-                    </li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
-            {#if chauffeursAffiches.length > 0}
-              <div class="bg-black/20 border border-white/5 rounded-2xl p-6">
-                <h3 class="text-lg font-bold text-gray-300 mb-4 flex items-center gap-2"><div class="w-1.5 h-1.5 rounded-full border border-themed-solid"></div> Chauffeurs</h3>
-                <ul class="space-y-3">
-                  {#each chauffeursAffiches as c}
-                    <li class="bg-white/5 rounded-xl border border-white/5 p-3 flex justify-between items-center group">
-                      <div><span class="block font-bold text-gray-200">{c.nom}</span><span class="text-xs text-gray-500">{c.societes_bus.nom}</span></div>
-                      <a href="etrali:{cleanPhone(c.tel)}" class="contact-link flex items-center gap-2 font-mono px-3 py-1.5 rounded-lg border transition-all"><Phone size={14} /> {formatPhone(c.tel)}</a>
-                    </li>
-                  {/each}
-                </ul>
-              </div>
-            {/if}
+          <div class="flex flex-col items-center justify-center py-20 text-gray-600 border border-dashed border-white/10 rounded-3xl mt-8">
+            <Bus size={48} class="opacity-20 mb-4" />
+            <p>Sélectionnez des critères pour afficher les données.</p>
           </div>
         {/if}
-      {/if}
-    {:else if searchTerm || selectedLines.length > 0}
-      <p class="text-center text-gray-500 py-20">Aucun résultat trouvé.</p>
-    {:else}
-      <div class="flex flex-col items-center justify-center py-20 text-gray-600 border border-dashed border-white/10 rounded-3xl mt-8">
-        <Bus size={48} class="opacity-20 mb-4" />
-        <p>Sélectionnez des critères pour afficher les données.</p>
-      </div>
-    {/if}
-  </div>
-</div>
-
-{#if showModal}
-  <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
-    <div class="bg-[#0f1115] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-white/10" transition:fly={{ y: 20, duration: 300 }}>
-      <div class="flex justify-between items-center px-6 py-5 border-b border-white/10 bg-white/[0.02]">
-        <h3 class="text-xl font-bold text-gray-200">{isEditMode ? 'Modifier' : 'Ajouter'} société</h3>
-        <button on:click={() => showModal = false} class="text-gray-500 hover:text-gray-300 transition-colors"><X class="w-5 h-5" /></button>
-      </div>
-      <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
-        <div><label class={labelClass}>Nom</label><input bind:value={modalForm.nom} type="text" class={inputClass}></div>
-        <div><label class={labelClass}>Lignes (L.37, L.162...)</label><input bind:value={modalForm.lignes} type="text" class={inputClass}></div>
-        <div><label class={labelClass}>Contacts (Nom, Tel)</label><textarea bind:value={modalForm.contacts} rows="3" class="{inputClass} font-mono resize-none"></textarea></div>
-        <div><label class={labelClass}>Chauffeurs (Nom, Tel)</label><textarea bind:value={modalForm.chauffeurs} rows="4" class="{inputClass} font-mono resize-none"></textarea></div>
-      </div>
-      <div class="flex justify-end px-6 py-4 bg-white/[0.02] border-t border-white/10 gap-3">
-        <button on:click={() => showModal = false} class="px-4 py-2 text-gray-300 hover:text-white transition-colors">Annuler</button>
-        <button on:click={handleSubmit} disabled={modalLoading} class="btn-submit px-6 py-2 text-white rounded-xl disabled:opacity-50" style="--primary-rgb: var(--color-primary);">
-          {#if modalLoading}<Loader2 class="w-4 h-4 animate-spin mr-2"/>{/if} Enregistrer
-        </button>
       </div>
     </div>
-  </div>
-{/if}
 
-<style>
+    {#if showModal}
+      <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
+        <div class="bg-[#0f1115] w-full max-w-lg rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-white/10" transition:fly={{ y: 20, duration: 300 }}>
+          <div class="flex justify-between items-center px-6 py-5 border-b border-white/10 bg-white/[0.02]">
+            <h3 class="text-xl font-bold text-gray-200">{isEditMode ? 'Modifier' : 'Ajouter'} société</h3>
+            <button on:click={() => showModal = false} class="text-gray-500 hover:text-gray-300 transition-colors"><X class="w-5 h-5" /></button>
+          </div>
+          <div class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
+            <div><label class={labelClass}>Nom</label><input bind:value={modalForm.nom} type="text" class={inputClass}></div>
+            <div><label class={labelClass}>Lignes (L.37, L.162...)</label><input bind:value={modalForm.lignes} type="text" class={inputClass}></div>
+            <div><label class={labelClass}>Contacts (Nom, Tel)</label><textarea bind:value={modalForm.contacts} rows="3" class="{inputClass} font-mono resize-none"></textarea></div>
+            <div><label class={labelClass}>Chauffeurs (Nom, Tel)</label><textarea bind:value={modalForm.chauffeurs} rows="4" class="{inputClass} font-mono resize-none"></textarea></div>
+          </div>
+          <div class="flex justify-end px-6 py-4 bg-white/[0.02] border-t border-white/10 gap-3">
+            <button on:click={() => showModal = false} class="px-4 py-2 text-gray-300 hover:text-white transition-colors">Annuler</button>
+            <button on:click={handleSubmit} disabled={modalLoading} class="btn-submit px-6 py-2 text-white rounded-xl disabled:opacity-50" style="--primary-rgb: var(--color-primary);">
+              {#if modalLoading}<Loader2 class="w-4 h-4 animate-spin mr-2"/>{/if} Enregistrer
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
+{/if} <style>
   .bg-themed-solid { background-color: rgb(var(--primary-rgb)); }
   .border-themed-solid { border-color: rgb(var(--primary-rgb)); }
   .text-themed { color: rgb(var(--primary-rgb)); }

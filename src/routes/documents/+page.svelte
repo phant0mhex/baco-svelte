@@ -1,14 +1,16 @@
 <script>
   import { onMount } from 'svelte';
   import { supabase } from '$lib/supabase';
+  import { goto } from '$app/navigation'; // Nécessaire pour la redirection
   import { fly, fade } from 'svelte/transition';
   import { 
     FileText, Folder, Search, Upload, Trash2, 
     Eye, Download, Loader2, FolderOpen, File 
   } from 'lucide-svelte';
 
-  // IMPORT TOAST
+  // IMPORT TOAST & PERMISSIONS
   import { toast } from '$lib/stores/toast.js';
+  import { hasPermission, ACTIONS } from '$lib/permissions';
 
   // --- ÉTAT ---
   let documents = [];
@@ -16,13 +18,36 @@
   let isLoading = true;
   let isUploading = false;
   
+  let currentUserProfile = null; // Profil avec permissions
+  let isAuthorized = false; // Bloque l'affichage par défaut
+
   let searchQuery = "";
   let selectedCategory = "all";
   let uploadStatus = ""; 
 
   onMount(async () => {
-    await loadCategories();
-    await loadDocuments();
+    // 1. Auth Check
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return goto('/');
+
+    // 2. Profil & Permissions
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+    
+    currentUserProfile = { ...session.user, ...profile };
+
+    // 3. Vérification Permission LECTURE
+    if (!hasPermission(currentUserProfile, ACTIONS.DOCUMENTS_READ)) {
+        toast.error("Accès refusé.");
+        return goto('/accueil');
+    }
+
+    // 4. Autorisation OK -> Chargement
+    isAuthorized = true;
+    await Promise.all([loadCategories(), loadDocuments()]);
   });
 
   // --- CHARGEMENT DONNÉES ---
@@ -66,6 +91,11 @@
   // --- ACTIONS ---
 
   async function handleUpload(event) {
+    // SÉCURITÉ WRITE
+    if (!hasPermission(currentUserProfile, ACTIONS.DOCUMENTS_WRITE)) {
+        return toast.error("Vous n'avez pas la permission d'ajouter des documents.");
+    }
+
     const file = event.target.files[0];
     if (!file) return;
     
@@ -117,6 +147,11 @@
   }
 
   async function deleteDocument(fileName) {
+    // SÉCURITÉ DELETE
+    if (!hasPermission(currentUserProfile, ACTIONS.DOCUMENTS_DELETE)) {
+        return toast.error("Seuls les administrateurs peuvent supprimer des documents.");
+    }
+
     if (!confirm(`Supprimer définitivement "${fileName}" ?`)) return;
     
     try {
@@ -161,143 +196,152 @@
 
 </script>
 
-<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
-  
-<header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }} style="--primary-rgb: var(--color-primary);">
-  <div class="flex items-center gap-3">
-    <div class="main-icon-container p-3 rounded-xl border transition-all duration-500">
-      <FolderOpen size={32} />
+{#if !isAuthorized}
+    <div class="h-screen w-full flex flex-col items-center justify-center space-y-4">
+        <Loader2 class="w-10 h-10 animate-spin text-blue-500" />
+        <p class="text-gray-500 text-sm font-mono animate-pulse">Vérification des accès...</p>
     </div>
-    <div>
-      <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Documents</h1>
-      <p class="text-gray-500 text-sm mt-1">Bibliothèque opérationnelle et archives.</p>
-    </div>
-  </div>
-
-  <div class="flex items-center gap-3">
-    {#if isUploading}
-      <div class="upload-badge hidden sm:flex items-center gap-2 text-xs font-medium animate-pulse mr-2 px-3 py-1.5 rounded-lg border">
-        <Loader2 size={16} class="animate-spin"/> {uploadStatus}
-      </div>
-    {/if}
-    
-    <label class="btn-import cursor-pointer px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group shadow-lg border">
-      <Upload size={20} class="group-hover:-translate-y-0.5 transition-transform" /> 
-      <span class="font-semibold hidden sm:inline">Importer</span>
-      <input type="file" class="hidden" on:change={handleUpload} disabled={isUploading} />
-    </label>
-  </div>
-</header>
-
-  <main class="flex flex-col lg:flex-row gap-8">
-    
-<aside class="w-full lg:w-64 flex-shrink-0 space-y-6" in:fly={{ x: -20, duration: 600, delay: 100 }} style="--primary-rgb: var(--color-primary);">
-  
-  <div class="relative group">
-    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 search-icon transition-colors">
-      <Search size={16} />
-    </div>
-    <input 
-      type="text" 
-      placeholder="Nom du fichier..." 
-      bind:value={searchQuery} 
-      on:input={loadDocuments} 
-      class="block w-full pl-9 pr-3 py-3 bg-black/20 border border-white/10 rounded-2xl text-sm text-gray-200 input-search transition-all outline-none placeholder-gray-600"
-    />
-  </div>
-
-  <nav class="space-y-2 bg-black/20 border border-white/5 rounded-2xl p-4">
-    <h3 class="px-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Catégories</h3>
-    
-    <button 
-      on:click={() => { selectedCategory = 'all'; loadDocuments(); }}
-      class="nav-item w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all 
-      {selectedCategory === 'all' ? 'active' : 'inactive'}"
-    >
-      <Folder size={16} class="mr-3 icon-state" /> 
-      Tout voir
-    </button>
-    
-    <div class="h-px bg-white/5 my-2 mx-2"></div>
-
-    {#each categories as cat}
-      <button 
-        on:click={() => { selectedCategory = cat; loadDocuments(); }}
-        class="nav-item w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all 
-        {selectedCategory === cat ? 'active' : 'inactive'}"
-      >
-        <Folder size={16} class="mr-3 icon-state" />
-        {cat}
-      </button>
-    {/each}
-  </nav>
-
-</aside>
-
- <div class="flex-grow" in:fade={{ duration: 600 }} style="--primary-rgb: var(--color-primary);">
-  {#if isLoading}
-    <div class="flex flex-col items-center justify-center py-20 text-gray-500">
-      <Loader2 class="w-10 h-10 animate-spin mb-3" style="color: rgba(var(--primary-rgb), 0.5)" />
-      <p>Chargement...</p>
-    </div>
-  {:else if documents.length === 0}
-    <div class="text-center py-24 bg-black/20 rounded-3xl border border-dashed border-white/10">
-      <FileText size={48} class="mx-auto text-gray-600 mb-4 opacity-50" />
-      <h3 class="text-lg font-bold text-gray-400">Dossier vide</h3>
-      <p class="text-sm text-gray-600 mt-1">Aucun document trouvé dans cette catégorie.</p>
-    </div>
-  {:else}
-    <div class="grid gap-3">
-      {#each documents as doc}
-        <div class="group doc-row bg-black/20 border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/[0.02] transition-all duration-200">
-          
-          <div class="flex items-center gap-4 overflow-hidden">
-            <div class="icon-box p-3 rounded-xl border flex-shrink-0 transition-all">
-              <FileText size={20} />
-            </div>
-            
-            <div class="min-w-0">
-              <h4 class="text-sm font-bold text-gray-200 truncate doc-title transition-colors" title={doc.file_name}>
-                {doc.file_name}
-              </h4>
-              <span class="text-xs text-gray-500 inline-flex items-center gap-1 mt-0.5">
-                <Folder size={10} /> {doc.categorie}
-              </span>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-            <button 
-              on:click={() => openFile(doc.file_name)}
-              class="btn-action p-2 rounded-xl transition-all border border-transparent"
-              title={isPreviewable(doc.file_name) ? "Prévisualiser" : "Télécharger"}
-            >
-              {#if isPreviewable(doc.file_name)}
-                <Eye size={18} />
-              {:else}
-                <Download size={18} />
-              {/if}
-            </button>
-
-            <button 
-              on:click={() => deleteDocument(doc.file_name)}
-              class="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
-              title="Supprimer"
-            >
-              <Trash2 size={18} />
-            </button>
-          </div>
-
+{:else}
+    <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
+      
+    <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" in:fly={{ y: -20, duration: 600 }} style="--primary-rgb: var(--color-primary);">
+      <div class="flex items-center gap-3">
+        <div class="main-icon-container p-3 rounded-xl border transition-all duration-500">
+          <FolderOpen size={32} />
         </div>
-      {/each}
+        <div>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Documents</h1>
+          <p class="text-gray-500 text-sm mt-1">Bibliothèque opérationnelle et archives.</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        {#if isUploading}
+          <div class="upload-badge hidden sm:flex items-center gap-2 text-xs font-medium animate-pulse mr-2 px-3 py-1.5 rounded-lg border">
+            <Loader2 size={16} class="animate-spin"/> {uploadStatus}
+          </div>
+        {/if}
+        
+        {#if hasPermission(currentUserProfile, ACTIONS.DOCUMENTS_WRITE)}
+            <label class="btn-import cursor-pointer px-5 py-3 rounded-xl flex items-center gap-2 transition-all hover:scale-105 group shadow-lg border">
+              <Upload size={20} class="group-hover:-translate-y-0.5 transition-transform" /> 
+              <span class="font-semibold hidden sm:inline">Importer</span>
+              <input type="file" class="hidden" on:change={handleUpload} disabled={isUploading} />
+            </label>
+        {/if}
+      </div>
+    </header>
+
+      <main class="flex flex-col lg:flex-row gap-8">
+        
+    <aside class="w-full lg:w-64 flex-shrink-0 space-y-6" in:fly={{ x: -20, duration: 600, delay: 100 }} style="--primary-rgb: var(--color-primary);">
+      
+      <div class="relative group">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 search-icon transition-colors">
+          <Search size={16} />
+        </div>
+        <input 
+          type="text" 
+          placeholder="Nom du fichier..." 
+          bind:value={searchQuery} 
+          on:input={loadDocuments} 
+          class="block w-full pl-9 pr-3 py-3 bg-black/20 border border-white/10 rounded-2xl text-sm text-gray-200 input-search transition-all outline-none placeholder-gray-600"
+        />
+      </div>
+
+      <nav class="space-y-2 bg-black/20 border border-white/5 rounded-2xl p-4">
+        <h3 class="px-2 text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Catégories</h3>
+        
+        <button 
+          on:click={() => { selectedCategory = 'all'; loadDocuments(); }}
+          class="nav-item w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all 
+          {selectedCategory === 'all' ? 'active' : 'inactive'}"
+        >
+          <Folder size={16} class="mr-3 icon-state" /> 
+          Tout voir
+        </button>
+        
+        <div class="h-px bg-white/5 my-2 mx-2"></div>
+
+        {#each categories as cat}
+          <button 
+            on:click={() => { selectedCategory = cat; loadDocuments(); }}
+            class="nav-item w-full flex items-center px-4 py-2.5 text-sm font-medium rounded-xl transition-all 
+            {selectedCategory === cat ? 'active' : 'inactive'}"
+          >
+            <Folder size={16} class="mr-3 icon-state" />
+            {cat}
+          </button>
+        {/each}
+      </nav>
+
+    </aside>
+
+    <div class="flex-grow" in:fade={{ duration: 600 }} style="--primary-rgb: var(--color-primary);">
+      {#if isLoading}
+        <div class="flex flex-col items-center justify-center py-20 text-gray-500">
+          <Loader2 class="w-10 h-10 animate-spin mb-3" style="color: rgba(var(--primary-rgb), 0.5)" />
+          <p>Chargement...</p>
+        </div>
+      {:else if documents.length === 0}
+        <div class="text-center py-24 bg-black/20 rounded-3xl border border-dashed border-white/10">
+          <FileText size={48} class="mx-auto text-gray-600 mb-4 opacity-50" />
+          <h3 class="text-lg font-bold text-gray-400">Dossier vide</h3>
+          <p class="text-sm text-gray-600 mt-1">Aucun document trouvé dans cette catégorie.</p>
+        </div>
+      {:else}
+        <div class="grid gap-3">
+          {#each documents as doc}
+            <div class="group doc-row bg-black/20 border border-white/5 rounded-2xl p-4 flex items-center justify-between hover:bg-white/[0.02] transition-all duration-200">
+              
+              <div class="flex items-center gap-4 overflow-hidden">
+                <div class="icon-box p-3 rounded-xl border flex-shrink-0 transition-all">
+                  <FileText size={20} />
+                </div>
+                
+                <div class="min-w-0">
+                  <h4 class="text-sm font-bold text-gray-200 truncate doc-title transition-colors" title={doc.file_name}>
+                    {doc.file_name}
+                  </h4>
+                  <span class="text-xs text-gray-500 inline-flex items-center gap-1 mt-0.5">
+                    <Folder size={10} /> {doc.categorie}
+                  </span>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button 
+                  on:click={() => openFile(doc.file_name)}
+                  class="btn-action p-2 rounded-xl transition-all border border-transparent"
+                  title={isPreviewable(doc.file_name) ? "Prévisualiser" : "Télécharger"}
+                >
+                  {#if isPreviewable(doc.file_name)}
+                    <Eye size={18} />
+                  {:else}
+                    <Download size={18} />
+                  {/if}
+                </button>
+
+                {#if hasPermission(currentUserProfile, ACTIONS.DOCUMENTS_DELETE)}
+                    <button 
+                      on:click={() => deleteDocument(doc.file_name)}
+                      class="p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-500/20"
+                      title="Supprimer"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                {/if}
+              </div>
+
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
-  {/if}
-</div>
 
-  </main>
-</div>
-
-<style>
+      </main>
+    </div>
+{/if} <style>
   /* États inactifs */
   .nav-item.inactive {
     color: rgb(156, 163, 175); /* text-gray-400 */

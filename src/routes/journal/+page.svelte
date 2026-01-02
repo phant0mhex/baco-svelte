@@ -7,7 +7,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
   import { supabase } from '$lib/supabase';
-  import { page } from '$app/stores'; // IMPORT NÉCESSAIRE POUR L'URL
+  import { page } from '$app/stores'; 
+  import { goto } from '$app/navigation'; // Nécessaire pour la redirection
   import { toast } from '$lib/stores/toast.js'; 
   import { openConfirmModal } from '$lib/stores/modal.js';
   import { fly, fade } from 'svelte/transition';
@@ -20,6 +21,9 @@
     Send, Paperclip, AlertTriangle, BookCopy, 
     Trash2, Pencil, FileText, Loader2, X, Save, ThumbsUp, Eye, ChevronDown, Calendar, User
   } from 'lucide-svelte';
+
+  // IMPORT PERMISSIONS
+  import { hasPermission, ACTIONS } from '$lib/permissions';
 
   // --- CONFIG MARKED ---
   marked.use({
@@ -39,11 +43,11 @@
   let flatpickrInstance;
   
   // Recherche
-  let textSearch = ""; // NOUVEAU : État pour la recherche texte
+  let textSearch = ""; 
 
   // User & Rôles
-  let currentUser = null;
-  let userRole = 'user'; 
+  let currentUser = null; // Profil complet avec permissions
+  let isAuthorized = false; // Bloque l'affichage par défaut
 
   // Autocomplétion
   let allUsers = [];
@@ -80,7 +84,27 @@
   const normalizeName = (name) => name ? name.trim().toLowerCase().replace(/\s+/g, ' ') : '';
 
   onMount(async () => {
-    await loadUserAndRole();
+    // 1. Auth Check
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return goto('/');
+
+    // 2. Profil & Permissions
+    const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+    
+    currentUser = { ...session.user, ...profile };
+
+    // 3. Vérification Permission LECTURE
+    if (!hasPermission(currentUser, ACTIONS.JOURNAL_READ)) {
+        toast.error("Accès refusé.");
+        return goto('/accueil');
+    }
+
+    // 4. Autorisation OK -> Chargement
+    isAuthorized = true;
     await Promise.all([loadAllProfiles(), loadLogs(true)]);
 
     if (typeof window !== 'undefined' && window.flatpickr && datePickerElement) {
@@ -104,30 +128,31 @@
   // --- LOGIQUE RÉACTIVE URL (Global Search) ---
   $: {
       const q = $page.url.searchParams.get('search');
-      // Si un paramètre de recherche est présent et différent de l'actuel
       if (q && q !== textSearch) {
           textSearch = q;
-          loadLogs(true); // On recharge avec le nouveau filtre
+          if (isAuthorized) loadLogs(true); 
       }
   }
 
-  // --- AUTH & RÔLES ---
-  async function loadUserAndRole() {
-    const { data: { user } } = await supabase.auth.getUser();
-    currentUser = user;
-    if (user) {
-      const { data: profile } = await supabase.from('profiles').select('role, full_name').eq('id', user.id).single();
-      if (profile) {
-        userRole = (profile.role || 'user').toLowerCase();
-        currentUser = { ...user, ...profile };
-      }
-    }
-  }
-
-  function canEdit(entry, currentRole) {
+  // --- CHECK RIGHTS ---
+  // Modifié pour utiliser le nouveau système de permissions
+  function canEdit(entry) {
     if (!currentUser) return false;
+    // On peut toujours éditer son propre message (si on a le droit d'écrire globalement)
+    if (entry.user_id === currentUser.id) {
+        return hasPermission(currentUser, ACTIONS.JOURNAL_WRITE);
+    }
+    // Pour éditer les autres : il faut être Admin/Modo (via le rôle ou une perm spéciale)
+    // Ici on utilise la permission 'users:manage' comme proxy pour "Superviseur"
+    return hasPermission(currentUser, ACTIONS.USERS_MANAGE); 
+  }
+
+  function canDelete(entry) {
+    if (!currentUser) return false;
+    // On peut toujours supprimer son propre message
     if (entry.user_id === currentUser.id) return true;
-    return ['admin', 'moderator'].includes((currentRole || '').toLowerCase());
+    // Sinon il faut la permission DELETE explicite
+    return hasPermission(currentUser, ACTIONS.JOURNAL_DELETE);
   }
   
   // --- CHARGEMENT ---
@@ -154,7 +179,6 @@
       .order('created_at', { ascending: false }) 
       .range(from, to);
 
-    // --- FILTRE TEXTE (MODIF) ---
     if (textSearch) {
         query = query.ilike('message_content', `%${textSearch}%`);
     }
@@ -263,6 +287,9 @@
 
   // --- ACTIONS ---
   async function handlePost() {
+    // SÉCURITÉ WRITE
+    if (!hasPermission(currentUser, ACTIONS.JOURNAL_WRITE)) return toast.error("Action non autorisée.");
+
     if (editingLog) { await saveEditedEntry(); return; }
     if (!newMessage.trim() && !newFile) return;
     isSubmitting = true;
@@ -319,6 +346,17 @@
   }
   
   async function deleteLog(id) {
+    // SÉCURITÉ DELETE (Vérifiée par canDelete dans le HTML, mais double check ici)
+    // Note: On n'a pas l'objet 'entry' ici facilement, donc on suppose que l'UI a fait le filtre.
+    // Idéalement, faire un check côté serveur (RLS) ou fetcher l'entry.
+    // Pour simplifier :
+    if (!hasPermission(currentUser, ACTIONS.JOURNAL_DELETE)) {
+        // On vérifie si c'est NOTRE message (ce qui est autorisé)
+        const entry = logs.find(l => l.id === id);
+        if (entry && entry.user_id !== currentUser.id) {
+             return toast.error("Suppression non autorisée.");
+        }
+    }
     openConfirmModal("Supprimer ce message définitivement ?", executeDeleteLog(id));
   }
 
@@ -360,231 +398,242 @@
   }
 </script>
 
-<div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
-  
-  <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" 
-          in:fly={{ y: -20, duration: 600 }}
-          style="--primary-rgb: var(--color-primary);">
-    <div class="flex items-center gap-3">
-        <div class="p-3 rounded-xl border transition-all duration-500"
-             style="background-color: rgba(var(--primary-rgb), 0.1); color: rgb(var(--primary-rgb)); border-color: rgba(var(--primary-rgb), 0.2); box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.15);">
-          <BookCopy size={32} />
-        </div>
-        <div>
-          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Journal</h1>
-          <p class="text-gray-500 text-sm mt-1">Journal et actualités.</p>
-        </div>
+{#if !isAuthorized}
+    <div class="h-screen w-full flex flex-col items-center justify-center space-y-4">
+        <Loader2 class="w-10 h-10 animate-spin text-blue-500" />
+        <p class="text-gray-500 text-sm font-mono animate-pulse">Vérification des accès...</p>
     </div>
-    
-   <div class="flex items-center gap-3">
-      <div class="relative hidden sm:block group">
-        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-hover:text-themed transition-colors">
-            <User size={14} />
-        </div>
-        <select bind:value={selectedAuthor} on:change={() => loadLogs(true)} 
-                class="appearance-none pl-9 pr-8 py-2 text-xs rounded-xl bg-black/20 border border-white/10 text-gray-300 focus:ring-2 focus:border-transparent hover:bg-white/5 transition-all cursor-pointer outline-none shadow-sm font-medium"
-                style="--tw-ring-color: rgba(var(--primary-rgb), 0.3); focus-within: border-color: rgba(var(--primary-rgb), 0.5);">
-          <option value="all" class="bg-gray-900 text-gray-300">Tous les auteurs</option>
-          {#each authors as author}
-            <option value={author.id} class="bg-gray-900 text-gray-300">{author.full_name}</option>
-          {/each}
-        </select>
-        <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover:text-themed transition-colors"><ChevronDown size={14} /></div>
-      </div>
-      <div class="relative group">
-        <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover:text-themed transition-colors z-10"><Calendar size={14} /></div>
-        <input bind:this={datePickerElement} type="text" placeholder="Date..." 
-               class="pl-9 pr-3 py-2 text-xs rounded-xl bg-black/30 border border-white/10 text-gray-300 placeholder-gray-500 focus:ring-2 focus:border-transparent hover:bg-white/5 transition-all outline-none shadow-sm cursor-pointer w-32 font-medium" 
-               style="--tw-ring-color: rgba(var(--primary-rgb), 0.3);"/>
-      </div>
-    </div>
-  </header>
-
-  <main class="max-w-3xl mx-auto space-y-8" style="--primary-rgb: var(--color-primary);">
-    
-    <div class="bg-black/20 border border-white/5 rounded-3xl p-4 transition-all focus-within:bg-black/30 relative shadow-sm" 
-         in:fly={{ y: 20, duration: 600, delay: 100 }}
-         style="focus-within: border-color: rgba(var(--primary-rgb), 0.2);">
+{:else}
+    <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
       
-      <MarkdownToolbar textarea={textareaElement} bind:value={newMessage} />
-
-      <textarea 
-        bind:value={newMessage} 
-        bind:this={textareaElement}
-        on:input={handleInput}
-        rows="3" 
-        class="w-full bg-transparent border-none p-2 focus:ring-0 resize-none text-base placeholder-gray-500 text-gray-200 mt-2" 
-        placeholder="Quoi de neuf aujourd'hui ? (@username pour taguer)"
-      ></textarea>
-      
-      {#if showSuggestions}
-        <div class="absolute z-40 top-[7.5rem] left-4 right-4 bg-[#0f1115] rounded-xl shadow-2xl border border-white/10 max-h-48 overflow-y-auto custom-scrollbar">
-          {#each filteredUsers as user}
-            <button on:click={() => selectUser(user)} class="w-full text-left flex items-center gap-3 p-3 hover:bg-white/5 transition-colors cursor-pointer">
-              {#if user.avatar_url}
-                 <img src={user.avatar_url} alt="avatar" class="w-6 h-6 rounded-full object-cover" />
-              {:else}
-                <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
-                     style="background-color: rgba(var(--primary-rgb), 0.2); color: rgb(var(--primary-rgb));">{user.full_name?.charAt(0) || '?'}</div>
-              {/if}
-              <span class="text-sm font-medium text-gray-200">{user.full_name}</span>
-            </button>
-          {/each}
-        </div>
-      {/if}
-
-      {#if newFile}
-        <div class="flex items-center gap-2 mb-3 mt-2 px-3 py-2 rounded-xl text-sm border"
-             style="background-color: rgba(var(--primary-rgb), 0.1); color: rgb(var(--primary-rgb)); border-color: rgba(var(--primary-rgb), 0.2);">
-          <Paperclip size={14} /> <span class="truncate max-w-xs">{newFile.name}</span>
-          <button on:click={() => { newFile = null; fileInput.value = ""; }} class="ml-auto hover:text-white" style="color: rgb(var(--primary-rgb));"><X size={14}/></button>
-        </div>
-      {/if}
-
-      <div class="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
-        <div class="flex items-center gap-2">
-          <EmojiPicker onselect={handleEmoji} />
-          <label class="p-2 text-gray-400 hover:text-themed hover:bg-white/5 rounded-full cursor-pointer transition-colors" title="Joindre un fichier">
-            <Paperclip size={20} />
-            <input type="file" class="hidden" bind:this={fileInput} on:change={handleFileSelect} />
-          </label>
-          <button on:click={() => isUrgent = !isUrgent} class="p-2 rounded-full transition-colors {isUrgent ? 'text-red-400 bg-red-500/10' : 'text-gray-400 hover:text-red-400 hover:bg-white/5'}" title="Marquer comme Urgent"><AlertTriangle size={20} /></button>
-        </div>
-        <button on:click={handlePost} 
-                disabled={isSubmitting || (!newMessage && !newFile)} 
-                class="btn-publish inline-flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-white transition-all border disabled:opacity-50 disabled:cursor-not-allowed">
-          {#if isSubmitting}
-            <Loader2 size={18} class="animate-spin text-white/80" />
-          {:else}
-            <span>Publier</span>
-            <Send size={16} />
-          {/if}
-        </button>
-      </div>
-    </div>
-
-    <div class="space-y-6">
-      {#if isLoading && logs.length === 0}
-        <div class="flex justify-center py-10"><Loader2 class="animate-spin themed-spinner" /></div>
-      {:else if logs.length === 0}
-        <div class="text-center py-12 text-gray-500 bg-black/20 rounded-3xl border border-dashed border-white/5">Aucun message pour le moment.</div>
-      {:else}
-        {#each logs as log (log.id)}
-          <div class="group bg-black/20 rounded-3xl p-6 border transition-all hover:bg-black/30 {log.is_urgent ? 'border-red-500/30 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-white/5'}" in:fly={{ y: 20, duration: 400 }}>
-            <div class="flex justify-between items-start mb-4">
-              <div class="flex items-center gap-3">
-                {#if log.profiles?.avatar_url}
-                 <img src={log.profiles.avatar_url} alt="avatar" class="w-10 h-10 rounded-full object-cover border border-white/10" />
-                {:else}
-                  <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold border"
-                       style="background-color: rgba(var(--primary-rgb), 0.2); color: rgb(var(--primary-rgb)); border-color: rgba(var(--primary-rgb), 0.1);">{log.profiles?.full_name?.charAt(0) || '?'}</div>
-                {/if}
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-gray-200">{log.profiles?.full_name || 'Inconnu'}</span>
-                    {#if log.is_urgent}<span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-extrabold uppercase animate-pulse">Urgent</span>{/if}
-                  </div>
-                  <span class="text-xs text-gray-500">{formatDate(log.created_at)}{#if log.updated_at} <span class="italic ml-1 opacity-50">(Modifié)</span> {/if}</span>
-                </div>
-              </div>
-              {#if canEdit(log, userRole)}
-                  <div class="flex gap-2">
-                  <button on:click={() => openModal(log)} class="p-2 text-gray-400 hover:text-themed bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5" title="Modifier"><Pencil size={16} /></button>
-                  <button on:click={() => deleteLog(log.id)} class="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5" title="Supprimer"><Trash2 size={16} /></button>
-                </div>
-              {/if}
+      <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" 
+              in:fly={{ y: -20, duration: 600 }}
+              style="--primary-rgb: var(--color-primary);">
+        <div class="flex items-center gap-3">
+            <div class="p-3 rounded-xl border transition-all duration-500"
+                 style="background-color: rgba(var(--primary-rgb), 0.1); color: rgb(var(--primary-rgb)); border-color: rgba(var(--primary-rgb), 0.2); box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.15);">
+              <BookCopy size={32} />
             </div>
-
-            <div class="text-gray-300 text-sm leading-relaxed mb-4 pl-[3.25rem] prose prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
-               {@html marked(log.message_content || '')}
+            <div>
+              <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Journal</h1>
+              <p class="text-gray-500 text-sm mt-1">Journal et actualités.</p>
             </div>
-
-            {#if log.attachment_path}
-              <div class="mb-4 pl-[3.25rem]">
-                {#if log.attachment_type === 'image'}
-                  <img src={getPublicUrl(log.attachment_path)} alt="Attachement" class="rounded-xl max-h-60 border border-white/10" />
-                {:else}
-                  <a href={getPublicUrl(log.attachment_path)} target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-sm font-medium hover:bg-white/10 transition-colors border border-white/5 text-gray-300"><FileText size={16} /> Voir le fichier joint</a>
-                {/if}
-              </div>
-            {/if}
-
-            <div class="flex gap-2 pt-4 border-t border-white/5 pl-[3.25rem]">
-              {#each Object.entries(reactionConfig) as [emojiKey, config]}
-                 <button type="button" on:click|preventDefault={() => toggleReaction(log.id, emojiKey, log.myReaction)} 
-                         class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 border backdrop-blur-sm {log.myReaction === emojiKey ? config.activeClass : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300 hover:border-white/10'}">
-                  <svelte:component this={config.icon} size={14} class={log.myReaction === emojiKey ? 'scale-110 transition-transform' : ''} />
-                  {#if log.reactionsMap[emojiKey] > 0}<span>{log.reactionsMap[emojiKey]}</span>{/if}
-                </button>
+        </div>
+        
+       <div class="flex items-center gap-3">
+          <div class="relative hidden sm:block group">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-hover:text-themed transition-colors">
+                <User size={14} />
+            </div>
+            <select bind:value={selectedAuthor} on:change={() => loadLogs(true)} 
+                    class="appearance-none pl-9 pr-8 py-2 text-xs rounded-xl bg-black/20 border border-white/10 text-gray-300 focus:ring-2 focus:border-transparent hover:bg-white/5 transition-all cursor-pointer outline-none shadow-sm font-medium"
+                    style="--tw-ring-color: rgba(var(--primary-rgb), 0.3); focus-within: border-color: rgba(var(--primary-rgb), 0.5);">
+              <option value="all" class="bg-gray-900 text-gray-300">Tous les auteurs</option>
+              {#each authors as author}
+                <option value={author.id} class="bg-gray-900 text-gray-300">{author.full_name}</option>
               {/each}
+            </select>
+            <div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover:text-themed transition-colors"><ChevronDown size={14} /></div>
+          </div>
+          <div class="relative group">
+            <div class="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-500 group-hover:text-themed transition-colors z-10"><Calendar size={14} /></div>
+            <input bind:this={datePickerElement} type="text" placeholder="Date..." 
+                   class="pl-9 pr-3 py-2 text-xs rounded-xl bg-black/30 border border-white/10 text-gray-300 placeholder-gray-500 focus:ring-2 focus:border-transparent hover:bg-white/5 transition-all outline-none shadow-sm cursor-pointer w-32 font-medium" 
+                   style="--tw-ring-color: rgba(var(--primary-rgb), 0.3);"/>
+          </div>
+        </div>
+      </header>
+
+      <main class="max-w-3xl mx-auto space-y-8" style="--primary-rgb: var(--color-primary);">
+        
+        {#if hasPermission(currentUser, ACTIONS.JOURNAL_WRITE)}
+            <div class="bg-black/20 border border-white/5 rounded-3xl p-4 transition-all focus-within:bg-black/30 relative shadow-sm" 
+                 in:fly={{ y: 20, duration: 600, delay: 100 }}
+                 style="focus-within: border-color: rgba(var(--primary-rgb), 0.2);">
+              
+              <MarkdownToolbar textarea={textareaElement} bind:value={newMessage} />
+
+              <textarea 
+                bind:value={newMessage} 
+                bind:this={textareaElement}
+                on:input={handleInput}
+                rows="3" 
+                class="w-full bg-transparent border-none p-2 focus:ring-0 resize-none text-base placeholder-gray-500 text-gray-200 mt-2" 
+                placeholder="Quoi de neuf aujourd'hui ? (@username pour taguer)"
+              ></textarea>
+              
+              {#if showSuggestions}
+                <div class="absolute z-40 top-[7.5rem] left-4 right-4 bg-[#0f1115] rounded-xl shadow-2xl border border-white/10 max-h-48 overflow-y-auto custom-scrollbar">
+                  {#each filteredUsers as user}
+                    <button on:click={() => selectUser(user)} class="w-full text-left flex items-center gap-3 p-3 hover:bg-white/5 transition-colors cursor-pointer">
+                      {#if user.avatar_url}
+                         <img src={user.avatar_url} alt="avatar" class="w-6 h-6 rounded-full object-cover" />
+                      {:else}
+                        <div class="w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold"
+                             style="background-color: rgba(var(--primary-rgb), 0.2); color: rgb(var(--primary-rgb));">{user.full_name?.charAt(0) || '?'}</div>
+                      {/if}
+                      <span class="text-sm font-medium text-gray-200">{user.full_name}</span>
+                    </button>
+                  {/each}
+                </div>
+              {/if}
+
+              {#if newFile}
+                <div class="flex items-center gap-2 mb-3 mt-2 px-3 py-2 rounded-xl text-sm border"
+                     style="background-color: rgba(var(--primary-rgb), 0.1); color: rgb(var(--primary-rgb)); border-color: rgba(var(--primary-rgb), 0.2);">
+                  <Paperclip size={14} /> <span class="truncate max-w-xs">{newFile.name}</span>
+                  <button on:click={() => { newFile = null; fileInput.value = ""; }} class="ml-auto hover:text-white" style="color: rgb(var(--primary-rgb));"><X size={14}/></button>
+                </div>
+              {/if}
+
+              <div class="flex items-center justify-between pt-2 border-t border-white/5 mt-2">
+                <div class="flex items-center gap-2">
+                  <EmojiPicker onselect={handleEmoji} />
+                  <label class="p-2 text-gray-400 hover:text-themed hover:bg-white/5 rounded-full cursor-pointer transition-colors" title="Joindre un fichier">
+                    <Paperclip size={20} />
+                    <input type="file" class="hidden" bind:this={fileInput} on:change={handleFileSelect} />
+                  </label>
+                  <button on:click={() => isUrgent = !isUrgent} class="p-2 rounded-full transition-colors {isUrgent ? 'text-red-400 bg-red-500/10' : 'text-gray-400 hover:text-red-400 hover:bg-white/5'}" title="Marquer comme Urgent"><AlertTriangle size={20} /></button>
+                </div>
+                <button on:click={handlePost} 
+                        disabled={isSubmitting || (!newMessage && !newFile)} 
+                        class="btn-publish inline-flex items-center gap-2 px-6 py-2 rounded-xl font-bold text-white transition-all border disabled:opacity-50 disabled:cursor-not-allowed">
+                  {#if isSubmitting}
+                    <Loader2 size={18} class="animate-spin text-white/80" />
+                  {:else}
+                    <span>Publier</span>
+                    <Send size={16} />
+                  {/if}
+                </button>
+              </div>
+            </div>
+        {/if}
+
+        <div class="space-y-6">
+          {#if isLoading && logs.length === 0}
+            <div class="flex justify-center py-10"><Loader2 class="animate-spin themed-spinner" /></div>
+          {:else if logs.length === 0}
+            <div class="text-center py-12 text-gray-500 bg-black/20 rounded-3xl border border-dashed border-white/5">Aucun message pour le moment.</div>
+          {:else}
+            {#each logs as log (log.id)}
+              <div class="group bg-black/20 rounded-3xl p-6 border transition-all hover:bg-black/30 {log.is_urgent ? 'border-red-500/30 bg-red-500/5 shadow-[0_0_15px_rgba(239,68,68,0.1)]' : 'border-white/5'}" in:fly={{ y: 20, duration: 400 }}>
+                <div class="flex justify-between items-start mb-4">
+                  <div class="flex items-center gap-3">
+                    {#if log.profiles?.avatar_url}
+                     <img src={log.profiles.avatar_url} alt="avatar" class="w-10 h-10 rounded-full object-cover border border-white/10" />
+                    {:else}
+                      <div class="w-10 h-10 rounded-full flex items-center justify-center font-bold border"
+                           style="background-color: rgba(var(--primary-rgb), 0.2); color: rgb(var(--primary-rgb)); border-color: rgba(var(--primary-rgb), 0.1);">{log.profiles?.full_name?.charAt(0) || '?'}</div>
+                    {/if}
+                    <div>
+                      <div class="flex items-center gap-2">
+                        <span class="font-bold text-gray-200">{log.profiles?.full_name || 'Inconnu'}</span>
+                        {#if log.is_urgent}<span class="px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 border border-red-500/30 text-[10px] font-extrabold uppercase animate-pulse">Urgent</span>{/if}
+                      </div>
+                      <span class="text-xs text-gray-500">{formatDate(log.created_at)}{#if log.updated_at} <span class="italic ml-1 opacity-50">(Modifié)</span> {/if}</span>
+                    </div>
+                  </div>
+                  
+                  <div class="flex gap-2">
+                    {#if canEdit(log)}
+                        <button on:click={() => openModal(log)} class="p-2 text-gray-400 hover:text-themed bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5" title="Modifier"><Pencil size={16} /></button>
+                    {/if}
+                    {#if canDelete(log)}
+                        <button on:click={() => deleteLog(log.id)} class="p-2 text-gray-400 hover:text-red-400 bg-white/5 hover:bg-white/10 rounded-xl transition-all border border-white/5" title="Supprimer"><Trash2 size={16} /></button>
+                    {/if}
+                  </div>
+
+                </div>
+
+                <div class="text-gray-300 text-sm leading-relaxed mb-4 pl-[3.25rem] prose prose-invert prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0">
+                   {@html marked(log.message_content || '')}
+                </div>
+
+                {#if log.attachment_path}
+                  <div class="mb-4 pl-[3.25rem]">
+                    {#if log.attachment_type === 'image'}
+                      <img src={getPublicUrl(log.attachment_path)} alt="Attachement" class="rounded-xl max-h-60 border border-white/10" />
+                    {:else}
+                      <a href={getPublicUrl(log.attachment_path)} target="_blank" class="inline-flex items-center gap-2 px-4 py-2 bg-white/5 rounded-xl text-sm font-medium hover:bg-white/10 transition-colors border border-white/5 text-gray-300"><FileText size={16} /> Voir le fichier joint</a>
+                    {/if}
+                  </div>
+                {/if}
+
+                <div class="flex gap-2 pt-4 border-t border-white/5 pl-[3.25rem]">
+                  {#each Object.entries(reactionConfig) as [emojiKey, config]}
+                     <button type="button" on:click|preventDefault={() => toggleReaction(log.id, emojiKey, log.myReaction)} 
+                             class="flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all duration-300 border backdrop-blur-sm {log.myReaction === emojiKey ? config.activeClass : 'bg-white/5 border-white/5 text-gray-500 hover:bg-white/10 hover:text-gray-300 hover:border-white/10'}">
+                      <svelte:component this={config.icon} size={14} class={log.myReaction === emojiKey ? 'scale-110 transition-transform' : ''} />
+                      {#if log.reactionsMap[emojiKey] > 0}<span>{log.reactionsMap[emojiKey]}</span>{/if}
+                    </button>
+                  {/each}
+                </div>
+              </div>
+            {/each}
+          {/if}
+          {#if hasMore}
+            <div class="flex justify-center pt-4">
+              <button on:click={() => loadLogs()} disabled={isLoading} 
+                      class="px-6 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all">
+                {isLoading ? 'Chargement...' : 'Voir plus anciens'}
+              </button>
+            </div>
+          {/if}
+        </div>
+      </main>
+      
+      {#if editingLog}
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
+          <div class="w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10 ring-1 ring-white/5 bg-gray-900/90 backdrop-blur-xl transition-all" transition:fly={{ y: 20, duration: 300 }}>
+            <div class="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/5">
+              <h2 class="text-xl font-bold text-gray-100 tracking-tight flex items-center gap-2">
+                <Pencil size={18} style="color: rgb(var(--primary-rgb));" /> Modifier le message
+              </h2>
+              <button on:click={closeModal} class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"><X size={20} /></button>
+            </div>
+            <div class="p-6 space-y-5">
+              <div>
+                <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">Contenu</label>
+                <MarkdownToolbar textarea={editTextareaElement} bind:value={editingLog.message_content} />
+                <textarea 
+                  bind:this={editTextareaElement}
+                  rows="5" 
+                  bind:value={editingLog.message_content} 
+                  class="w-full rounded-b-xl border border-white/10 bg-black/40 p-4 text-sm font-medium text-gray-200 placeholder-gray-600 focus:bg-black/60 transition-all outline-none resize-none shadow-inner" 
+                  placeholder="Votre message..."
+                  style="focus: border-color: rgba(var(--primary-rgb), 0.5); ring-color: rgba(var(--primary-rgb), 0.5);"
+                ></textarea>
+              </div>
+              <div>
+                <label class="flex items-center gap-3 p-4 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition-all bg-black/40 group">
+                  <div class="relative flex items-center">
+                    <input type="checkbox" bind:checked={editingLog.is_urgent} class="peer sr-only" />
+                    <div class="w-5 h-5 border-2 border-gray-500 rounded peer-checked:bg-red-500 peer-checked:border-red-500 transition-all"></div>
+                    <AlertTriangle size={12} class="absolute top-1 left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
+                  </div>
+                  <span class="text-sm font-bold text-gray-400 group-hover:text-gray-200 transition-colors">Marquer comme <span class="{editingLog.is_urgent ? 'text-red-400' : ''}">Urgent</span></span>
+                </label>
+              </div>
+            </div>
+            <div class="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3 relative overflow-hidden">
+              <div class="absolute inset-0 pointer-events-none" style="background-image: linear-gradient(to top, rgba(var(--primary-rgb), 0.05), transparent);"></div>
+              <button on:click={closeModal} class="px-5 py-2.5 text-sm font-medium text-gray-300 border border-white/10 rounded-xl bg-white/5 hover:bg-white/10 hover:text-white transition-all backdrop-blur-md">Annuler</button>
+              <button on:click={saveEditedEntry} 
+                      disabled={isSubmitting} 
+                      class="btn-save px-5 py-2.5 text-sm font-bold text-white border rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 backdrop-blur-md">
+                {#if isSubmitting}
+                  <Loader2 size={16} class="animate-spin" />
+                {:else}
+                  <Save size={16} />
+                {/if} 
+                Enregistrer
+              </button>
             </div>
           </div>
-        {/each}
-      {/if}
-      {#if hasMore}
-        <div class="flex justify-center pt-4">
-          <button on:click={() => loadLogs()} disabled={isLoading} 
-                  class="px-6 py-2 bg-white/5 border border-white/10 rounded-full text-sm font-bold text-gray-400 hover:bg-white/10 hover:text-white transition-all">
-            {isLoading ? 'Chargement...' : 'Voir plus anciens'}
-          </button>
         </div>
       {/if}
     </div>
-  </main>
-  
-  {#if editingLog}
-    <div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" transition:fade>
-      <div class="w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-white/10 ring-1 ring-white/5 bg-gray-900/90 backdrop-blur-xl transition-all" transition:fly={{ y: 20, duration: 300 }}>
-        <div class="flex items-center justify-between px-6 py-5 border-b border-white/10 bg-white/5">
-          <h2 class="text-xl font-bold text-gray-100 tracking-tight flex items-center gap-2">
-            <Pencil size={18} style="color: rgb(var(--primary-rgb));" /> Modifier le message
-          </h2>
-          <button on:click={closeModal} class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors"><X size={20} /></button>
-        </div>
-        <div class="p-6 space-y-5">
-          <div>
-            <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-1">Contenu</label>
-            <MarkdownToolbar textarea={editTextareaElement} bind:value={editingLog.message_content} />
-            <textarea 
-              bind:this={editTextareaElement}
-              rows="5" 
-              bind:value={editingLog.message_content} 
-              class="w-full rounded-b-xl border border-white/10 bg-black/40 p-4 text-sm font-medium text-gray-200 placeholder-gray-600 focus:bg-black/60 transition-all outline-none resize-none shadow-inner" 
-              placeholder="Votre message..."
-              style="focus: border-color: rgba(var(--primary-rgb), 0.5); ring-color: rgba(var(--primary-rgb), 0.5);"
-            ></textarea>
-          </div>
-          <div>
-            <label class="flex items-center gap-3 p-4 border border-white/10 rounded-xl cursor-pointer hover:bg-white/5 transition-all bg-black/40 group">
-              <div class="relative flex items-center">
-                <input type="checkbox" bind:checked={editingLog.is_urgent} class="peer sr-only" />
-                <div class="w-5 h-5 border-2 border-gray-500 rounded peer-checked:bg-red-500 peer-checked:border-red-500 transition-all"></div>
-                <AlertTriangle size={12} class="absolute top-1 left-1 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
-              </div>
-              <span class="text-sm font-bold text-gray-400 group-hover:text-gray-200 transition-colors">Marquer comme <span class="{editingLog.is_urgent ? 'text-red-400' : ''}">Urgent</span></span>
-            </label>
-          </div>
-        </div>
-        <div class="px-6 py-4 border-t border-white/10 bg-white/5 flex justify-end gap-3 relative overflow-hidden">
-          <div class="absolute inset-0 pointer-events-none" style="background-image: linear-gradient(to top, rgba(var(--primary-rgb), 0.05), transparent);"></div>
-          <button on:click={closeModal} class="px-5 py-2.5 text-sm font-medium text-gray-300 border border-white/10 rounded-xl bg-white/5 hover:bg-white/10 hover:text-white transition-all backdrop-blur-md">Annuler</button>
-          <button on:click={saveEditedEntry} 
-                  disabled={isSubmitting} 
-                  class="btn-save px-5 py-2.5 text-sm font-bold text-white border rounded-xl transition-all flex items-center gap-2 disabled:opacity-50 backdrop-blur-md">
-            {#if isSubmitting}
-              <Loader2 size={16} class="animate-spin" />
-            {:else}
-              <Save size={16} />
-            {/if} 
-            Enregistrer
-          </button>
-        </div>
-      </div>
-    </div>
-  {/if}
-</div>
-
-<style>
+{/if} <style>
 
   .text-themed { color: rgb(var(--primary-rgb)); }
   .themed-spinner { color: rgba(var(--primary-rgb), 0.5); }
