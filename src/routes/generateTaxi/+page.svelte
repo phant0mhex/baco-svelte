@@ -26,58 +26,31 @@
   let emailPreviewContent = ""; 
   let uniqueStationNames = [];
 
-  // --- FORMULAIRE ---
-  const initialForm = {
-    id: null,
-    redacteur: '', 
-    status: 'brouillon',
-    motif: 'Dérangement',
-    date_trajet: toLocalInput(), // Initialisation heure locale
-    date_retour: '',
-    
-    // Taxi
-    taxi_nom: '', 
-    taxi_email: '', 
-    taxi_adresse: '', 
-    taxi_tel: '', // Acceptera plusieurs numéros
-    
-    // Trajet
-    type_trajet: 'aller',
-    gare_origine: 'Mons', gare_arrivee: '', gare_via: '',
-    gare_retour_origine: '', gare_retour_arrivee: '',
-    
-    // Passagers
-    nombre_passagers: 1, nombre_pmr: 0,
-    is_pmr: false,
-    pmr_type: 'NV', pmr_nom: '', pmr_prenom: '', pmr_tel: '', pmr_dossier: '', pmr_motif: 'Pas de personnel',
-    pmr_search: '', 
-    passager_nom: '', relation_number: '', facturation: 'SNCB'
-  };
-
-  let form = JSON.parse(JSON.stringify(initialForm));
-
   // --- FONCTIONS UTILITAIRES ---
-
-  // 1. Nettoyage de l'adresse (Enlève [" et "])
-  const cleanAddress = (addr) => {
-      if (!addr) return '';
-      // Si c'est déjà un tableau JS, on joint
-      if (Array.isArray(addr)) return addr.join(', ');
-      // Si c'est une string qui ressemble à du JSON ["..."]
-      if (typeof addr === 'string' && (addr.startsWith('[') || addr.includes('"'))) {
-          try {
-              // On essaie de parser proprement
-              const parsed = JSON.parse(addr);
-              return Array.isArray(parsed) ? parsed.join(', ') : parsed;
-          } catch (e) {
-              // Si le parse échoue, on nettoie brutalement les caractères indésirables
-              return addr.replace(/[\[\]"]/g, '');
+const HIDDEN_TAXIS = ["Melsbroek", "Géraldine", "Laeticia", "Bureau"];
+  // 1. Nettoyage générique (Adresse, Tel, Email) - Enlève [" et "]
+  const cleanData = (input) => {
+      if (!input) return '';
+      // Si c'est déjà un tableau JS
+      if (Array.isArray(input)) return input.join(', ');
+      
+      // Si c'est une string JSON ou brute
+      if (typeof input === 'string') {
+          // Si ça ressemble à un tableau JSON ["..."]
+          if (input.trim().startsWith('[') || input.includes('"')) {
+              try {
+                  const parsed = JSON.parse(input);
+                  return Array.isArray(parsed) ? parsed.join(', ') : parsed;
+              } catch (e) {
+                  // Fallback : nettoyage manuel si le JSON est malformé
+                  return input.replace(/[\[\]"]/g, '').replace(/,/g, ', ');
+              }
           }
       }
-      return addr;
+      return input;
   };
 
-  // 2. Gestion Date Locale (Input)
+  // 2. Gestion Date Locale
   function toLocalInput(dateStr) {
       const date = dateStr ? new Date(dateStr) : new Date();
       const pad = (num) => String(num).padStart(2, '0');
@@ -89,7 +62,7 @@
       return `${YYYY}-${MM}-${DD}T${HH}:${mm}`;
   }
 
-  // 3. Gestion Image Base64 (Logo PDF)
+  // 3. Logo Base64
   const getBase64ImageFromURL = (url) => {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -106,15 +79,34 @@
     });
   };
 
-  // 4. Formatage Affichage Date/Heure
+  // 4. Formatage
   const formatDate = (d) => new Date(d).toLocaleDateString('fr-BE', { timeZone: 'UTC' });
   const formatTime = (d) => new Date(d).toLocaleTimeString('fr-BE', { hour: '2-digit', minute:'2-digit', timeZone: 'UTC' });
   const formatTimeLocal = (dateStr) => {
       if(!dateStr) return '--:--';
-      // Pour l'affichage dans la liste (input UTC -> affichage Local corrigé ou UTC forcé selon besoin)
-      // Ici on force UTC pour correspondre à l'affichage DB brut
       return new Date(dateStr).toLocaleTimeString('fr-BE', {hour: '2-digit', minute:'2-digit', timeZone: 'UTC'});
   };
+
+  // --- FORMULAIRE ---
+  const initialForm = {
+    id: null,
+    redacteur: '', 
+    status: 'brouillon',
+    motif: 'Dérangement',
+    date_trajet: toLocalInput(), 
+    date_retour: '',
+    taxi_nom: '', taxi_email: '', taxi_adresse: '', taxi_tel: '', 
+    type_trajet: 'aller',
+    gare_origine: 'Mons', gare_arrivee: '', gare_via: '',
+    gare_retour_origine: '', gare_retour_arrivee: '',
+    nombre_passagers: 1, nombre_pmr: 0,
+    is_pmr: false,
+    pmr_type: 'NV', pmr_nom: '', pmr_prenom: '', pmr_tel: '', pmr_dossier: '', pmr_motif: 'Pas de personnel',
+    pmr_search: '', 
+    passager_nom: '', relation_number: '', facturation: 'SNCB'
+  };
+
+  let form = JSON.parse(JSON.stringify(initialForm));
 
   // --- CHARGEMENT ---
   onMount(async () => {
@@ -138,11 +130,17 @@
   async function loadTaxis() {
     const { data } = await supabase.from('taxis').select('*').order('nom');
     if (data) {
-        // On nettoie les adresses dès le chargement
-        taxis = data.map(t => ({
-            ...t,
-            adresse: cleanAddress(t.adresse)
-        }));
+        // On nettoie les données brutes dès le chargement pour la liste
+        taxis = data
+            // 1. FILTRAGE : On retire ceux qui sont dans la liste noire
+            .filter(t => !HIDDEN_TAXIS.includes(t.nom))
+            // 2. MAPPING : On nettoie les données restantes
+            .map(t => ({
+                ...t,
+                adresse: cleanData(t.adresse),
+                telephone: cleanData(t.contacts || t.telephone),
+                email: cleanData(t.mail || t.email)
+            }));
     }
   }
 
@@ -157,16 +155,14 @@
   }
 
   // --- LOGIQUE METIER ---
+  
   function handleTaxiChange() {
       const found = taxis.find(t => t.nom.toLowerCase() === form.taxi_nom.toLowerCase());
       if (found) {
-          form.taxi_email = found.email;
-          form.taxi_adresse = cleanAddress(found.adresse); // Nettoyage lors de la sélection
-          form.taxi_tel = found.telephone; // Peut contenir "0475/XX / 065/XX"
-      } else {
-          // Si on change manuellement le nom et qu'il n'est plus dans la liste, on vide pas forcément tout
-          // mais ici on reset pour éviter les mélanges
-          // form.taxi_email = ''; form.taxi_adresse = ''; form.taxi_tel = '';
+          form.taxi_adresse = cleanData(found.adresse);
+          // Le loadTaxis a déjà unifié les colonnes mail/email et contacts/telephone
+          form.taxi_email = cleanData(found.email); 
+          form.taxi_tel = cleanData(found.telephone);
       }
   }
 
@@ -185,8 +181,6 @@
       if (!form.gare_retour_origine) form.gare_retour_origine = form.gare_arrivee;
       if (!form.gare_retour_arrivee) form.gare_retour_arrivee = form.gare_origine;
       if (!form.date_retour && form.date_trajet) {
-          // Pour l'input local, on ne fait pas de calculs savants, on reprend la string et on ajoute les heures
-          // Attention : manipulation simple de string pour l'exemple
           let d = new Date(form.date_trajet);
           d.setHours(d.getHours() + 2);
           form.date_retour = toLocalInput(d); 
@@ -224,12 +218,14 @@ ${data.redacteur || 'SNCB'}`;
   function openEdit(cmd) {
       form = JSON.parse(JSON.stringify(cmd));
       
-      // Conversion UTC (DB) -> Input Local
+      // Conversion UTC -> Local pour inputs
       if(form.date_trajet) form.date_trajet = toLocalInput(form.date_trajet);
       if(form.date_retour) form.date_retour = toLocalInput(form.date_retour);
       
-      // Nettoyage adresse au cas où
-      if(form.taxi_adresse) form.taxi_adresse = cleanAddress(form.taxi_adresse);
+      // Nettoyage des données sales éventuelles
+      if(form.taxi_adresse) form.taxi_adresse = cleanData(form.taxi_adresse);
+      if(form.taxi_tel) form.taxi_tel = cleanData(form.taxi_tel);
+      if(form.taxi_email) form.taxi_email = cleanData(form.taxi_email);
 
       form.pmr_search = ""; 
       selectedCommand = null; 
@@ -246,10 +242,6 @@ ${data.redacteur || 'SNCB'}`;
   }
 
   function openEmailModal(data = form) {
-      // Conversion temporaire des dates pour l'email (car form a des dates input locales)
-      // Pour l'aperçu email, on veut afficher propre. 
-      // L'helper getEmailBody utilise formatDate qui attend de l'ISO ou Date object. 
-      // form.date_trajet est "2024-01-01T12:00". new Date("2024-01-01T12:00") fonctionne.
       emailPreviewContent = getEmailBodyFromData(data);
       showEmailExport = true;
       if (selectedCommand) selectedCommand = null; 
@@ -263,7 +255,11 @@ ${data.redacteur || 'SNCB'}`;
       const payload = { ...form };
       delete payload.pmr_search;
 
-      // Conversion Input Local -> UTC pour DB
+      // Nettoyage AVANT sauvegarde pour éviter de remettre des ["..."] en base
+      payload.taxi_adresse = cleanData(payload.taxi_adresse);
+      payload.taxi_tel = cleanData(payload.taxi_tel);
+      payload.taxi_email = cleanData(payload.taxi_email);
+
       if (payload.date_trajet) payload.date_trajet = new Date(payload.date_trajet).toISOString();
       if (payload.date_retour) payload.date_retour = new Date(payload.date_retour).toISOString();
 
@@ -295,7 +291,6 @@ ${data.redacteur || 'SNCB'}`;
           toast.error("Erreur: " + error.message);
       } else {
           toast.success(form.id ? "Commande modifiée !" : "Commande créée !");
-          // Si création, on utilise le payload (qui a les dates UTC maintenant) pour le PDF
           if (!form.id) generatePDF(payload); 
           goBackToList();
       }
@@ -330,7 +325,7 @@ ${data.redacteur || 'SNCB'}`;
       doc.text("BON DE COMMANDE TAXI", 115, 20, { align: "center" });
       
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
-      doc.text(`ID Commande : #${data.id || 'NOUVEAU'}`, 195, 20, { align: "right" });
+    //   doc.text(`ID Commande : #${data.id || 'NOUVEAU'}`, 195, 20, { align: "right" });
 
       // BLOC 1
       const yRow1 = 35; const hRow1 = 45;
@@ -353,26 +348,31 @@ ${data.redacteur || 'SNCB'}`;
       doc.text("1060 Bruxelles", rM, cY); cY += 6; doc.setFont("helvetica", "bold");
       doc.text("N° TVA : BE 0203 430 576", rM, cY);
 
-      // BLOC 3
+      // BLOC 3 (SOCIETE) - NETTOYAGE DES DONNEES ICI
       const yRow2 = yRow1 + hRow1 + 5; const hRow2 = 40;
       drawBox(10, yRow2, 90, hRow2, "3. Société de Taxi :");
       doc.setFontSize(11); doc.setFont("helvetica", "bold");
       doc.text(data.taxi_nom || "Taxi Indépendant", lM, yRow2 + 15);
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
       
-      // GESTION TELEPHONES MULTIPLES
+      // Tel cleaned
       if(data.taxi_tel) {
           doc.setFontSize(9);
-          const tels = String(data.taxi_tel);
-          // Si trop long, on réduit la taille
+          // cleanData supprime les crochets et guillemets
+          const tels = cleanData(String(data.taxi_tel)); 
           if(tels.length > 30) doc.setFontSize(8);
           doc.text(`Tel: ${tels}`, lM, yRow2 + 22);
       }
-      
-      if(data.taxi_email) { doc.setFontSize(8); doc.text(data.taxi_email, lM, yRow2 + 28); }
+      // Email cleaned
+      if(data.taxi_email) { 
+          doc.setFontSize(8); 
+          const mails = cleanData(String(data.taxi_email));
+          doc.text(mails, lM, yRow2 + 28); 
+      }
+      // Adresse cleaned
       if(data.taxi_adresse) {
            doc.setFontSize(8);
-           const cleanAddr = cleanAddress(data.taxi_adresse); // Nettoyage aussi sur le PDF
+           const cleanAddr = cleanData(data.taxi_adresse);
            const splitAdd = doc.splitTextToSize(cleanAddr, 80);
            doc.text(splitAdd, lM, yRow2 + 34);
       }
@@ -384,7 +384,6 @@ ${data.redacteur || 'SNCB'}`;
       doc.setFontSize(10); const tX = 110; let tY = yRow2 + 12;
       doc.setFont("helvetica", "bold"); doc.text("ALLER :", tX, tY);
       
-      // SURVEILLANCE
       const dateStr = `${formatDate(data.date_trajet)} à ${formatTime(data.date_trajet)}`;
       doc.setDrawColor(200, 0, 0); doc.setLineWidth(0.5); doc.rect(tX + 23, tY - 4, 55, 6); 
       doc.setDrawColor(0); doc.setLineWidth(0.3);
@@ -425,7 +424,7 @@ ${data.redacteur || 'SNCB'}`;
       let motifFinal = data.is_pmr ? (data.pmr_motif || '') : (data.motif || '');
       const splitMotif = doc.splitTextToSize(motifFinal, 140); doc.text(splitMotif, pX + 30, pY);
 
-      // BLOC 6 (CHAUFFEUR)
+      // BLOC 6
       const yRow4 = yRow3 + hRow3 + 5; const hRow4 = 35;
       doc.setLineWidth(0.5); doc.rect(10, yRow4, 190, hRow4); doc.setLineWidth(0.3);
       doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.text("6. Données du trajet (A remplir par le chauffeur)", 12, yRow4 + 5);
@@ -445,17 +444,6 @@ ${data.redacteur || 'SNCB'}`;
 
       doc.save(`Taxi_${data.gare_origine}_${data.id || 'new'}.pdf`);
       if (selectedCommand) selectedCommand = null;
-  }
-
-  function copyToClipboard() {
-      navigator.clipboard.writeText(emailPreviewContent).then(() => {
-          hasCopied = true; toast.success("Email copié !"); setTimeout(() => hasCopied = false, 2000);
-      });
-  }
-  
-  function sendEmail() {
-    const targetEmail = selectedCommand ? selectedCommand.taxi_email : form.taxi_email;
-    window.location.href = `mailto:${targetEmail}?subject=Commande Taxi&body=${encodeURIComponent(emailPreviewContent)}`;
   }
 
   const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-cyan-500/50 outline-none transition-all placeholder-gray-600";
@@ -488,9 +476,9 @@ ${data.redacteur || 'SNCB'}`;
                         <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                         <div class="flex-grow space-y-3 relative z-10 w-full">
                              <div class="flex items-center gap-3 flex-wrap">
-                                <span class="text-[10px] font-mono font-bold text-gray-500 bg-white/5 px-2 py-1 rounded border border-white/10">#{cmd.id}</span>
+                                <!-- <span class="text-[10px] font-mono font-bold text-gray-500 bg-white/5 px-2 py-1 rounded border border-white/10">#{cmd.id}</span> -->
                                 {#if cmd.is_pmr}<span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1"><Users size={10}/> PMR</span>
-                                {:else}<span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1"><User size={10}/> STD</span>{/if}
+                                {:else}<span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1"><User size={10}/> Clientèle Standard</span>{/if}
                                 <span class="text-lg font-bold text-white tracking-tight">{cmd.taxi_nom}</span>
                                 {#if cmd.is_pmr && cmd.pmr_dossier}<span class="ml-auto md:ml-0 text-xs font-mono text-purple-200 bg-purple-900/20 px-2 py-0.5 rounded border border-purple-500/20">Dos: {cmd.pmr_dossier}</span>
                                 {:else if cmd.relation_number}<span class="ml-auto md:ml-0 text-xs font-mono text-cyan-200 bg-cyan-900/20 px-2 py-0.5 rounded border border-cyan-500/20">Réf: {cmd.relation_number}</span>{/if}
@@ -524,8 +512,43 @@ ${data.redacteur || 'SNCB'}`;
                 </div>
             </div>
             <div class="space-y-6">
-                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 relative"><h3 class="text-sm font-bold text-yellow-400 uppercase tracking-wide mb-4 flex items-center gap-2"><Car size={16}/> Société</h3><div><input list="taxis-list" type="text" bind:value={form.taxi_nom} on:input={handleTaxiChange} class={inputClass} placeholder="Rechercher..."><datalist id="taxis-list">{#each taxis as t}<option value={t.nom} />{/each}</datalist></div>{#if form.taxi_email || form.taxi_adresse}<div class="mt-4 p-3 bg-white/5 rounded-xl border border-white/5 text-xs text-gray-400 space-y-2" transition:slide>{#if form.taxi_adresse}<div class="flex items-center gap-2"><MapPin size={12}/> {cleanAddress(form.taxi_adresse)}</div>{/if}{#if form.taxi_email}<div class="flex items-center gap-2"><Mail size={12}/> {form.taxi_email}</div>{/if}{#if form.taxi_tel}<div class="flex items-center gap-2"><Phone size={12}/> {form.taxi_tel}</div>{/if}</div>{/if}</div>
-                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 relative overflow-hidden transition-colors duration-300 {form.is_pmr ? 'border-purple-500/30' : ''}"><div class="absolute top-0 left-0 right-0 h-1 transition-colors duration-300 {form.is_pmr ? 'bg-purple-500' : 'bg-cyan-500'}"></div><div class="flex justify-between items-center mb-4 pt-2"><h3 class="text-sm font-bold uppercase tracking-wide flex items-center gap-2 {form.is_pmr ? 'text-purple-400' : 'text-cyan-400'}">{#if form.is_pmr}<Users size={16}/> PMR{:else}<User size={16}/> Passager{/if}</h3></div><div class="bg-black/40 p-1 rounded-xl flex mb-6 border border-white/10"><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { !form.is_pmr ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = false}>STANDARD</button><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { form.is_pmr ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = true}>PMR</button></div><div class="space-y-4"><div class="grid grid-cols-2 gap-4"><div class="{form.is_pmr ? '' : 'col-span-2'}"><label class={labelClass}>Total Pax</label><input type="number" min="1" bind:value={form.nombre_passagers} class={inputClass}></div>{#if form.is_pmr}<div><label class={labelClass}>Dont PMR</label><input type="number" min="0" bind:value={form.nombre_pmr} class={inputClass}></div>{/if}</div>{#if form.is_pmr}<div transition:slide class="space-y-4 pt-2 border-t border-white/5"><div><label class={labelClass}>Client PMR</label><input list="pmr-clients-list" type="text" bind:value={form.pmr_search} on:input={handlePmrSelect} class={inputClass}><datalist id="pmr-clients-list">{#each pmrClients as c}<option value={`${c.nom} ${c.prenom}`}>{c.type || '?'}</option>{/each}</datalist></div><div><label class={labelClass}>Type</label><select bind:value={form.pmr_type} class={inputClass}><option value="NV">Non-Voyant</option><option value="CRF">Chaise Roulante Fixe</option><option value="CRP">Chaise Roulante Pliable</option><option value="MR">Marche Difficile</option><option value="Diff">Autre difficulté</option></select></div><div class="grid grid-cols-2 gap-2"><input type="text" placeholder="Nom" bind:value={form.pmr_nom} class={inputClass}><input type="text" placeholder="Prénom" bind:value={form.pmr_prenom} class={inputClass}></div><div><label class={labelClass}>Téléphone</label><input type="text" bind:value={form.pmr_tel} class={inputClass}></div><div><label class={labelClass}>N° Dossier</label><input type="text" bind:value={form.pmr_dossier} class="{inputClass} border-purple-500/30"></div></div>{:else}<div transition:slide class="space-y-4 pt-2 border-t border-white/5"><div><label class={labelClass}>Nom Passager</label><input type="text" bind:value={form.passager_nom} class={inputClass}></div><div><label class={labelClass}>Réf / Ordre</label><input type="text" bind:value={form.relation_number} class={inputClass}></div></div>{/if}</div></div></div>
+                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 relative">
+                    <h3 class="text-sm font-bold text-yellow-400 uppercase tracking-wide mb-4 flex items-center gap-2">
+                        <Car size={16}/> Société
+                    </h3>
+                    <div>
+                        <input list="taxis-list" type="text" bind:value={form.taxi_nom} on:input={handleTaxiChange} class={inputClass} placeholder="Rechercher...">
+                        <datalist id="taxis-list">
+                            {#each taxis as t}
+                                <option value={t.nom} />
+                            {/each}
+                        </datalist>
+                    </div>
+                    
+                    {#if form.taxi_email || form.taxi_adresse || form.taxi_tel}
+                        <div class="mt-4 p-3 bg-white/5 rounded-xl border border-white/5 text-xs text-gray-400 space-y-2" transition:slide>
+                            {#if form.taxi_adresse}
+                                <div class="flex items-start gap-2">
+                                    <MapPin size={12} class="mt-0.5 text-gray-500 shrink-0"/> 
+                                    <span>{cleanData(form.taxi_adresse)}</span>
+                                </div>
+                            {/if}
+                            {#if form.taxi_email}
+                                <div class="flex items-center gap-2 text-blue-200">
+                                    <Mail size={12} class="text-blue-400 shrink-0"/> 
+                                    <a href="mailto:{cleanData(form.taxi_email)}" class="hover:underline">{cleanData(form.taxi_email)}</a>
+                                </div>
+                            {/if}
+                            {#if form.taxi_tel}
+                                <div class="flex items-center gap-2 text-green-200">
+                                    <Phone size={12} class="text-green-400 shrink-0"/> 
+                                    <span>{cleanData(form.taxi_tel)}</span>
+                                </div>
+                            {/if}
+                        </div>
+                    {/if}
+                </div>
+                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 relative overflow-hidden transition-colors duration-300 {form.is_pmr ? 'border-purple-500/30' : ''}"><div class="absolute top-0 left-0 right-0 h-1 transition-colors duration-300 {form.is_pmr ? 'bg-purple-500' : 'bg-cyan-500'}"></div><div class="flex justify-between items-center mb-4 pt-2"><h3 class="text-sm font-bold uppercase tracking-wide flex items-center gap-2 {form.is_pmr ? 'text-purple-400' : 'text-cyan-400'}">{#if form.is_pmr}<Users size={16}/> PMR{:else}<User size={16}/> Passager{/if}</h3></div><div class="bg-black/40 p-1 rounded-xl flex mb-6 border border-white/10"><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { !form.is_pmr ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = false}>STANDARD</button><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { form.is_pmr ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = true}>PMR</button></div><div class="space-y-4"><div class="grid grid-cols-2 gap-4"><div class="{form.is_pmr ? '' : 'col-span-2'}"><label class={labelClass}>Total Pass.</label><input type="number" min="1" bind:value={form.nombre_passagers} class={inputClass}></div>{#if form.is_pmr}<div><label class={labelClass}>Dont PMR</label><input type="number" min="0" bind:value={form.nombre_pmr} class={inputClass}></div>{/if}</div>{#if form.is_pmr}<div transition:slide class="space-y-4 pt-2 border-t border-white/5"><div><label class={labelClass}>Client PMR</label><input list="pmr-clients-list" type="text" bind:value={form.pmr_search} on:input={handlePmrSelect} class={inputClass}><datalist id="pmr-clients-list">{#each pmrClients as c}<option value={`${c.nom} ${c.prenom}`}>{c.type || '?'}</option>{/each}</datalist></div><div><label class={labelClass}>Type</label><select bind:value={form.pmr_type} class={inputClass}><option value="NV">Non-Voyant</option><option value="CRF">Chaise Roulante Fixe</option><option value="CRP">Chaise Roulante Pliable</option><option value="MR">Marche Difficile</option><option value="Diff">Autre difficulté</option></select></div><div class="grid grid-cols-2 gap-2"><input type="text" placeholder="Nom" bind:value={form.pmr_nom} class={inputClass}><input type="text" placeholder="Prénom" bind:value={form.pmr_prenom} class={inputClass}></div><div><label class={labelClass}>Téléphone</label><input type="text" bind:value={form.pmr_tel} class={inputClass}></div><div><label class={labelClass}>N° Dossier</label><input type="text" bind:value={form.pmr_dossier} class="{inputClass} border-purple-500/30"></div></div>{:else}<div transition:slide class="space-y-4 pt-2 border-t border-white/5"><div><label class={labelClass}>Nom Passager</label><input type="text" bind:value={form.passager_nom} class={inputClass}></div><div><label class={labelClass}>TC_ / Ordre</label><input type="text" bind:value={form.relation_number} class={inputClass}></div></div>{/if}</div></div></div>
         </div>
 
         <div class="fixed bottom-4 left-4 right-4 z-50 flex flex-wrap justify-end items-center gap-4 p-4 border border-white/10 bg-[#0f1115]/80 backdrop-blur-2xl shadow-2xl rounded-2xl" in:fly={{ y: 20 }}>
