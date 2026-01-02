@@ -6,6 +6,8 @@
   import autoTable from 'jspdf-autotable';
   import { openConfirmModal } from '$lib/stores/modal.js';
   import { toast } from '$lib/stores/toast.js';
+  // Import du store de thème (même si la variable CSS fait le gros du travail)
+  import { currentThemeId } from '$lib/stores/theme';
   import { 
     Car, Calendar, Clock, MapPin, FileText, Save, Trash2, Plus, Loader2, ArrowLeft,
     Printer, Search, X, User, Users, ArrowRightLeft, 
@@ -364,7 +366,7 @@ ${data.redacteur || 'SNCB'}`;
       doc.text("BON DE COMMANDE TAXI", 115, 20, { align: "center" });
       
       doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    //   doc.text(`ID Commande : #${data.id || 'NOUVEAU'}`, 195, 20, { align: "right" });
+      doc.text(`ID Commande : #${data.id || 'NOUVEAU'}`, 195, 20, { align: "right" });
 
       // BLOC 1
       const yRow1 = 35; const hRow1 = 45;
@@ -441,7 +443,7 @@ ${data.redacteur || 'SNCB'}`;
       }
 
       // BLOC 5
-      const yRow3 = yRow2 + hRowTrajet + 5; const hRow3 = 45;
+      const yRow3 = yRow2 + hRowTrajet + 5; const hRow3 = 50; 
       drawBox(10, yRow3, 190, hRow3, "5. Détails & Motif :");
       let pY = yRow3 + 12; const pX = 15;
       doc.setFont("helvetica", "bold"); doc.text("Passager(s) :", pX, pY); doc.setFont("helvetica", "normal");
@@ -471,6 +473,13 @@ ${data.redacteur || 'SNCB'}`;
           doc.setFont("helvetica", "normal");
           const splitMotif = doc.splitTextToSize(data.motif || '', 140); 
           doc.text(splitMotif, pX + 30, pY);
+          
+          const motifHeight = splitMotif.length * 5;
+          const billingY = pY + motifHeight + 1; 
+          doc.setFont("helvetica", "bold");
+          doc.text("À charge de :", pX, billingY);
+          doc.setFont("helvetica", "normal");
+          doc.text(data.facturation || '-', pX + 30, billingY);
       }
 
       // BLOC 6
@@ -495,25 +504,26 @@ ${data.redacteur || 'SNCB'}`;
       if (selectedCommand) selectedCommand = null;
   }
 
-  const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-cyan-500/50 outline-none transition-all placeholder-gray-600";
+  // --- VARIABLES CSS THEME (primary-color) ---
+  const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-[rgb(var(--color-primary))] outline-none transition-all placeholder-gray-600";
   const labelClass = "block text-xs font-bold text-gray-400 uppercase mb-1.5 ml-1 flex items-center gap-1";
 </script>
 
 <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen">
   <header class="flex flex-col md:flex-row justify-between items-end gap-4 border-b border-white/5 pb-6">
     <div class="flex items-center gap-3">
-        <div class="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 shadow-[0_0_15px_rgba(6,182,212,0.15)]"><Car class="w-8 h-8" /></div>
+        <div class="p-3 rounded-xl bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))] border border-[rgba(var(--color-primary),0.2)] shadow-[0_0_15px_rgba(var(--color-primary),0.15)]"><Car class="w-8 h-8" /></div>
         <div><h1 class="text-3xl font-bold text-gray-200 tracking-tight">Taxi</h1><p class="text-gray-500 text-sm mt-1">Commandes de Taxis & PMR.</p></div>
     </div>
     {#if view === 'list'}
-        <button on:click={openNew} class="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/30 px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all"><Plus class="w-5 h-5" /> Nouvelle Commande</button>
+        <button on:click={openNew} class="bg-[rgba(var(--color-primary),0.2)] hover:bg-[rgba(var(--color-primary),0.3)] text-[rgb(var(--color-primary))] border border-[rgba(var(--color-primary),0.3)] px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-all"><Plus class="w-5 h-5" /> Nouvelle Commande</button>
     {:else}
         <button on:click={goBackToList} class="bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10 px-5 py-2.5 rounded-xl font-medium flex items-center gap-2 transition-all"><ArrowLeft class="w-5 h-5" /> Retour liste</button>
     {/if}
   </header>
 
   {#if isLoading}
-    <div class="flex justify-center py-20"><Loader2 class="w-10 h-10 animate-spin text-cyan-500/50" /></div>
+    <div class="flex justify-center py-20"><Loader2 class="w-10 h-10 animate-spin text-[rgb(var(--color-primary))]" /></div>
   {:else}
     {#if view === 'list'}
         <div class="grid grid-cols-1 gap-4" in:fly={{ y: 20 }}>
@@ -521,12 +531,12 @@ ${data.redacteur || 'SNCB'}`;
                 <div class="text-center py-12 border border-dashed border-white/10 rounded-2xl bg-black/20"><p class="text-gray-500">Aucune commande taxi récente.</p></div>
             {:else}
                 {#each commandes as cmd}
-                    <button on:click={() => openHistoryOptions(cmd)} class="w-full text-left bg-black/20 border border-white/5 rounded-2xl p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-cyan-500/30 hover:bg-white/[0.02] transition-all group relative overflow-hidden">
+                    <button on:click={() => openHistoryOptions(cmd)} class="w-full text-left bg-black/20 border border-white/5 rounded-2xl p-4 md:p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-[rgba(var(--color-primary),0.3)] hover:bg-white/[0.02] transition-all group relative overflow-hidden">
                         <div class="absolute inset-0 bg-gradient-to-r from-transparent via-white/[0.03] to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
                         <div class="flex-grow space-y-3 relative z-10 w-full">
                              <div class="flex items-center gap-3 flex-wrap">
                                 {#if cmd.is_pmr}<span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30 flex items-center gap-1"><Users size={10}/> PMR</span>
-                                {:else}<span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1"><User size={10}/> Clientèle Standard</span>{/if}
+                                {:else}<span class="px-2 py-1 rounded text-[10px] font-bold uppercase bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))] border border-[rgba(var(--color-primary),0.2)] flex items-center gap-1"><User size={10}/> Clientèle Standard</span>{/if}
                                 
                                 <span class="px-2 py-1 rounded text-[10px] font-bold uppercase border {cmd.type_trajet === 'aller-retour' ? 'bg-blue-500/10 text-blue-300 border-blue-500/20' : 'bg-gray-500/10 text-gray-400 border-gray-500/20'} flex items-center gap-1">
                                     {#if cmd.type_trajet === 'aller-retour'}<Repeat size={10}/> Aller-Retour{:else}<ArrowRight size={10}/> Aller Simple{/if}
@@ -534,10 +544,10 @@ ${data.redacteur || 'SNCB'}`;
 
                                 <span class="text-lg font-bold text-white tracking-tight">{cmd.taxi_nom}</span>
                                 {#if cmd.is_pmr && cmd.pmr_dossier}<span class="ml-auto md:ml-0 text-xs font-mono text-purple-200 bg-purple-900/20 px-2 py-0.5 rounded border border-purple-500/20">Dos: {cmd.pmr_dossier}</span>
-                                {:else if cmd.relation_number}<span class="ml-auto md:ml-0 text-xs font-mono text-cyan-200 bg-cyan-900/20 px-2 py-0.5 rounded border border-cyan-500/20">Réf: {cmd.relation_number}</span>{/if}
+                                {:else if cmd.relation_number}<span class="ml-auto md:ml-0 text-xs font-mono text-[rgb(var(--color-primary))] bg-[rgba(var(--color-primary),0.1)] px-2 py-0.5 rounded border border-[rgba(var(--color-primary),0.2)]">Réf: {cmd.relation_number}</span>{/if}
                              </div>
                              <div class="flex flex-wrap items-center gap-4 text-sm text-gray-400">
-                                <div class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5"><Calendar size={14} class="text-gray-500"/> <span class="font-medium text-gray-200">{new Date(cmd.date_trajet).toLocaleDateString('fr-BE', {timeZone:'UTC'})}</span><span class="w-px h-3 bg-white/10 mx-1"></span><span class="font-bold text-cyan-400">{formatTimeLocal(cmd.date_trajet)}</span></div>
+                                <div class="flex items-center gap-2 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5"><Calendar size={14} class="text-gray-500"/> <span class="font-medium text-gray-200">{new Date(cmd.date_trajet).toLocaleDateString('fr-BE', {timeZone:'UTC'})}</span><span class="w-px h-3 bg-white/10 mx-1"></span><span class="font-bold text-[rgb(var(--color-primary))]">{formatTimeLocal(cmd.date_trajet)}</span></div>
                                 <div class="flex items-center gap-2"><span class="text-white font-medium">{cmd.gare_origine}</span> <ArrowRight size={14} class="text-gray-600"/> {#if cmd.gare_via}<span class="text-xs text-yellow-500 bg-yellow-500/10 px-1.5 py-0.5 rounded border border-yellow-500/20">{cmd.gare_via}</span><ArrowRight size={14} class="text-gray-600"/>{/if}<span class="text-white font-medium">{cmd.gare_arrivee}</span></div>
                              </div>
                              
@@ -567,7 +577,7 @@ ${data.redacteur || 'SNCB'}`;
         <div class="grid grid-cols-1 xl:grid-cols-3 gap-8" in:fade>
              <div class="xl:col-span-2 space-y-6">
                 <div class="bg-black/20 border border-white/5 rounded-2xl p-6 space-y-4">
-                    <h3 class="text-sm font-bold text-cyan-400 uppercase tracking-wide mb-4 flex items-center gap-2"><FileText size={16}/> Mission</h3>
+                    <h3 class="text-sm font-bold text-[rgb(var(--color-primary))] uppercase tracking-wide mb-4 flex items-center gap-2"><FileText size={16}/> Mission</h3>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div class="md:col-span-2">
                             {#if form.is_pmr}
@@ -602,8 +612,8 @@ ${data.redacteur || 'SNCB'}`;
                     <div><input list="taxis-list" type="text" bind:value={form.taxi_nom} on:input={handleTaxiChange} class={inputClass} placeholder="Rechercher..."><datalist id="taxis-list">{#each taxis as t}<option value={t.nom} />{/each}</datalist></div>
                     {#if form.taxi_email || form.taxi_adresse || form.taxi_tel}<div class="mt-4 p-3 bg-white/5 rounded-xl border border-white/5 text-xs text-gray-400 space-y-2" transition:slide>{#if form.taxi_adresse}<div class="flex items-start gap-2"><MapPin size={12} class="mt-0.5 text-gray-500 shrink-0"/> <span>{cleanData(form.taxi_adresse)}</span></div>{/if}{#if form.taxi_email}<div class="flex items-center gap-2 text-blue-200"><Mail size={12} class="text-blue-400 shrink-0"/> <a href="mailto:{cleanData(form.taxi_email)}" class="hover:underline">{cleanData(form.taxi_email)}</a></div>{/if}{#if form.taxi_tel}<div class="flex items-center gap-2 text-green-200"><Phone size={12} class="text-green-400 shrink-0"/> <span>{cleanData(form.taxi_tel)}</span></div>{/if}</div>{/if}
                 </div>
-                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 relative overflow-hidden transition-colors duration-300 {form.is_pmr ? 'border-purple-500/30' : ''}"><div class="absolute top-0 left-0 right-0 h-1 transition-colors duration-300 {form.is_pmr ? 'bg-purple-500' : 'bg-cyan-500'}"></div><div class="flex justify-between items-center mb-4 pt-2"><h3 class="text-sm font-bold uppercase tracking-wide flex items-center gap-2 {form.is_pmr ? 'text-purple-400' : 'text-cyan-400'}">{#if form.is_pmr}<Users size={16}/> PMR{:else}<User size={16}/> Passager{/if}</h3></div>
-                    <div class="bg-black/40 p-1 rounded-xl flex mb-6 border border-white/10"><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { !form.is_pmr ? 'bg-cyan-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = false}>STANDARD</button><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { form.is_pmr ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = true}>PMR</button></div>
+                <div class="bg-black/20 border border-white/5 rounded-2xl p-6 relative overflow-hidden transition-colors duration-300 {form.is_pmr ? 'border-purple-500/30' : ''}"><div class="absolute top-0 left-0 right-0 h-1 transition-colors duration-300 {form.is_pmr ? 'bg-purple-500' : 'bg-[rgb(var(--color-primary))]'}"></div><div class="flex justify-between items-center mb-4 pt-2"><h3 class="text-sm font-bold uppercase tracking-wide flex items-center gap-2 {form.is_pmr ? 'text-purple-400' : 'text-[rgb(var(--color-primary))]'}">{#if form.is_pmr}<Users size={16}/> PMR{:else}<User size={16}/> Passager{/if}</h3></div>
+                    <div class="bg-black/40 p-1 rounded-xl flex mb-6 border border-white/10"><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { !form.is_pmr ? 'bg-[rgba(var(--color-primary),0.2)] text-[rgb(var(--color-primary))]' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = false}>STANDARD</button><button class="flex-1 py-2 rounded-lg text-xs font-bold transition-all { form.is_pmr ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white' }" on:click={() => form.is_pmr = true}>PMR</button></div>
                     <div class="space-y-4">
                         <div class="grid grid-cols-2 gap-4">
                             {#if form.is_pmr}
@@ -621,7 +631,7 @@ ${data.redacteur || 'SNCB'}`;
 
         <div class="fixed bottom-4 left-4 right-4 z-50 flex flex-wrap justify-end items-center gap-4 p-4 border border-white/10 bg-[#0f1115]/80 backdrop-blur-2xl shadow-2xl rounded-2xl" in:fly={{ y: 20 }}>
             <button on:click={() => openEmailModal(form)} class="mr-auto px-5 py-2.5 rounded-full text-sm font-bold text-blue-400 bg-blue-500/5 border border-blue-500/10 hover:bg-blue-500/10 transition-all flex items-center gap-2"><Mail class="w-4 h-4" /> <span class="hidden sm:inline">E-mail</span></button>
-            <button on:click={() => saveCommande()} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-bold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 hover:bg-cyan-500/20 hover:text-cyan-300 shadow-[0_0_20px_rgba(6,182,212,0.3)] transition-all flex items-center gap-2 disabled:opacity-50">{#if isSaving}<Loader2 class="w-4 h-4 animate-spin"/>{:else}<Save class="w-4 h-4" />{/if} <span>{form.id ? 'Modifier' : 'Enregistrer'} & PDF</span></button>
+            <button on:click={() => saveCommande()} disabled={isSaving} class="px-6 py-2.5 rounded-full text-sm font-bold text-[rgb(var(--color-primary))] bg-[rgba(var(--color-primary),0.1)] border border-[rgba(var(--color-primary),0.2)] hover:bg-[rgba(var(--color-primary),0.2)] hover:text-white shadow-[0_0_20px_rgba(var(--color-primary),0.3)] transition-all flex items-center gap-2 disabled:opacity-50">{#if isSaving}<Loader2 class="w-4 h-4 animate-spin"/>{:else}<Save class="w-4 h-4" />{/if} <span>{form.id ? 'Modifier' : 'Enregistrer'} & PDF</span></button>
         </div>
         <div class="h-24"></div>
     {/if}
@@ -637,7 +647,7 @@ ${data.redacteur || 'SNCB'}`;
             <div class="space-y-3">
                 <button on:click={() => openEdit(selectedCommand)} class="w-full py-3 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold hover:bg-purple-500/20 flex items-center justify-center gap-2"><FilePenLine size={18}/> Modifier</button>
                 <div class="grid grid-cols-2 gap-3">
-                    <button on:click={() => generatePDF(selectedCommand)} class="w-full py-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 font-bold hover:bg-cyan-500/20 flex items-center justify-center gap-2"><Printer size={18}/> PDF</button>
+                    <button on:click={() => generatePDF(selectedCommand)} class="w-full py-3 rounded-xl bg-[rgba(var(--color-primary),0.1)] text-[rgb(var(--color-primary))] border border-[rgba(var(--color-primary),0.2)] font-bold hover:bg-[rgba(var(--color-primary),0.2)] flex items-center justify-center gap-2"><Printer size={18}/> PDF</button>
                     <button on:click={() => openEmailModal(selectedCommand)} class="w-full py-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20 font-bold hover:bg-blue-500/20 flex items-center justify-center gap-2"><Mail size={18}/> Email</button>
                 </div>
                 <div class="h-px bg-white/10 my-2"></div>
