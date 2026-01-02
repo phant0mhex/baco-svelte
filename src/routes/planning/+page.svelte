@@ -100,13 +100,9 @@
     
     // --- FONCTION UTILITAIRE SEMAINE ISO ---
     function getWeekNumber(d) {
-        // Copie de la date pour ne pas modifier l'originale
         d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-        // Ajustement au jeudi le plus proche
         d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-        // 1er janvier
         const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-        // Calcul
         return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
     }
 
@@ -124,7 +120,6 @@
             const dateKey = formatDateKey(day);
             const currentDayObj = new Date(day);
             
-            // Tous les congés (sauf refusés) pour le calendrier
             const dayLeaves = leaveRequests.filter(req => {
                 if (req.status === 'REJECTED') return false; 
                 return isDateInRange(currentDayObj, req.start_date, req.end_date);
@@ -169,9 +164,9 @@
             .order('start_date', { ascending: false });
 
         if (leaves) {
-            leaveRequests = leaves; // Tous pour le calendrier
+            leaveRequests = leaves;
             if (currentUser) {
-                myLeaveRequests = leaves.filter(l => l.user_id === currentUser.id); // Perso pour le haut
+                myLeaveRequests = leaves.filter(l => l.user_id === currentUser.id);
             }
         }
 
@@ -225,39 +220,26 @@
     }
 
     async function handleZoneFinalize(dateKey, shift, e) {
-        // 1. Mise à jour visuelle (Indispensable pour que l'élément reste à l'écran)
         const key = `${dateKey}_${shift}`;
         planningMap[key] = e.detail.items;
         planningMap = { ...planningMap }; 
 
         const { items, info } = e.detail;
 
-        
-
-        // --- CORRECTION MAJEURE ICI ---
-        // On accepte 'dropped', 'droppedIntoZone' ou tout trigger contenant 'dropped'
         if (info.trigger === 'dropped' || info.trigger === 'droppedIntoZone') {
-            
-            // Sécurité : Conversion en String pour être sûr de trouver l'ID (ex: 123 vs "123")
             const droppedUser = items.find(i => String(i.id) === String(info.id));
             
-            
-            // 2. Sauvegarde en Base de Données
             const { data, error } = await supabase
                 .from('planning')
                 .upsert({ 
                     user_id: droppedUser.id, 
                     date: dateKey, 
                     shift: shift 
-                }, { onConflict: 'user_id, date, shift' }) // S'assure de remplacer si existant
+                }, { onConflict: 'user_id, date, shift' })
                 .select();
 
             if (error) {
-               
                 toast.error("Erreur sauvegarde : " + error.message);
-            } else {
-                
-                // toast.success("Enregistré"); // Optionnel si vous trouvez ça trop verbeux
             }
         }
     }
@@ -290,11 +272,10 @@
 
             if (error) throw error;
 
-            // Mise à jour locale
             leaveRequests = leaveRequests.map(l => l.id === leaveId ? {...l, status: newStatus} : l);
             if (currentUser) myLeaveRequests = leaveRequests.filter(l => l.user_id === currentUser.id);
             
-            days = generateCalendarDays(displayedYear, displayedMonth); // Refresh calendrier
+            days = generateCalendarDays(displayedYear, displayedMonth);
             toast.success(`Statut mis à jour`);
         } catch (err) {
             toast.error("Erreur mise à jour");
@@ -314,6 +295,18 @@
         currentLeave = { start_date: '', end_date: '', type: 'CN', reason: '' };
         modalState = { isOpen: true, isEditing: false, leaveId: null };
     }
+
+    // Fonction pour éditer une demande existante
+    function handleEditRequest(request) {
+        currentLeave = {
+            start_date: request.start_date,
+            end_date: request.end_date,
+            type: request.type || 'CN',
+            reason: request.reason || ''
+        };
+        modalState = { isOpen: true, isEditing: true, leaveId: request.id };
+    }
+
     function closeModal() { modalState = { isOpen: false, isEditing: false, leaveId: null }; }
     
     async function saveLeave() {
@@ -323,16 +316,32 @@
         isSubmitting = true;
         try {
             const payload = {
-                user_id: currentUser.id,
                 start_date: currentLeave.start_date,
                 end_date: currentLeave.end_date,
                 type: currentLeave.type,
                 reason: currentLeave.reason,
-                status: 'PENDING'
+                status: 'PENDING' // Retour en attente après modification
             };
-            const { error } = await supabase.from('leave_requests').insert(payload);
+
+            let error;
+            if (modalState.isEditing) {
+                // UPDATE
+                const { error: err } = await supabase
+                    .from('leave_requests')
+                    .update(payload)
+                    .eq('id', modalState.leaveId);
+                error = err;
+            } else {
+                // INSERT
+                payload.user_id = currentUser.id;
+                const { error: err } = await supabase
+                    .from('leave_requests')
+                    .insert(payload);
+                error = err;
+            }
+
             if (error) throw error;
-            toast.success("Demande enregistrée !");
+            toast.success(modalState.isEditing ? "Modification enregistrée !" : "Demande enregistrée !");
             await loadAllData();
             closeModal();
         } catch (e) {
@@ -410,8 +419,12 @@
                                 {/each}
                             </select>
                         </div>
+                        
                         <button on:click={() => deleteLeave(request.id)} class="absolute top-2 right-2 p-1 text-gray-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity">
                             <Trash2 size={14} />
+                        </button>
+                        <button on:click={() => handleEditRequest(request)} class="absolute top-2 right-8 p-1 text-gray-600 hover:text-blue-400 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <Edit size={14} />
                         </button>
                     </div>
                 {:else}
@@ -463,7 +476,6 @@
             </aside>
 
             <div class="flex-grow bg-black/20 border border-white/5 rounded-3xl p-4 shadow-sm overflow-hidden flex flex-col" in:fly={{ y: 20, duration: 600, delay: 200 }}>
-                
                 <div class="flex justify-between items-center mb-4">
                     <div class="flex items-center gap-4 bg-black/30 border border-white/10 rounded-xl p-1 shadow-inner">
                         <button on:click={goToPreviousMonth} class="p-1.5 rounded-lg hover:bg-white/10 text-gray-400 hover:text-themed transition-colors"><ChevronLeft class="w-5 h-5" /></button>
@@ -535,13 +547,24 @@
              style="--primary-rgb: var(--color-primary);">
             <div class="flex justify-between items-center px-6 py-5 border-b border-white/10 bg-white/5">
                 <h3 class="text-xl font-bold text-gray-100 flex items-center gap-2">
-                    <Calendar class="w-5 h-5 text-themed" /> Nouvelle Demande
+                    <Calendar class="w-5 h-5 text-themed" /> 
+                    {modalState.isEditing ? 'Modifier Demande' : 'Nouvelle Demande'}
                 </h3>
                 <button on:click={closeModal} class="text-gray-400 hover:text-white p-2 rounded-lg hover:bg-white/10 transition-colors">
                     <X class="w-5 h-5" />
                 </button>
             </div>
             <form on:submit|preventDefault={saveLeave} class="p-6 space-y-5">
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Type d'absence</label>
+                    <select bind:value={currentLeave.type} class="{inputClass} dark:[color-scheme:dark]">
+                        {#each LEAVE_TYPES as t}
+                            <option value={t.value}>{t.label}</option>
+                        {/each}
+                    </select>
+                </div>
+
                 <div class="grid grid-cols-2 gap-4">
                     <div>
                         <label class="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Début</label>
@@ -552,6 +575,7 @@
                         <input type="date" bind:value={currentLeave.end_date} required class="{inputClass} dark:[color-scheme:dark]">
                     </div>
                 </div>
+
                 <div class="flex justify-end gap-3 pt-4 border-t border-white/10 mt-2">
                     <button type="button" on:click={closeModal} class="px-4 py-2 text-sm font-medium text-gray-400 border border-white/10 rounded-xl hover:bg-white/5">Annuler</button>
                     <button type="submit" disabled={isSubmitting} class="btn-submit-glow px-4 py-2 text-sm font-bold text-white rounded-xl transition-all flex items-center gap-2">
@@ -562,29 +586,9 @@
         </div>
     </div>
 {/if}
+
 <style>
-    .custom-scrollbar::-webkit-scrollbar { width: 4px; }
-    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-    .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
-
-    .btn-themed {
-    /* Utilisation de la variable passée dans l'attribut style */
-    background-color: rgba(var(--primary-rgb), 0.2);
-    border-color: rgba(var(--primary-rgb), 0.3);
-    color: rgb(var(--primary-rgb));
-  }
-
-  .btn-themed:hover {
-    /* Modification de l'opacité au survol */
-    background-color: rgba(var(--primary-rgb), 0.3);
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
-  }
-
-  .text-themed { color: rgb(var(--primary-rgb)); }
-    .themed-spinner { color: rgba(var(--primary-rgb), 0.5); }
-    .hover-text-themed:hover { color: rgb(var(--primary-rgb)); }
-
+   /* Styles existants inchangés */
     .custom-scrollbar::-webkit-scrollbar { width: 4px; }
     .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
     .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 10px; }
@@ -599,6 +603,12 @@
         background-color: rgba(var(--primary-rgb), 0.3);
         border-color: rgba(var(--primary-rgb), 0.5);
         box-shadow: 0 0 20px rgba(var(--primary-rgb), 0.2);
+    }
+    
+    .btn-themed:hover {
+        background-color: rgba(var(--primary-rgb), 0.3);
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(var(--primary-rgb), 0.2);
     }
 
     .active-role-btn {
@@ -622,6 +632,10 @@
         border-radius: 0.25rem;
         border: 1px solid rgba(var(--primary-rgb), 0.25);
     }
+    
+    .text-themed { color: rgb(var(--primary-rgb)); }
+    .themed-spinner { color: rgba(var(--primary-rgb), 0.5); }
+    .hover-text-themed:hover { color: rgb(var(--primary-rgb)); }
 
     .btn-submit-glow {
         background-color: rgba(var(--primary-rgb), 0.8);
@@ -635,4 +649,3 @@
         transform: translateY(-1px);
     }
 </style>
-
