@@ -107,16 +107,16 @@
               </button>
             </div>
 
-          {:else}
+         {:else}
             <div class="flex flex-col h-full">
-              <h2 class="text-2xl font-bold text-white mb-2">{steps[currentStep].title}</h2>
-              <p class="text-gray-400 text-sm mb-6">
+              <h2 class="text-2xl font-bold text-white mb-1">{steps[currentStep].title}</h2>
+              <p class="text-gray-400 text-sm mb-4">
                  Guide interactif : cliquez sur les puces oranges.
               </p>
 
-             <div class="relative flex-1 bg-[#1a1d24] rounded-2xl border border-white/10 overflow-hidden shadow-2xl flex items-center justify-center p-4 md:p-8">
+              <div class="relative flex-1 flex items-start justify-center overflow-hidden pb-4">
                 
-                <div class="relative w-full max-w-4xl aspect-video rounded-xl border border-white/5 shadow-inner bg-black/40 overflow-hidden">
+                <div class="relative w-full max-w-7xl h-auto max-h-[calc(100vh-200px)] aspect-video rounded-xl border border-white/10 shadow-2xl bg-black/40 overflow-hidden">
                    
                    <img 
                      src="/tuto/step{currentStep}.png" 
@@ -147,7 +147,8 @@
                    
                 </div>
               </div>
-            </div> {/if}
+            </div>
+          {/if}
         </div>
       {/key}
     </div>
