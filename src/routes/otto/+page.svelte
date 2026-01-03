@@ -31,8 +31,8 @@
   let showTutorial = false;
 
   // User info pour le PDF (Créateur courant si nouvelle commande)
-  let currentUserProfile = null; // Profil complet avec permissions
-  let isAuthorized = false; // Bloque l'affichage par défaut
+  let currentUserProfile = null; 
+  let isAuthorized = false; 
 
   let showCompanyDropdown = false; 
   let searchTerm = "";
@@ -45,7 +45,7 @@
   let availableSocietes = [];
   let availableChauffeurs = []; // Liste des chauffeurs pour la société sélectionnée
 
-  // --- Variable pour l'input texte de la société ---
+  // Variable pour l'input texte de la société
   let societeInputValue = ""; 
 
   // --- FORMULAIRE ---
@@ -104,17 +104,16 @@
       form.relation = 'TC_';
   }
 
-  // --- Synchronisation ID Société <-> Input Texte ---
+  // --- Synchronisation ID Société -> Input Texte ---
   $: if (form.societe_id && availableSocietes.length > 0) {
       const selected = availableSocietes.find(s => s.id === form.societe_id);
       
-      // On ne met à jour le texte que s'il est vraiment différent (insensible à la casse)
-      // Cela évite que le curseur saute si l'utilisateur est en train de taper (ex: "sncb" vs "SNCB")
+      // On met à jour le texte SEULEMENT s'il est différent (pour éviter les conflits lors de la frappe)
       if (selected && selected.nom.toLowerCase() !== societeInputValue.toLowerCase()) {
           societeInputValue = selected.nom;
       }
 
-      // Chargement des chauffeurs si nécessaire
+      // Chargement des chauffeurs si l'ID est là mais pas la liste
       if (selected && availableChauffeurs.length === 0) loadChauffeurs(form.societe_id);
   }
 
@@ -133,8 +132,7 @@
       return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // ... (Fonctions export inchangées) ...
-function exportToExcel() {
+  function exportToExcel() {
     const dataToExport = filteredCommandes.map(cmd => ({
         Relation: cmd.relation,
         Type: cmd.is_direct ? 'Direct' : 'Omnibus',
@@ -154,9 +152,9 @@ function exportToExcel() {
     XLSX.utils.book_append_sheet(workbook, worksheet, "Commandes Otto");
     XLSX.writeFile(workbook, `Export_Otto_${new Date().toISOString().split('T')[0]}.xlsx`);
     toast.success("Fichier Excel généré !");
-}
+  }
 
-function exportListPDF() {
+  function exportListPDF() {
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.setFontSize(16);
     doc.text("Liste des Commandes Bus (Otto)", 15, 15);
@@ -182,7 +180,7 @@ function exportListPDF() {
 
     doc.save(`Liste_Otto_${new Date().toISOString().split('T')[0]}.pdf`);
     toast.success("Liste PDF générée !");
-}
+  }
 
   async function loadCommandes() {
     const { data, error } = await supabase
@@ -246,6 +244,15 @@ Cordialement,
 ${form.validator?.full_name || currentUserProfile?.full_name || 'Équipe PACO'}
 PACO Sud-Ouest`;
 
+  // Fonction pour l'email (définie ici pour être accessible)
+  function sendEmail() {
+    const society = availableSocietes.find(s => s.id === form.societe_id);
+    const emailTo = society?.email || "";
+    const subject = encodeURIComponent(`Réquisitoire Bus - ${form.relation} - ${new Date(form.date_commande).toLocaleDateString('fr-BE')}`);
+    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${encodeURIComponent(emailBody)}`;
+    toast.info("N'oubliez pas de joindre le PDF à l'e-mail Outlook !");
+  }
+
   async function copyToClipboard() {
     try {
       await navigator.clipboard.writeText(emailBody);
@@ -263,7 +270,7 @@ PACO Sud-Ouest`;
 
   let stopsMetadata = []; 
 
-async function loadStopsForLines(lines) {
+  async function loadStopsForLines(lines) {
     const { data } = await supabase
         .from('ligne_data')
         .select('gare, ligne_nom, ordre')
@@ -273,8 +280,9 @@ async function loadStopsForLines(lines) {
         stopsMetadata = data;
         availableStops = [...new Set(data.map(d => `${d.gare} (${d.ligne_nom})`))];
     }
-}
-function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
+  }
+
+  function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
     if (arretsSelectionnes.length <= 1) return arretsSelectionnes;
 
     const mapped = arretsSelectionnes.map(stopFull => {
@@ -305,7 +313,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
     });
 
     return finalSorted.map(m => `${m.gare} (${m.ligne_nom})`);
-}
+  }
 
   function toggleLine(line) {
       if (form.lignes.includes(line)) form.lignes = form.lignes.filter(l => l !== line);
@@ -326,7 +334,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       if (form.bus_data.length > 1) form.bus_data = form.bus_data.filter((_, i) => i !== index);
   }
 
-  // --- Gestion du changement d'input Société ---
+  // --- GESTION SOCIÉTÉ (Input + Datalist) ---
   function handleSocieteChange(event) {
       const val = event.target.value;
       societeInputValue = val;
@@ -336,7 +344,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
           return;
       }
 
-      // Chercher si le nom correspond exactement à une société existante (insensible à la casse)
+      // Recherche insensible à la casse
       const match = availableSocietes.find(s => s.nom.toLowerCase() === val.toLowerCase());
       
       if (match) {
@@ -344,10 +352,12 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
               selectSociete(match.id);
           }
       } else {
-          // Si pas de match, on vide l'ID mais on garde le texte que l'utilisateur tape
-          form.societe_id = null;
-          availableChauffeurs = [];
-          form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
+          // Si pas de match, on vide l'ID mais on garde le texte, et on vide les chauffeurs
+          if (form.societe_id !== null) {
+              form.societe_id = null;
+              availableChauffeurs = [];
+              form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
+          }
       }
   }
 
@@ -376,23 +386,35 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       }
       form = JSON.parse(JSON.stringify(initialForm));
       form.relation = 'TC_';
-      societeInputValue = ""; // Reset champ texte
+      societeInputValue = ""; 
       availableChauffeurs = [];
       view = 'form';
       goto('/otto', { replaceState: true, noScroll: true });
   }
 
   function openEdit(cmd, updateUrl = true) {
+      // Normalisation des bus pour les anciennes commandes
+      const safeBusData = (cmd.bus_data && cmd.bus_data.length > 0) 
+          ? cmd.bus_data.map(b => ({
+              ...b,
+              chauffeur_id: b.chauffeur_id || null, 
+              is_specific_route: !!b.is_specific_route,
+              origine_specifique: b.origine_specifique || '',
+              destination_specifique: b.destination_specifique || ''
+          }))
+          : [{ plaque: cmd.plaque || '', heure_prevue: cmd.heure_prevue || '', heure_confirmee: cmd.heure_confirmee || '', heure_demob: cmd.heure_demob || '', chauffeur_id: null, is_specific_route: false }];
+
       form = { 
           ...cmd,
-          bus_data: (cmd.bus_data && cmd.bus_data.length > 0) ? cmd.bus_data : [{ plaque: cmd.plaque || '', heure_prevue: cmd.heure_prevue || '', heure_confirmee: cmd.heure_confirmee || '', heure_demob: cmd.heure_demob || '', chauffeur_id: null }]
+          bus_data: safeBusData
       };
       
       if (form.societe_id) {
           loadChauffeurs(form.societe_id);
-          // societeInputValue sera mis à jour par la variable réactive
+          // societeInputValue se mettra à jour via le bloc réactif
       } else {
           societeInputValue = "";
+          availableChauffeurs = [];
       }
 
       view = 'form';
@@ -465,7 +487,8 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
           goBackToList();
       }
   }
-function unlockCommande() {
+
+  function unlockCommande() {
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_WRITE)) {
           return toast.error("Vous n'avez pas les droits pour modifier cette commande.");
       }
@@ -474,7 +497,7 @@ function unlockCommande() {
       });
   }
 
-function deleteCommande(id) {
+  function deleteCommande(id) {
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_DELETE)) {
           return toast.error("Suppression non autorisée.");
       }
@@ -485,13 +508,28 @@ function deleteCommande(id) {
       });
   }
 
-// --- GENERATION PDF ---
-async function generatePDF() {
+  // --- GENERATION PDF ---
+  const getBase64ImageFromURL = (url) => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.setAttribute("crossOrigin", "anonymous");
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.width; canvas.height = img.height;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/png"));
+      };
+      img.onerror = error => reject(error);
+      img.src = url;
+    });
+  };
+
+  async function generatePDF() {
     const doc = new jsPDF();
     const society = availableSocietes.find(s => s.id === form.societe_id);
     let creatorName = form.creator?.full_name || currentUserProfile?.full_name || "Inconnu";
 
-    // --- 1. EN-TÊTE & LOGO ---
     try {
         const logoData = await getBase64ImageFromURL('/SNCB_logo.png');
         doc.addImage(logoData, 'PNG', 15, 10, 25, 16.33);
@@ -518,11 +556,10 @@ async function generatePDF() {
     doc.text(`Tel: ${society?.telephone || '-'}`, rightX, yr, { align: 'right' });
     doc.text(society?.email || '-', rightX, yr + 4, { align: 'right' });
 
-    // --- 2. TITRE DU DOCUMENT ---
     let y = 75;
     doc.setLineWidth(0.5);
     doc.setDrawColor(0);
-    doc.rect(15, y, 180, 20); // Cadre Titre
+    doc.rect(15, y, 180, 20); 
     doc.setFontSize(14);
     doc.setFont("helvetica", "bold");
     doc.text("Demande service bus de remplacement", 105, y + 7, { align: 'center' });
@@ -536,7 +573,6 @@ async function generatePDF() {
 
     y += 25;
 
-    // --- 3. BLOC INFORMATIONS GÉNÉRALES (Cadre dynamique) ---
     const infoStartY = y; 
     
     y += 8;
@@ -583,13 +619,12 @@ async function generatePDF() {
     doc.setFont("helvetica", "bold"); doc.text("Heure d'appel :", 110, y);
     doc.setFont("helvetica", "normal"); doc.text(form.heure_appel || '--:--', 140, y);
     
-    y += 5; // Marge bas du bloc info
+    y += 5; 
 
     doc.rect(15, infoStartY, 180, y - infoStartY);
 
-    y += 10; // Espace avant le tableau
+    y += 10; 
 
-    // --- 4. TABLEAU DES BUS ---
     const busRows = form.bus_data.map((b, i) => {
         const chauf = availableChauffeurs.find(c => c.id == b.chauffeur_id);
         const chauffeurStr = chauf ? `\nChauffeur: ${chauf.nom}\nTel: ${chauf.tel}` : ''; 
@@ -621,7 +656,6 @@ async function generatePDF() {
         }
     });
 
-    // --- 5. RÉSUMÉ & PIED DE PAGE DYNAMIQUE ---
     y = doc.lastAutoTable.finalY + 10;
 
     if (y > 270) {
@@ -659,7 +693,6 @@ async function generatePDF() {
     doc.text(`N° SAP de la commande : 4522 944 778`, legX, footerY + 17);
     doc.setFont("helvetica", "bold"); doc.text(`Numéro de relation : ${form.relation}`, legX, footerY + 25);
 
-    // --- 6. SAUVEGARDE ---
     const societyName = society?.nom || 'Société Inconnue';
     const typeService = form.is_direct ? 'Direct' : 'Omnibus';
     const safe = (str) => (str || '').replace(/[\\/:*?"<>|]/g, '-');
