@@ -34,7 +34,7 @@
   let currentUserProfile = null; // Profil complet avec permissions
   let isAuthorized = false; // Bloque l'affichage par défaut
 
-  let showCompanyDropdown = false; // (N'est plus utilisé avec le datalist, mais gardé pour éviter erreurs si ref)
+  let showCompanyDropdown = false; 
   let searchTerm = "";
   let statusFilter = "all";
   let dateFilter = "";
@@ -45,7 +45,7 @@
   let availableSocietes = [];
   let availableChauffeurs = []; // Liste des chauffeurs pour la société sélectionnée
 
-  // --- NOUVEAU : Variable pour l'input texte de la société ---
+  // --- Variable pour l'input texte de la société ---
   let societeInputValue = ""; 
 
   // --- FORMULAIRE ---
@@ -104,19 +104,18 @@
       form.relation = 'TC_';
   }
 
-  // --- NOUVEAU : Synchroniser le champ texte société avec l'ID sélectionné ---
-  // Si on charge une commande ou si l'ID change, on met à jour le texte affiché
+  // --- Synchronisation ID Société <-> Input Texte ---
   $: if (form.societe_id && availableSocietes.length > 0) {
       const selected = availableSocietes.find(s => s.id === form.societe_id);
-      if (selected && selected.nom !== societeInputValue) {
+      
+      // On ne met à jour le texte que s'il est vraiment différent (insensible à la casse)
+      // Cela évite que le curseur saute si l'utilisateur est en train de taper (ex: "sncb" vs "SNCB")
+      if (selected && selected.nom.toLowerCase() !== societeInputValue.toLowerCase()) {
           societeInputValue = selected.nom;
-          // On s'assure que les chauffeurs sont chargés si on arrive directement en edit
-          if (availableChauffeurs.length === 0) loadChauffeurs(form.societe_id);
       }
-  } else if (!form.societe_id) {
-      // Si l'ID est null (ex: nouvelle commande), on ne vide pas forcément le texte 
-      // si l'utilisateur est en train de taper (géré par handleSocieteInput)
-      // mais on peut le faire si on reset le form.
+
+      // Chargement des chauffeurs si nécessaire
+      if (selected && availableChauffeurs.length === 0) loadChauffeurs(form.societe_id);
   }
 
   // --- FILTRES ---
@@ -134,7 +133,7 @@
       return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // ... (Fonctions export excel/pdf liste inchangées) ...
+  // ... (Fonctions export inchangées) ...
 function exportToExcel() {
     const dataToExport = filteredCommandes.map(cmd => ({
         Relation: cmd.relation,
@@ -238,7 +237,6 @@ function exportListPDF() {
       if (data) availableChauffeurs = data;
   }
 
-  // ... (Email, Clipboard, Logique Métier inchangés) ...
   $: emailBody = `Bonjour, voici le réquisitoire pour le trajet de ce ${new Date(form.date_commande).toLocaleDateString('fr-BE')} entre ${form.origine || '?'} et ${form.destination || '?'} - ${form.relation} (${form.is_direct ? 'Direct' : 'Omnibus'})
 
 Merci pour vos services,
@@ -328,12 +326,17 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       if (form.bus_data.length > 1) form.bus_data = form.bus_data.filter((_, i) => i !== index);
   }
 
-  // --- NOUVEAU : Fonction de gestion du changement d'input Société ---
+  // --- Gestion du changement d'input Société ---
   function handleSocieteChange(event) {
       const val = event.target.value;
       societeInputValue = val;
       
-      // Chercher si le nom correspond exactement à une société existante
+      if (!val) {
+          clearSocieteSelection();
+          return;
+      }
+
+      // Chercher si le nom correspond exactement à une société existante (insensible à la casse)
       const match = availableSocietes.find(s => s.nom.toLowerCase() === val.toLowerCase());
       
       if (match) {
@@ -341,16 +344,22 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
               selectSociete(match.id);
           }
       } else {
-          // Si pas de match (l'utilisateur tape ou efface), on vide l'ID
+          // Si pas de match, on vide l'ID mais on garde le texte que l'utilisateur tape
           form.societe_id = null;
           availableChauffeurs = [];
           form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
       }
   }
 
+  function clearSocieteSelection() {
+      societeInputValue = "";
+      form.societe_id = null;
+      availableChauffeurs = [];
+      form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
+  }
+
   function selectSociete(id) {
       form.societe_id = id;
-      // loadChauffeurs est appelé ici
       loadChauffeurs(id);
       form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
   }
@@ -379,10 +388,9 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
           bus_data: (cmd.bus_data && cmd.bus_data.length > 0) ? cmd.bus_data : [{ plaque: cmd.plaque || '', heure_prevue: cmd.heure_prevue || '', heure_confirmee: cmd.heure_confirmee || '', heure_demob: cmd.heure_demob || '', chauffeur_id: null }]
       };
       
-      // Le champ texte societeInputValue se mettra à jour automatiquement grâce au bloc réactif "$:"
-      
       if (form.societe_id) {
           loadChauffeurs(form.societe_id);
+          // societeInputValue sera mis à jour par la variable réactive
       } else {
           societeInputValue = "";
       }
@@ -397,7 +405,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       }
 
       if (!form.motif) return toast.error("Le motif est requis");
-      if (!form.societe_id) return toast.error("Veuillez sélectionner une société (utilisez la liste)");
+      if (!form.societe_id) return toast.error("Veuillez sélectionner une société valide dans la liste");
       
       if (!form.relation || form.relation.trim() === 'TC_' || form.relation.length < 4) {
           return toast.error("Le numéro de relation doit être complété (ex: TC_123)");
@@ -846,14 +854,14 @@ async function generatePDF() {
                     ></div>
                             <div>
                                 <label class={labelClass}>Société</label>
-                                <div class="relative">
+                                <div class="relative group">
                                    <input 
                                         type="text" 
                                         list="list_societes" 
                                         bind:value={societeInputValue}
                                         on:input={handleSocieteChange}
                                         disabled={isLocked}
-                                        class={inputClass} 
+                                        class="{inputClass} pr-8" 
                                         placeholder="Rechercher une société..."
                                    >
                                    <datalist id="list_societes">
@@ -862,7 +870,16 @@ async function generatePDF() {
                                         {/each}
                                    </datalist>
                                    
-                                   {#if form.societe_id}
+                                   {#if societeInputValue && !isLocked}
+                                        <button 
+                                            type="button"
+                                            on:click={clearSocieteSelection}
+                                            class="absolute right-2 top-2.5 text-gray-500 hover:text-white transition-colors"
+                                            title="Effacer"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                   {:else if form.societe_id}
                                         <div class="absolute right-3 top-2.5 text-orange-400 pointer-events-none">
                                             <CheckCircle size={16} />
                                         </div>
