@@ -630,30 +630,52 @@ async function generatePDF() {
         }
     });
 
+// Récupération de la position Y après le tableau
     y = doc.lastAutoTable.finalY + 10;
+
+    // Vérification de sécurité : si on est déjà très bas sur la page, on saute une page pour le résumé
+    if (y > 275) {
+        doc.addPage();
+        y = 20;
+    }
+
+    // Affichage des infos voyageurs
     doc.setFont("helvetica", "bold"); doc.text("Nombre de voyageurs :", labelX, y);
     doc.setFont("helvetica", "normal"); doc.text(String(form.nombre_voyageurs || 'Non communiqué'), valueX + 10, y);
     doc.setFont("helvetica", "bold"); doc.text("Dont PMR :", 130, y);
     doc.setFont("helvetica", "normal"); doc.text(String(form.nombre_pmr || '0'), 155, y);
 
-    const footerY = 230;
-    doc.setDrawColor(0); doc.rect(15, footerY, 180, 45);
+    // --- GESTION DYNAMIQUE DU PIED DE PAGE ---
+    
+    const footerHeight = 45;
+    const pageHeight = doc.internal.pageSize.height; // 297mm pour A4
+    
+    // Par défaut, on veut le footer en bas (ex: 230), 
+    // MAIS on prend le max entre 230 et la position actuelle (y) + une marge (15mm)
+    let footerY = Math.max(230, y + 15);
+
+    // Si le footer dépasse la hauteur de la page, on ajoute une nouvelle page
+    if (footerY + footerHeight > pageHeight - 10) {
+        doc.addPage();
+        footerY = 20; // On place le footer en haut de la nouvelle page
+    }
+
+    // Dessin du cadre de facturation (Footer)
+    doc.setDrawColor(0); doc.rect(15, footerY, 180, footerHeight);
+    
     doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text("Adresse de facturation :", 20, footerY + 6);
     doc.setFont("helvetica", "normal"); doc.text(["SNCB", "Purchase Accounting B-F.224", "Rue de France 56", "1060 BRUXELLES"], 20, footerY + 12);
+    
     const legX = 100;
     doc.setFont("helvetica", "bold"); doc.text("Mentions obligatoires sur la facture :", legX, footerY + 6);
     doc.setFont("helvetica", "normal"); doc.text(`Numéro de TVA : BE 0203 430 576`, legX, footerY + 12);
     doc.text(`N° SAP de la commande : 4522 944 778`, legX, footerY + 17);
     doc.setFont("helvetica", "bold"); doc.text(`Numéro de relation : ${form.relation}`, legX, footerY + 25);
 
-// Construction du nom de fichier selon le format :
-    // Date - C3 - Société - Origine - Destination - Type - Relation
+    // Nom de fichier
     const societyName = society?.nom || 'Société Inconnue';
     const typeService = form.is_direct ? 'Direct' : 'Omnibus';
-    
-    // Fonction utilitaire pour nettoyer les caractères interdits dans les noms de fichiers (optionnel mais conseillé)
     const safe = (str) => (str || '').replace(/[\\/:*?"<>|]/g, '-');
-
     const fileName = `${form.date_commande} - C3 - ${safe(societyName)} - ${safe(form.origine)} - ${safe(form.destination)} - ${typeService} - ${safe(form.relation)}.pdf`;
 
     doc.save(fileName);
