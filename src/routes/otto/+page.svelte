@@ -603,7 +603,19 @@ async function generatePDF() {
     doc.text(`N° SAP de la commande : 4522 944 778`, legX, footerY + 17);
     doc.setFont("helvetica", "bold"); doc.text(`Numéro de relation TC : ${form.relation}`, legX, footerY + 25);
 
-    doc.save(`Ordre_Bus_${form.relation}.pdf`);
+// Construction du nom de fichier selon le format :
+    // Date - C3 - Société - Origine - Destination - Type - Relation
+    const societyName = society?.nom || 'Société Inconnue';
+    const typeService = form.is_direct ? 'Direct' : 'Omnibus';
+    
+    // Fonction utilitaire pour nettoyer les caractères interdits dans les noms de fichiers (optionnel mais conseillé)
+    const safe = (str) => (str || '').replace(/[\\/:*?"<>|]/g, '-');
+
+    const fileName = `${form.date_commande} - C3 - ${safe(societyName)} - ${safe(form.origine)} - ${safe(form.destination)} - ${typeService} - ${safe(form.relation)}.pdf`;
+
+    doc.save(fileName);
+
+
   }
 
   // Styles
