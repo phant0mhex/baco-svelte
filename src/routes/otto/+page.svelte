@@ -43,6 +43,7 @@
   let availableStops = [];
   let uniqueStationNames = [];
   let availableSocietes = [];
+  let availableChauffeurs = []; // AJOUT: Liste des chauffeurs pour la société sélectionnée
 
   // --- FORMULAIRE ---
   const initialForm = {
@@ -67,7 +68,7 @@
     sent_at: null,      // Date d'envoi/clôture
     sent_by_name: null, // Nom de la personne qui a clôturé
     bus_data: [
-        { plaque: '', heure_prevue: '', heure_confirmee: '', heure_demob: '' }
+        { plaque: '', heure_prevue: '', heure_confirmee: '', heure_demob: '', chauffeur_id: null, is_specific_route: false, origine_specifique: '', destination_specifique: '' }
     ]
   };
 
@@ -213,6 +214,21 @@ function exportListPDF() {
     if (data) availableSocietes = data;
   }
 
+  // AJOUT : Charger les chauffeurs d'une société spécifique
+  async function loadChauffeurs(societeId) {
+      if (!societeId) {
+          availableChauffeurs = [];
+          return;
+      }
+      const { data } = await supabase
+          .from('chauffeurs_bus')
+          .select('*')
+          .eq('societe_id', societeId)
+          .order('nom');
+      
+      if (data) availableChauffeurs = data;
+  }
+
   // Génération dynamique du message (Mis à jour avec Direct/Omnibus)
   $: emailBody = `Bonjour, voici le réquisitoire pour le trajet de ce ${new Date(form.date_commande).toLocaleDateString('fr-BE')} entre ${form.origine || '?'} et ${form.destination || '?'} - ${form.relation} (${form.is_direct ? 'Direct' : 'Omnibus'})
 
@@ -304,7 +320,7 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
 
   function addBus() {
       const lastBus = form.bus_data.length > 0 ? form.bus_data[form.bus_data.length - 1] : {};
-      form.bus_data = [...form.bus_data, { plaque: '', heure_prevue: lastBus.heure_prevue || '', heure_confirmee: '', heure_demob: lastBus.heure_demob || '' }];
+      form.bus_data = [...form.bus_data, { plaque: '', heure_prevue: lastBus.heure_prevue || '', heure_confirmee: '', heure_demob: lastBus.heure_demob || '', chauffeur_id: null, is_specific_route: false }];
   }
 
   function removeBus(index) {
@@ -314,6 +330,9 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
   function selectSociete(id) {
       form.societe_id = id;
       showCompanyDropdown = false;
+      // Charger les chauffeurs et reset la sélection chauffeur des bus
+      loadChauffeurs(id);
+      form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
   }
 
   // --- ACTIONS ---
@@ -338,8 +357,14 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       // Si pas les droits WRITE, le form sera "isLocked" (read-only)
       form = { 
           ...cmd,
-          bus_data: (cmd.bus_data && cmd.bus_data.length > 0) ? cmd.bus_data : [{ plaque: cmd.plaque || '', heure_prevue: cmd.heure_prevue || '', heure_confirmee: cmd.heure_confirmee || '', heure_demob: cmd.heure_demob || '' }]
+          bus_data: (cmd.bus_data && cmd.bus_data.length > 0) ? cmd.bus_data : [{ plaque: cmd.plaque || '', heure_prevue: cmd.heure_prevue || '', heure_confirmee: cmd.heure_confirmee || '', heure_demob: cmd.heure_demob || '', chauffeur_id: null }]
       };
+      
+      // Charger les chauffeurs si une société est déjà définie
+      if (form.societe_id) {
+          loadChauffeurs(form.societe_id);
+      }
+
       view = 'form';
       if (updateUrl) goto(`?id=${cmd.id}`, { replaceState: false, noScroll: true, keepFocus: true });
   }
@@ -572,19 +597,37 @@ async function generatePDF() {
     doc.setFont("helvetica", "normal"); doc.text(form.heure_appel || '--:--', 140, y);
     y += 10;
 
-    const busRows = form.bus_data.map((b, i) => [
-        `Bus ${i+1}`, b.plaque || '?', b.heure_prevue || '-', b.heure_confirmee || '-', b.heure_demob || '-'
-    ]);
+    const busRows = form.bus_data.map((b, i) => {
+        // Récupération infos chauffeur
+        const chauf = availableChauffeurs.find(c => c.id == b.chauffeur_id);
+        const chauffeurStr = chauf ? `\nChauffeur: ${chauf.nom}\nTel: ${chauf.tel}` : '';
+        
+        // Récupération infos trajet spécifique
+        const routeStr = b.is_specific_route && (b.origine_specifique || b.destination_specifique)
+            ? `\n[TRAJET]: ${b.origine_specifique || '?'} -> ${b.destination_specifique || '?'}`
+            : '';
+
+        return [
+            `Bus ${i+1}${chauffeurStr}${routeStr}`, // On ajoute tout dans la première colonne
+            b.plaque || '?', 
+            b.heure_prevue || '-', 
+            b.heure_confirmee || '-', 
+            b.heure_demob || '-'
+        ];
+    });
 
     autoTable(doc, {
         startY: y,
-        head: [['Véhicule', 'Plaque', 'H. Prévue', 'H. Confirmée', 'Démob.']],
+        head: [['Véhicule / Info', 'Plaque', 'H. Prévue', 'H. Confirmée', 'Démob.']],
         body: busRows,
         theme: 'grid',
         headStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 3 },
+        styles: { fontSize: 9, cellPadding: 3, valign: 'middle' }, 
         margin: { left: 20 },
-        tableWidth: 170
+        tableWidth: 170,
+        columnStyles: {
+            0: { cellWidth: 70 } // On élargit la première colonne pour contenir les infos
+        }
     });
 
     y = doc.lastAutoTable.finalY + 10;
@@ -863,25 +906,68 @@ async function generatePDF() {
                                 <button on:click={addBus} class="text-xs bg-green-500/20 text-green-400 px-3 py-1.5 rounded-lg hover:bg-green-500/30 transition-colors flex items-center gap-1 font-bold border border-green-500/30"><Plus size={14}/> Ajouter Bus</button>
                             {/if}
                         </div>
+                        
                         <div class="space-y-4">
                             {#each form.bus_data as bus, i}
                                 <div class="bg-white/5 rounded-xl border border-white/10 overflow-hidden transition-all hover:border-white/20 hover:bg-white/[0.07]">
                                     <div class="flex justify-between items-center px-4 py-2 bg-black/20 border-b border-white/5">
                                         <div class="flex items-center gap-2">
                                             <span class="text-xs font-mono font-bold text-orange-400 bg-orange-500/10 px-2 py-1 rounded border border-orange-500/20">BUS #{i+1}</span>
+                                            
+                                            {#if bus.chauffeur_id}
+                                                {@const chauf = availableChauffeurs.find(c => c.id == bus.chauffeur_id)}
+                                                {#if chauf}
+                                                    <span class="text-[10px] text-gray-400 flex items-center gap-1 border-l border-white/10 pl-2 ml-2">
+                                                        <User size={12}/> {chauf.nom} ({chauf.tel})
+                                                    </span>
+                                                {/if}
+                                            {/if}
                                         </div>
                                         <button on:click={() => removeBus(i)} disabled={isLocked} class="text-gray-500 hover:text-red-400 transition-colors p-1"><MinusCircle size={16}/></button>
                                     </div>
-                                    <div class="p-4 grid grid-cols-1 md:grid-cols-4 gap-4">
-                                        <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Plaque</label><input type="text" bind:value={bus.plaque} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white uppercase outline-none focus:border-green-500/50" placeholder="1-ABC-123"></div>
-                                        <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">H. Prévue</label><input type="time" bind:value={bus.heure_prevue} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
-                                        <div><label class="text-[10px] text-green-500/70 uppercase font-bold mb-1.5 block">H. Confirmée</label><input type="time" bind:value={bus.heure_confirmee} disabled={isLocked} class="w-full bg-black/30 border border-green-900/30 rounded-lg px-3 py-2 text-sm text-green-300 outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
-                                        <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Démob.</label><input type="time" bind:value={bus.heure_demob} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
+
+                                    <div class="p-4 space-y-4">
+                                        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                            <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Plaque</label><input type="text" bind:value={bus.plaque} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white uppercase outline-none focus:border-green-500/50" placeholder="1-ABC-123"></div>
+                                            <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">H. Prévue</label><input type="time" bind:value={bus.heure_prevue} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
+                                            <div><label class="text-[10px] text-green-500/70 uppercase font-bold mb-1.5 block">H. Confirmée</label><input type="time" bind:value={bus.heure_confirmee} disabled={isLocked} class="w-full bg-black/30 border border-green-900/30 rounded-lg px-3 py-2 text-sm text-green-300 outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
+                                            <div><label class="text-[10px] text-gray-500 uppercase font-bold mb-1.5 block">Démob.</label><input type="time" bind:value={bus.heure_demob} disabled={isLocked} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-green-500/50 dark:[color-scheme:dark]"></div>
+                                        </div>
+
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-white/5">
+                                            <div>
+                                                <label class="text-[10px] text-blue-400 uppercase font-bold mb-1.5 flex items-center gap-1"><User size={12}/> Chauffeur (Optionnel)</label>
+                                                <select bind:value={bus.chauffeur_id} disabled={isLocked || availableChauffeurs.length === 0} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500/50">
+                                                    <option value={null}>-- Sélectionner --</option>
+                                                    {#each availableChauffeurs as chauf}
+                                                        <option value={chauf.id}>{chauf.nom}</option>
+                                                    {/each}
+                                                </select>
+                                                {#if availableChauffeurs.length === 0 && form.societe_id}
+                                                    <p class="text-[9px] text-red-400 mt-1 italic">Aucun chauffeur trouvé pour cette société.</p>
+                                                {/if}
+                                            </div>
+
+                                            <div class="bg-black/20 rounded-lg p-2 border border-white/5">
+                                                <label class="flex items-center gap-2 cursor-pointer mb-2">
+                                                    <input type="checkbox" bind:checked={bus.is_specific_route} disabled={isLocked} class="hidden peer">
+                                                    <div class="w-3 h-3 rounded-full border border-white/30 peer-checked:bg-orange-500 peer-checked:border-orange-500 transition-colors"></div>
+                                                    <span class="text-[10px] font-bold text-gray-400 uppercase">Ce bus effectue un trajet différent</span>
+                                                </label>
+                                                
+                                                {#if bus.is_specific_route}
+                                                    <div class="grid grid-cols-2 gap-2" transition:slide>
+                                                        <input type="text" bind:value={bus.origine_specifique} disabled={isLocked} class="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600" placeholder="Origine spécifique">
+                                                        <input type="text" bind:value={bus.destination_specifique} disabled={isLocked} class="bg-black/30 border border-white/10 rounded px-2 py-1.5 text-xs text-white placeholder-gray-600" placeholder="Destination spécifique">
+                                                    </div>
+                                                {/if}
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             {/each}
                         </div>
-                    </div>
+                        </div>
                 </div>
                 <div class="space-y-6">
                     <div class="bg-black/20 border border-white/5 rounded-2xl p-6 max-h-[400px] overflow-y-auto custom-scrollbar">
