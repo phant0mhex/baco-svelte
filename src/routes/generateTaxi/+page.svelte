@@ -568,7 +568,32 @@ ${data.redacteur || 'SNCB'}`;
       doc.rect(10, yFooter + 2, 90, 25); doc.text("Signature & Cachet Taxi :", 12, yFooter + 6);
       doc.rect(110, yFooter + 2, 90, 25); doc.text("Signature Agent SNCB (Si présent) :", 112, yFooter + 6);
 
-      doc.save(`Taxi_${data.gare_origine}_${data.id || 'new'}.pdf`);
+
+     // 1. Formatage de la date (YYYY-MM-DD)
+      const dateFile = new Date(data.date_trajet).toLocaleDateString('fr-CA');
+
+      // 2. Choix du numéro selon le type (PMR ou Standard)
+      let numeroReference = "";
+
+      if (data.is_pmr) {
+          // Si PMR : on prend le numéro de dossier. 
+          // Si vide, on met un fallback "PMR-ID" pour ne pas avoir un nom de fichier vide.
+          numeroReference = data.pmr_dossier || `PMR-${data.id || 'new'}`;
+      } else {
+          // Si Standard : on prend le numéro de relation.
+          numeroReference = data.relation_number || `Ref-${data.id || 'new'}`;
+      }
+
+      // 3. Construction du nom complet
+      // Structure : Commande - Date - Départ - Arrivée - (Dossier OU Relation)
+      const rawFileName = `Commande-${dateFile}-${data.gare_origine}-${data.gare_arrivee}-${numeroReference}.pdf`;
+
+      // 4. Nettoyage (Sécurité pour éviter les caractères interdits comme / ou :)
+      const safeFileName = rawFileName.replace(/[^a-z0-9\.\-_]/gi, '_');
+
+      doc.save(safeFileName);
+
+
       if (selectedCommand) selectedCommand = null;
   }
 
