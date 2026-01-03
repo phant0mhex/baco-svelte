@@ -34,7 +34,7 @@
   let currentUserProfile = null; // Profil complet avec permissions
   let isAuthorized = false; // Bloque l'affichage par défaut
 
-  let showCompanyDropdown = false;
+  let showCompanyDropdown = false; // (N'est plus utilisé avec le datalist, mais gardé pour éviter erreurs si ref)
   let searchTerm = "";
   let statusFilter = "all";
   let dateFilter = "";
@@ -43,7 +43,10 @@
   let availableStops = [];
   let uniqueStationNames = [];
   let availableSocietes = [];
-  let availableChauffeurs = []; // AJOUT: Liste des chauffeurs pour la société sélectionnée
+  let availableChauffeurs = []; // Liste des chauffeurs pour la société sélectionnée
+
+  // --- NOUVEAU : Variable pour l'input texte de la société ---
+  let societeInputValue = ""; 
 
   // --- FORMULAIRE ---
   const initialForm = {
@@ -58,15 +61,14 @@
     arrets: [],
     origine: '',
     destination: '',
-    is_direct: true, // AJOUT : État pour le switch
+    is_direct: true, 
     is_mail_sent: false,
     is_aller_retour: false,
     nombre_voyageurs: null,
     nombre_pmr: null,
     capacite_bus: 50,
-    // AJOUT : Champs pour l'audit
-    sent_at: null,      // Date d'envoi/clôture
-    sent_by_name: null, // Nom de la personne qui a clôturé
+    sent_at: null,      
+    sent_by_name: null, 
     bus_data: [
         { plaque: '', heure_prevue: '', heure_confirmee: '', heure_demob: '', chauffeur_id: null, is_specific_route: false, origine_specifique: '', destination_specifique: '' }
     ]
@@ -74,16 +76,12 @@
 
   let form = JSON.parse(JSON.stringify(initialForm));
 
-  // AJOUT : Variable réactive pour le verrouillage
-  // Le bon est verrouillé si le statut est 'envoye' OU si l'utilisateur n'a pas les droits d'écriture
   $: isLocked = form.status === 'envoye' || !hasPermission(currentUserProfile, ACTIONS.OTTO_WRITE);
 
   onMount(async () => {
-    // 1. Auth Check
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) return goto('/');
 
-    // 2. Profil & Permissions
     const { data: profile } = await supabase
         .from('profiles')
         .select('*')
@@ -92,13 +90,11 @@
     
     currentUserProfile = { ...session.user, ...profile };
 
-    // 3. Vérification Permission LECTURE
     if (!hasPermission(currentUserProfile, ACTIONS.OTTO_READ)) {
         toast.error("Accès refusé.");
         return goto('/accueil');
     }
 
-    // 4. Autorisation OK -> Chargement
     isAuthorized = true;
     await Promise.all([loadCommandes(), loadLinesRef(), loadSocietes(), loadAllStops()]);
     isLoading = false;
@@ -106,6 +102,21 @@
 
   $: if (form.relation && !form.relation.startsWith('TC_')) {
       form.relation = 'TC_';
+  }
+
+  // --- NOUVEAU : Synchroniser le champ texte société avec l'ID sélectionné ---
+  // Si on charge une commande ou si l'ID change, on met à jour le texte affiché
+  $: if (form.societe_id && availableSocietes.length > 0) {
+      const selected = availableSocietes.find(s => s.id === form.societe_id);
+      if (selected && selected.nom !== societeInputValue) {
+          societeInputValue = selected.nom;
+          // On s'assure que les chauffeurs sont chargés si on arrive directement en edit
+          if (availableChauffeurs.length === 0) loadChauffeurs(form.societe_id);
+      }
+  } else if (!form.societe_id) {
+      // Si l'ID est null (ex: nouvelle commande), on ne vide pas forcément le texte 
+      // si l'utilisateur est en train de taper (géré par handleSocieteInput)
+      // mais on peut le faire si on reset le form.
   }
 
   // --- FILTRES ---
@@ -123,11 +134,11 @@
       return matchesSearch && matchesStatus && matchesDate;
   });
 
-  // --- EXPORT XLSX ---
+  // ... (Fonctions export excel/pdf liste inchangées) ...
 function exportToExcel() {
     const dataToExport = filteredCommandes.map(cmd => ({
         Relation: cmd.relation,
-        Type: cmd.is_direct ? 'Direct' : 'Omnibus', // AJOUT DANS EXCEL
+        Type: cmd.is_direct ? 'Direct' : 'Omnibus',
         Société: cmd.societes_bus?.nom || 'Inconnue',
         Statut: cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon',
         Date: new Date(cmd.date_commande).toLocaleDateString('fr-BE'),
@@ -146,7 +157,6 @@ function exportToExcel() {
     toast.success("Fichier Excel généré !");
 }
 
-// --- EXPORT PDF (LISTE) ---
 function exportListPDF() {
     const doc = new jsPDF('l', 'mm', 'a4');
     doc.setFontSize(16);
@@ -154,7 +164,7 @@ function exportListPDF() {
     
     const rows = filteredCommandes.map(cmd => [
         cmd.relation,
-        cmd.is_direct ? 'Direct' : 'Omnibus', // AJOUT DANS PDF LISTE
+        cmd.is_direct ? 'Direct' : 'Omnibus',
         cmd.societes_bus?.nom || '-',
         cmd.status === 'envoye' ? 'Clôturé' : 'Brouillon',
         new Date(cmd.date_commande).toLocaleDateString('fr-BE'),
@@ -214,7 +224,6 @@ function exportListPDF() {
     if (data) availableSocietes = data;
   }
 
-  // AJOUT : Charger les chauffeurs d'une société spécifique
   async function loadChauffeurs(societeId) {
       if (!societeId) {
           availableChauffeurs = [];
@@ -229,7 +238,7 @@ function exportListPDF() {
       if (data) availableChauffeurs = data;
   }
 
-  // Génération dynamique du message (Mis à jour avec Direct/Omnibus)
+  // ... (Email, Clipboard, Logique Métier inchangés) ...
   $: emailBody = `Bonjour, voici le réquisitoire pour le trajet de ce ${new Date(form.date_commande).toLocaleDateString('fr-BE')} entre ${form.origine || '?'} et ${form.destination || '?'} - ${form.relation} (${form.is_direct ? 'Direct' : 'Omnibus'})
 
 Merci pour vos services,
@@ -270,7 +279,6 @@ async function loadStopsForLines(lines) {
 function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
     if (arretsSelectionnes.length <= 1) return arretsSelectionnes;
 
-    // 1. Mapper les noms d'arrêts vers leurs objets complets (avec ordre)
     const mapped = arretsSelectionnes.map(stopFull => {
         const [gare, rest] = stopFull.split(' (');
         const ligneNom = rest.replace(')', '');
@@ -279,17 +287,11 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
 
     let finalSorted = [];
     
-    // 2. Déterminer le sens du trajet (Origine vs Destination)
-    // On cherche l'objet correspondant à la gare d'origine et de destination dans les métadonnées chargées
     const originNode = stopsMetadata.find(s => s.gare === form.origine);
     const destNode = stopsMetadata.find(s => s.gare === form.destination);
 
-    // Par défaut, on trie en croissant (1, 2, 3...)
     let isDescending = false;
-
-    // Si on trouve les deux gares, on compare leurs ordres
     if (originNode && destNode) {
-        // Ex: Tournai (6) -> Lille (1) => 6 > 1 => True (Décroissant)
         isDescending = originNode.ordre > destNode.ordre;
     }
 
@@ -297,7 +299,6 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
         let arretsDeCetteLigne = mapped.filter(m => m.ligne_nom === nomLigne);
         if (arretsDeCetteLigne.length === 0) return;
 
-        // 3. Appliquer le tri selon le sens détecté
         arretsDeCetteLigne.sort((a, b) => {
             return isDescending ? b.ordre - a.ordre : a.ordre - b.ordre;
         });
@@ -327,10 +328,29 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       if (form.bus_data.length > 1) form.bus_data = form.bus_data.filter((_, i) => i !== index);
   }
 
+  // --- NOUVEAU : Fonction de gestion du changement d'input Société ---
+  function handleSocieteChange(event) {
+      const val = event.target.value;
+      societeInputValue = val;
+      
+      // Chercher si le nom correspond exactement à une société existante
+      const match = availableSocietes.find(s => s.nom.toLowerCase() === val.toLowerCase());
+      
+      if (match) {
+          if (form.societe_id !== match.id) {
+              selectSociete(match.id);
+          }
+      } else {
+          // Si pas de match (l'utilisateur tape ou efface), on vide l'ID
+          form.societe_id = null;
+          availableChauffeurs = [];
+          form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
+      }
+  }
+
   function selectSociete(id) {
       form.societe_id = id;
-      showCompanyDropdown = false;
-      // Charger les chauffeurs et reset la sélection chauffeur des bus
+      // loadChauffeurs est appelé ici
       loadChauffeurs(id);
       form.bus_data = form.bus_data.map(b => ({ ...b, chauffeur_id: null }));
   }
@@ -342,27 +362,29 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
   }
 
   function openNew() {
-      // SÉCURITÉ WRITE CHECK
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_WRITE)) {
-          return; // Bouton déjà caché, mais sécurité
+          return; 
       }
       form = JSON.parse(JSON.stringify(initialForm));
       form.relation = 'TC_';
+      societeInputValue = ""; // Reset champ texte
+      availableChauffeurs = [];
       view = 'form';
       goto('/otto', { replaceState: true, noScroll: true });
   }
 
   function openEdit(cmd, updateUrl = true) {
-      // Pour éditer, on ouvre le form.
-      // Si pas les droits WRITE, le form sera "isLocked" (read-only)
       form = { 
           ...cmd,
           bus_data: (cmd.bus_data && cmd.bus_data.length > 0) ? cmd.bus_data : [{ plaque: cmd.plaque || '', heure_prevue: cmd.heure_prevue || '', heure_confirmee: cmd.heure_confirmee || '', heure_demob: cmd.heure_demob || '', chauffeur_id: null }]
       };
       
-      // Charger les chauffeurs si une société est déjà définie
+      // Le champ texte societeInputValue se mettra à jour automatiquement grâce au bloc réactif "$:"
+      
       if (form.societe_id) {
           loadChauffeurs(form.societe_id);
+      } else {
+          societeInputValue = "";
       }
 
       view = 'form';
@@ -370,13 +392,12 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
   }
 
   async function saveCommande(targetStatus = 'brouillon') {
-      // SÉCURITÉ WRITE CHECK
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_WRITE)) {
           return toast.error("Action non autorisée.");
       }
 
       if (!form.motif) return toast.error("Le motif est requis");
-      if (!form.societe_id) return toast.error("Veuillez sélectionner une société");
+      if (!form.societe_id) return toast.error("Veuillez sélectionner une société (utilisez la liste)");
       
       if (!form.relation || form.relation.trim() === 'TC_' || form.relation.length < 4) {
           return toast.error("Le numéro de relation doit être complété (ex: TC_123)");
@@ -393,10 +414,9 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
           heure_appel: form.heure_appel,
           societe_id: form.societe_id,
           lignes: form.lignes,
-          // SÉCURITÉ : Vider les arrêts si direct
           arrets: form.is_direct ? [] : form.arrets,
           origine: form.origine,
-          is_direct: form.is_direct, // AJOUT PAYLOAD
+          is_direct: form.is_direct,
           destination: form.destination,
           is_aller_retour: form.is_aller_retour,
           nombre_voyageurs: form.nombre_voyageurs,
@@ -410,18 +430,12 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       if (!form.id) payload.user_id = currentUserId;
       if (targetStatus === 'envoye') {
           payload.validated_by = currentUserId;
-          // AJOUT : On enregistre la date et l'auteur si on clôture
-          // On ne l'écrase pas si ça existe déjà (cas de ré-enregistrement) sauf si on veut mettre à jour
           if (!form.sent_at) {
             payload.sent_at = new Date().toISOString();
             payload.sent_by_name = currentUserName;
-            // Mise à jour locale pour affichage immédiat
             form.sent_at = payload.sent_at;
             form.sent_by_name = payload.sent_by_name;
           }
-      } else {
-          // Si on repasse en brouillon, on peut optionnellement vider ces champs
-          // payload.sent_at = null; 
       }
 
       let error;
@@ -444,7 +458,6 @@ function getSortedArrets(arretsSelectionnes, lignesSelectionnees) {
       }
   }
 function unlockCommande() {
-      // SÉCURITÉ WRITE CHECK
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_WRITE)) {
           return toast.error("Vous n'avez pas les droits pour modifier cette commande.");
       }
@@ -454,11 +467,9 @@ function unlockCommande() {
   }
 
 function deleteCommande(id) {
-      // SÉCURITÉ DELETE CHECK
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_DELETE)) {
           return toast.error("Suppression non autorisée.");
       }
-      // On passe le message et la fonction à exécuter en cas de confirmation
       openConfirmModal("Êtes-vous sûr de vouloir supprimer cette commande ?", async () => {
           await supabase.from('otto_commandes').delete().eq('id', id);
           loadCommandes();
@@ -466,31 +477,7 @@ function deleteCommande(id) {
       });
   }
 
-  // --- GENERATION PDF ---
-  const getBase64ImageFromURL = (url) => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.setAttribute("crossOrigin", "anonymous");
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width; canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(img, 0, 0);
-        resolve(canvas.toDataURL("image/png"));
-      };
-      img.onerror = error => reject(error);
-      img.src = url;
-    });
-  };
-
-  function sendEmail() {
-    const society = availableSocietes.find(s => s.id === form.societe_id);
-    const emailTo = society?.email || "";
-    const subject = encodeURIComponent(`Réquisitoire Bus - ${form.relation} - ${new Date(form.date_commande).toLocaleDateString('fr-BE')}`);
-    window.location.href = `mailto:${emailTo}?subject=${subject}&body=${encodeURIComponent(emailBody)}`;
-    toast.info("N'oubliez pas de joindre le PDF à l'e-mail Outlook !");
-  }
-
+// --- GENERATION PDF ---
 async function generatePDF() {
     const doc = new jsPDF();
     const society = availableSocietes.find(s => s.id === form.societe_id);
@@ -542,7 +529,6 @@ async function generatePDF() {
     y += 25;
 
     // --- 3. BLOC INFORMATIONS GÉNÉRALES (Cadre dynamique) ---
-    // On sauvegarde la position Y de départ pour dessiner le cadre autour des infos APRES les avoir écrites
     const infoStartY = y; 
     
     y += 8;
@@ -555,12 +541,11 @@ async function generatePDF() {
     doc.setFont("helvetica", "normal"); doc.text(form.is_direct ? "DIRECT (Sans arrêt)" : "OMNIBUS (Avec arrêts)", 130, y);
 
     y += 10;
-    // Motif
     doc.setFont("helvetica", "bold"); doc.text("Motif :", labelX, y);
-    doc.setFont("helvetica", "normal"); doc.text(form.motif || '', valueX, y); // Pas de cadre interne, plus propre
+    doc.setFont("helvetica", "normal"); doc.text(form.motif || '', valueX, y);
     
     y += 8;
-    doc.setDrawColor(200); doc.line(20, y-4, 190, y-4); doc.setDrawColor(0); // Ligne de séparation légère
+    doc.setDrawColor(200); doc.line(20, y-4, 190, y-4); doc.setDrawColor(0);
 
     doc.setFont("helvetica", "bold"); doc.text("Lieu Origine :", labelX, y);
     doc.setFont("helvetica", "normal"); doc.text(form.origine || '?', valueX, y);
@@ -592,7 +577,6 @@ async function generatePDF() {
     
     y += 5; // Marge bas du bloc info
 
-    // DESSIN DU CADRE AUTOUR DES INFOS (Maintenant qu'on connait la hauteur exacte)
     doc.rect(15, infoStartY, 180, y - infoStartY);
 
     y += 10; // Espace avant le tableau
@@ -600,7 +584,7 @@ async function generatePDF() {
     // --- 4. TABLEAU DES BUS ---
     const busRows = form.bus_data.map((b, i) => {
         const chauf = availableChauffeurs.find(c => c.id == b.chauffeur_id);
-        const chauffeurStr = chauf ? `\nChauffeur: ${chauf.nom}\nTel: ${chauf.tel}` : ''; // Utilisation de .tel
+        const chauffeurStr = chauf ? `\nChauffeur: ${chauf.nom}\nTel: ${chauf.tel}` : ''; 
         
         const routeStr = b.is_specific_route && (b.origine_specifique || b.destination_specifique)
             ? `\n[TRAJET]: ${b.origine_specifique || '?'} -> ${b.destination_specifique || '?'}`
@@ -621,50 +605,40 @@ async function generatePDF() {
         body: busRows,
         theme: 'grid',
         headStyles: { fillColor: [230, 230, 230], textColor: 0, fontStyle: 'bold' },
-        styles: { fontSize: 9, cellPadding: 3, valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.1 }, // Bordures noires fines
-        margin: { left: 15, right: 15 }, // Alignement avec le reste (15mm)
-        tableWidth: 180,                 // Largeur totale (210 - 15 - 15)
+        styles: { fontSize: 9, cellPadding: 3, valign: 'middle', lineColor: [0, 0, 0], lineWidth: 0.1 }, 
+        margin: { left: 15, right: 15 }, 
+        tableWidth: 180,                 
         columnStyles: {
             0: { cellWidth: 80 }
         }
     });
 
     // --- 5. RÉSUMÉ & PIED DE PAGE DYNAMIQUE ---
-    
-    // Position après le tableau
     y = doc.lastAutoTable.finalY + 10;
 
-    // S'il reste peu de place sur la page pour le résumé, on saute
     if (y > 270) {
         doc.addPage();
         y = 20;
     }
 
-    // Résumé Voyageurs
     doc.setFont("helvetica", "bold"); doc.text("Nombre de voyageurs :", 20, y);
     doc.setFont("helvetica", "normal"); doc.text(String(form.nombre_voyageurs || 'Non communiqué'), 60, y);
     doc.setFont("helvetica", "bold"); doc.text("Dont PMR :", 110, y);
     doc.setFont("helvetica", "normal"); doc.text(String(form.nombre_pmr || '0'), 135, y);
 
-    // Calcul position Footer
     const footerHeight = 45;
     const pageHeight = doc.internal.pageSize.height;
     
-    // On veut le footer en bas (230) MAIS si le contenu descend plus bas, on le pousse.
-    // +20 de marge après le résumé
     let footerY = Math.max(230, y + 20);
 
-    // Si ça dépasse la page, on crée une nouvelle page et on met le footer en haut
     if (footerY + footerHeight > pageHeight - 10) {
         doc.addPage();
         footerY = 20;
     }
 
-    // Cadre Footer
     doc.setDrawColor(0); 
     doc.rect(15, footerY, 180, footerHeight);
     
-    // Contenu Footer
     doc.setFontSize(10); 
     doc.setFont("helvetica", "bold"); 
     doc.text("Adresse de facturation :", 20, footerY + 6);
@@ -684,7 +658,7 @@ async function generatePDF() {
     const fileName = `${form.date_commande} - C3 - ${safe(societyName)} - ${safe(form.origine)} - ${safe(form.destination)} - ${typeService} - ${safe(form.relation)}.pdf`;
 
     doc.save(fileName);
-}
+  }
 
   // Styles
   const inputClass = "w-full bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white focus:ring-2 focus:ring-orange-500/50 outline-none transition-all placeholder-gray-600";
@@ -873,21 +847,26 @@ async function generatePDF() {
                             <div>
                                 <label class={labelClass}>Société</label>
                                 <div class="relative">
-                                   <button type="button" disabled={isLocked} on:click={() => !isLocked && (showCompanyDropdown = !showCompanyDropdown)} class="{inputClass} flex items-center justify-between text-left">
-                                        <span class="{form.societe_id ? 'text-white' : 'text-gray-500'} truncate">{availableSocietes.find(s => s.id === form.societe_id)?.nom || '-- Sélectionner --'}</span>
-                                        <ChevronDown size={16} class="text-gray-500 {showCompanyDropdown ? 'rotate-180' : ''} transition-transform"/>
-                                    </button>
-                                    {#if showCompanyDropdown}
-                                        <div class="fixed inset-0 z-40 bg-transparent" on:click={() => showCompanyDropdown = false}></div>
-                                        <div class="absolute top-full left-0 w-full mt-2 bg-[#1a1d24] border border-white/10 rounded-xl shadow-2xl overflow-hidden z-50 max-h-60 overflow-y-auto custom-scrollbar" transition:slide={{duration: 150}}>
-                                                {#each availableSocietes as soc}
-                                                    <button type="button" on:click={() => selectSociete(soc.id)} class="w-full text-left px-4 py-3 hover:bg-white/10 text-gray-300 hover:text-white transition-colors text-sm border-b border-white/5 last:border-0 flex justify-between items-center">
-                                                        {soc.nom}
-                                                        {#if form.societe_id === soc.id}<CheckCircle size={14} class="text-orange-400"/>{/if}
-                                                    </button>
-                                                {/each}
+                                   <input 
+                                        type="text" 
+                                        list="list_societes" 
+                                        bind:value={societeInputValue}
+                                        on:input={handleSocieteChange}
+                                        disabled={isLocked}
+                                        class={inputClass} 
+                                        placeholder="Rechercher une société..."
+                                   >
+                                   <datalist id="list_societes">
+                                        {#each availableSocietes as soc}
+                                            <option value={soc.nom}>{soc.nom}</option>
+                                        {/each}
+                                   </datalist>
+                                   
+                                   {#if form.societe_id}
+                                        <div class="absolute right-3 top-2.5 text-orange-400 pointer-events-none">
+                                            <CheckCircle size={16} />
                                         </div>
-                                    {/if}
+                                   {/if}
                                 </div>
                             </div>
                         </div>
@@ -962,10 +941,16 @@ async function generatePDF() {
                                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-white/5">
                                             <div>
                                                 <label class="text-[10px] text-blue-400 uppercase font-bold mb-1.5 flex items-center gap-1"><User size={12}/> Chauffeur (Optionnel)</label>
-                                                <select bind:value={bus.chauffeur_id} disabled={isLocked || availableChauffeurs.length === 0} class="w-full bg-black/30 border border-white/10 rounded-lg px-3 py-2 text-sm text-white outline-none focus:border-blue-500/50">
+                                                <select 
+                                                    bind:value={bus.chauffeur_id} 
+                                                    disabled={isLocked || availableChauffeurs.length === 0} 
+                                                    class={inputClass}
+                                                >
                                                     <option value={null}>-- Sélectionner --</option>
                                                     {#each availableChauffeurs as chauf}
-                                                        <option value={chauf.id}>{chauf.nom}</option>
+                                                        <option value={chauf.id} class="bg-[#1a1d24] text-white">
+                                                            {chauf.nom}
+                                                        </option>
                                                     {/each}
                                                 </select>
                                                 {#if availableChauffeurs.length === 0 && form.societe_id}
