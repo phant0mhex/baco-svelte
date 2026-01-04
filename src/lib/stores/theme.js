@@ -181,19 +181,6 @@ export const themesConfig = {
         }
     },
 
-    christmas: {
-        name: 'Esprit de Noël',
-        type: 'christmas',
-        preview: 'linear-gradient(135deg, #166534 0%, #b91c1c 100%)',
-        colors: {
-            '--color-primary': '239, 68, 68',    // Red-500
-            '--color-glow': '252, 165, 165',     // Red-300
-            '--bg-gradient-from': 'rgba(22, 101, 52, 0.3)',  // Vert sapin
-            '--bg-gradient-to': 'rgba(185, 28, 28, 0.2)',    // Rouge
-            '--glass-border': 'rgba(255, 255, 255, 0.2)',
-            '--glass-bg': 'rgba(255, 255, 255, 0.05)'
-        }
-    }
 };
 
 const storedThemeId = browser ? localStorage.getItem('theme_id') : 'default';
@@ -210,7 +197,6 @@ export const applyTheme = (themeId) => {
         root.style.setProperty(key, value);
     });
 
-    // 2. Gestion des classes pour les effets spécifiques (ex: .theme-christmas)
     // On nettoie les anciennes classes de thème
     Object.values(themesConfig).forEach(t => root.classList.remove(`theme-${t.type}`));
     // On ajoute la nouvelle

@@ -28,7 +28,6 @@
   let notificationsCount = 0;
   let notifications = [];
 
-  $: isChristmasTheme = $currentThemeId === 'christmas';
 
   // --- STYLES DYNAMIQUES ---
   const glassTileBase = "relative flex items-center justify-center rounded-xl border border-white/5 bg-white/5 backdrop-blur-md transition-all duration-300 group";
@@ -148,7 +147,6 @@
   };
 
   const closeDropdowns = () => activeDropdown = null;
-  const toggleChristmasTheme = () => currentThemeId.set($currentThemeId === 'christmas' ? 'default' : 'christmas');
   const handleLogout = async () => { await supabase.auth.signOut(); goto('/'); };
   const handleGlobalSearch = () => window.dispatchEvent(new CustomEvent('openGlobalSearch'));
 </script>
@@ -157,34 +155,9 @@
 
 <div class="sticky top-4 mx-4 z-50">
   
-  {#if isChristmasTheme}
-    <div class="fixed inset-0 pointer-events-none z-[-1] overflow-hidden">
-        {#each Array(50) as _, i}
-          <div class="snowflake" style="--delay: {Math.random() * 5}s; --left: {Math.random() * 100}%; --duration: {5 + Math.random() * 5}s; --size: {Math.random() * 5 + 2}px;"></div>
-        {/each}
-    </div>
 
-    <div class="absolute top-0 left-0 w-full h-10 overflow-visible pointer-events-none z-0">
-        <div class="glass-elf" style="left: 15%; --delay: 0s; --color-tint: rgba(50, 205, 50, 0.2);">
-            <div class="elf-pompon"></div><div class="elf-hat"></div>
-            <div class="elf-head"><div class="elf-eyes"></div></div>
-        </div>
-        <div class="glass-elf" style="right: 15%; --delay: 2.5s; --color-tint: rgba(220, 20, 60, 0.2);">
-            <div class="elf-pompon"></div><div class="elf-hat"></div>
-            <div class="elf-head"><div class="elf-eyes"></div></div>
-        </div>
-    </div>
 
-    <div class="absolute top-[calc(100%-5px)] left-0 w-full flex justify-around px-10 pointer-events-none z-0">
-        {#each [1, 2, 3, 4, 5, 6] as i}
-          <div class="hanging-ornament" style="--delay: {i * 0.5}s; --height: {20 + (i * 5 % 30)}px">
-              <div class="thread"></div><div class="glass-ball"><div class="shine"></div></div>
-          </div>
-        {/each}
-    </div>
-  {/if}
-
-  <nav class="relative rounded-2xl transition-all duration-300 glass-panel {isChristmasTheme ? 'christmas-nav' : 'bg-[#0f1115]/80 backdrop-blur-xl'} z-20" style="border: 1px solid rgba(255,255,255,0.1)">
+  <nav class="relative rounded-2xl transition-all duration-300 glass-panel z-20" style="border: 1px solid rgba(255,255,255,0.1)">
      <div class="px-6 py-2">
       <div class="flex justify-between items-center">
         
@@ -315,7 +288,6 @@
 
               <button on:click={() => zenMode.set(true)} class={iconBtnClass} title="Zen"><Maximize class="w-5 h-5" /></button>
               <button on:click={handleGlobalSearch} class={iconBtnClass} title="Rechercher"><Search class="w-5 h-5" /></button>
-              <button on:click={toggleChristmasTheme} class="{iconBtnClass} {isChristmasTheme ? 'text-red-400' : ''}"><Cake class="w-5 h-5" /></button>
 
               <div class="relative">
                   <button on:click={(e) => toggleDropdown('calendar', e)} class={iconBtnClass}><CalendarDays class="w-5 h-5" /></button>
@@ -428,5 +400,4 @@
     .glass-ball { width: 24px; height: 24px; border-radius: 50%; border: 1px solid rgba(255,255,255,0.3); background: rgba(255,255,255,0.05); backdrop-filter: blur(2px); }
     @keyframes swing { from { transform: rotate(-6deg); } to { transform: rotate(6deg); } }
 
-    .christmas-nav { border-color: rgba(220, 38, 38, 0.3) !important; box-shadow: 0 0 20px rgba(220, 38, 38, 0.1); }
 </style>
