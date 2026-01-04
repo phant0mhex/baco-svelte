@@ -145,8 +145,8 @@
           <BarChart3 class="w-8 h-8" />
         </div>
         <div>
-          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Tableau de Bord</h1>
-          <p class="text-gray-500 text-sm mt-1">Analyse des commandes et de l'activité.</p>
+          <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Statistiques</h1>
+          <p class="text-gray-500 text-sm mt-1">Analyse des commandes des TA et de l'activité.</p>
         </div>
     </div>
     
