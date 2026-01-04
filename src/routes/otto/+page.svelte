@@ -13,7 +13,7 @@
     Bus, Calendar, Clock, MapPin, CheckSquare, Square, 
     FileText, Save, Trash2, Plus, Loader2, ArrowLeft,
     Printer, Download, Building2, Hash, Users, ArrowRightLeft, MinusCircle,
-    Search, Filter, X, CheckCircle, User, UserCheck, ChevronDown, Mail, ClipboardCopy, Check, LockOpen, School
+    Search, Filter, X, CheckCircle, User, UserCheck, ChevronDown, Mail, ClipboardCopy, Check, LockOpen, School; ClipboardCopy
   } from 'lucide-svelte';
   
   // IMPORT TOAST & PERMISSIONS
@@ -488,6 +488,42 @@ PACO Sud-Ouest`;
       }
   }
 
+
+async function duplicateCommande(cmd) {
+    // On copie l'objet
+    const newForm = JSON.parse(JSON.stringify(cmd));
+    
+    // On nettoie les champs spécifiques à l'ancienne commande
+    newForm.id = null;
+    newForm.status = 'brouillon';
+    newForm.date_commande = new Date().toISOString().split('T')[0]; // Date d'aujourd'hui par défaut
+    newForm.created_at = null;
+    newForm.sent_at = null;
+    newForm.sent_by_name = null;
+    newForm.validated_by = null;
+    newForm.is_mail_sent = false;
+    
+    // Nettoyage des bus (on garde le nombre et le type, mais on vide les plaques/horaires confirmés)
+    newForm.bus_data = newForm.bus_data.map(b => ({
+        ...b,
+        plaque: '',
+        heure_confirmee: '',
+        heure_demob: '',
+        // On peut choisir de garder le chauffeur ou non. Ici on le retire par sécurité :
+        chauffeur_id: null 
+    }));
+
+    // On bascule sur le formulaire avec ces données pré-remplies
+    form = newForm;
+    // Important : charger les chauffeurs de la société copiée
+    if (form.societe_id) {
+        await loadChauffeurs(form.societe_id);
+    }
+    view = 'form';
+    toast.success("Commande dupliquée ! Vérifiez la date.");
+}
+
+
   function unlockCommande() {
       if (!hasPermission(currentUserProfile, ACTIONS.OTTO_WRITE)) {
           return toast.error("Vous n'avez pas les droits pour modifier cette commande.");
@@ -859,6 +895,10 @@ PACO Sud-Ouest`;
                                     <FileText class="w-5 h-5" />
                                 </button>
                                 
+                                <button on:click={() => duplicateCommande(cmd)} class="p-2 hover:bg-green-500/10 rounded-lg text-green-400" title="Dupliquer">
+    <ClipboardCopy class="w-5 h-5" />
+</button>
+
                                 {#if hasPermission(currentUserProfile, ACTIONS.OTTO_DELETE)}
                                     <button on:click={() => deleteCommande(cmd.id)} class="p-2 hover:bg-red-500/10 rounded-lg text-red-400" title="Supprimer">
                                         <Trash2 class="w-5 h-5" />
