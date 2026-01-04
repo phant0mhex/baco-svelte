@@ -14,7 +14,7 @@
     Bus, Car, Database, Train, Tag, Map, Folder, BookCopy, 
     ClipboardPaste, Search, CalendarDays, Bell, UserCog, 
     ShieldCheck, LogOut, Menu, X, ChevronLeft, ChevronRight, 
-    Cake, FileClock, Maximize,  
+    Cake, FileClock, Maximize, ClipboardList, BarChart3
   } from 'lucide-svelte';
 
   export let user;
@@ -242,8 +242,19 @@
               <a href="/documents" class={getLinkClass('documents')}><Folder class="w-4 h-4" /><span>Docs</span></a>
               <a href="/journal" class={getLinkClass('journal')}><BookCopy class="w-4 h-4" /><span>Journal</span></a>
               <a href="/planning" class={getLinkClass('planning')}><CalendarDays class="w-4 h-4" /><span>Planning</span></a>
-              <a href="/otto" class={getLinkClass('otto')}><Bus class="w-4 h-4" /><span>C3</span></a>           
-              <a href="/generateTaxi" class={getLinkClass('generateTaxi')}><Car class="w-4 h-4" /><span>Cmd Taxi</span></a>
+              
+              <div class="relative">
+                  <button on:click={(e) => toggleDropdown('commandes', e)} class="{glassTileBase} px-4 py-2 gap-2 text-sm font-semibold {activeDropdown === 'commandes' || ['/otto', '/generateTaxi', '/stats'].some(p => $page.url.pathname.includes(p)) ? activeTile : `${inactiveTile} ${neonHover}`}">
+                      <ClipboardList class="w-4 h-4" /><span>Commandes</span><ChevronDown class="w-3 h-3 transition-transform {activeDropdown === 'commandes' ? 'rotate-180' : ''}" />
+                  </button>
+                  {#if activeDropdown === 'commandes'}
+                      <div transition:fly={{ y: 10, duration: 200 }} class={dropdownBaseClass}>
+                          <a href="/otto" class={dropdownLinkClass}><Bus /> C3 (Otto)</a>
+                          <a href="/generateTaxi" class={dropdownLinkClass}><Car /> Cmd Taxis</a>
+                          <a href="/stats" class={dropdownLinkClass}><BarChart3 /> Statistiques</a>
+                      </div>
+                  {/if}
+              </div>
           </div>
 
           <div class="flex items-center gap-2">
@@ -387,7 +398,7 @@
           </div>
       {/if}
     </div>
-  </nav>
+ </nav>
 </div>
 
 <style>

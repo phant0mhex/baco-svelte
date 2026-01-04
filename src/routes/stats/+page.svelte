@@ -34,7 +34,7 @@
   async function loadData() {
     isLoading = true;
 
-    // 1. Récupération des données OTTO
+    // 1. OTTO (Table: otto_commandes)
     const { data: dataOtto, error: errOtto } = await supabase
       .from('otto_commandes')
       .select(`
@@ -43,21 +43,39 @@
         creator:user_id(full_name)
       `);
 
-    // 2. Récupération des données TAXI (Adapté selon ta structure probable)
-    // Assure-toi que la table s'appelle bien 'taxi_commandes' ou adapte ici
+    // 2. TAXI (Table: taxi_commands)
+    // CORRECTION : On utilise les bons noms de colonnes
     const { data: dataTaxi, error: errTaxi } = await supabase
-      .from('taxi_commandes')
+      .from('taxi_commands') // Nom correct de la table
       .select(`
-        id, date_commande, origine, destination, 
-        societes_taxi(nom), 
+        id, date_trajet, gare_origine, gare_arrivee, 
+        taxi_nom, 
         creator:user_id(full_name)
       `);
 
     if (errOtto) console.error("Erreur Otto", errOtto);
     if (errTaxi) console.error("Erreur Taxi", errTaxi);
 
-    ottos = dataOtto || [];
-    taxis = dataTaxi || [];
+    // Normalisation des données pour simplifier les calculs
+    ottos = (dataOtto || []).map(o => ({
+        type: 'bus',
+        id: o.id,
+        date: o.date_commande,
+        origine: o.origine,
+        destination: o.destination,
+        societe: o.societes_bus?.nom || 'Inconnue',
+        createur: o.creator?.full_name || 'Inconnu'
+    }));
+
+    taxis = (dataTaxi || []).map(t => ({
+        type: 'taxi',
+        id: t.id,
+        date: t.date_trajet,
+        origine: t.gare_origine,
+        destination: t.gare_arrivee,
+        societe: t.taxi_nom || 'Inconnue',
+        createur: t.creator?.full_name || 'Inconnu'
+    }));
 
     calculateStats();
     isLoading = false;
@@ -69,46 +87,37 @@
     stats.global.taxi = taxis.length;
     stats.global.total = ottos.length + taxis.length;
 
-    // B. Sociétés les plus sollicitées (Combiné)
+    // B. Sociétés les plus sollicitées
     const socMap = {};
-    const processSoc = (list, type) => {
-        list.forEach(item => {
-            // Gestion des noms de sociétés selon la table (bus vs taxi)
-            const name = type === 'bus' ? item.societes_bus?.nom : item.societes_taxi?.nom;
-            const finalName = name || 'Inconnu';
-            if (!socMap[finalName]) socMap[finalName] = { name: finalName, count: 0, type };
-            socMap[finalName].count++;
-        });
-    };
-    processSoc(ottos, 'bus');
-    processSoc(taxis, 'taxi');
+    const allItems = [...ottos, ...taxis];
+
+    allItems.forEach(item => {
+        const name = item.societe;
+        if (!socMap[name]) socMap[name] = { name, count: 0, type: item.type };
+        socMap[name].count++;
+    });
     
     stats.topSocieties = Object.values(socMap)
         .sort((a, b) => b.count - a.count)
-        .slice(0, 5); // Top 5
+        .slice(0, 5);
 
-    // C. Trajets les plus fréquents (Distincts par type pour éviter confusion)
+    // C. Trajets les plus fréquents
     const routeMap = {};
-    const processRoute = (list, type) => {
-        list.forEach(item => {
-            if(!item.origine || !item.destination) return;
-            const key = `${item.origine} → ${item.destination}`;
-            if (!routeMap[key]) routeMap[key] = { name: key, count: 0, type };
-            routeMap[key].count++;
-        });
-    }
-    processRoute(ottos, 'bus');
-    processRoute(taxis, 'taxi');
+    allItems.forEach(item => {
+        if(!item.origine || !item.destination) return;
+        const key = `${item.origine} → ${item.destination}`;
+        if (!routeMap[key]) routeMap[key] = { name: key, count: 0, type: item.type };
+        routeMap[key].count++;
+    });
 
     stats.topRoutes = Object.values(routeMap)
         .sort((a, b) => b.count - a.count)
-        .slice(0, 8); // Top 8
+        .slice(0, 8);
 
-    // D. Top Rédacteurs (Qui crée le plus de bons ?)
+    // D. Top Rédacteurs
     const userMap = {};
-    const allItems = [...ottos, ...taxis];
     allItems.forEach(item => {
-        const name = item.creator?.full_name || 'Inconnu';
+        const name = item.createur;
         if (!userMap[name]) userMap[name] = { name, count: 0 };
         userMap[name].count++;
     });
@@ -174,7 +183,7 @@
                         <span class="text-4xl font-extrabold text-orange-400">{stats.global.otto}</span>
                     </div>
                     <div class="h-12 w-12 rounded-full bg-orange-500/10 flex items-center justify-center border border-orange-500/20">
-                        <span class="text-xs font-bold text-orange-400">{Math.round((stats.global.otto / stats.global.total) * 100 || 0)}%</span>
+                        <span class="text-xs font-bold text-orange-400">{stats.global.total > 0 ? Math.round((stats.global.otto / stats.global.total) * 100) : 0}%</span>
                     </div>
                 </div>
             </div>
@@ -187,7 +196,7 @@
                         <span class="text-4xl font-extrabold text-cyan-400">{stats.global.taxi}</span>
                     </div>
                     <div class="h-12 w-12 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
-                        <span class="text-xs font-bold text-cyan-400">{Math.round((stats.global.taxi / stats.global.total) * 100 || 0)}%</span>
+                        <span class="text-xs font-bold text-cyan-400">{stats.global.total > 0 ? Math.round((stats.global.taxi / stats.global.total) * 100) : 0}%</span>
                     </div>
                 </div>
             </div>
