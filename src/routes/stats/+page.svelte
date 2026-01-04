@@ -34,7 +34,7 @@
   async function loadData() {
     isLoading = true;
 
-    // 1. OTTO (Table: otto_commandes)
+    // 1. OTTO (Table: otto_commandes) -> Utilise la relation user_id
     const { data: dataOtto, error: errOtto } = await supabase
       .from('otto_commandes')
       .select(`
@@ -43,20 +43,20 @@
         creator:user_id(full_name)
       `);
 
-    // 2. TAXI (Table: taxi_commands)
-    // CORRECTION : On utilise les bons noms de colonnes
+    // 2. TAXI (Table: taxi_commands) -> Utilise la colonne 'redacteur'
+    // CORRECTION ICI : Suppression de la jointure user_id qui bloquait
     const { data: dataTaxi, error: errTaxi } = await supabase
-      .from('taxi_commands') // Nom correct de la table
+      .from('taxi_commands') 
       .select(`
         id, date_trajet, gare_origine, gare_arrivee, 
         taxi_nom, 
-        creator:user_id(full_name)
+        redacteur
       `);
 
     if (errOtto) console.error("Erreur Otto", errOtto);
     if (errTaxi) console.error("Erreur Taxi", errTaxi);
 
-    // Normalisation des données pour simplifier les calculs
+    // Normalisation des données
     ottos = (dataOtto || []).map(o => ({
         type: 'bus',
         id: o.id,
@@ -74,7 +74,7 @@
         origine: t.gare_origine,
         destination: t.gare_arrivee,
         societe: t.taxi_nom || 'Inconnue',
-        createur: t.creator?.full_name || 'Inconnu'
+        createur: t.redacteur || 'Inconnu' // Utilisation du champ texte rédacteur
     }));
 
     calculateStats();
@@ -93,6 +93,7 @@
 
     allItems.forEach(item => {
         const name = item.societe;
+        if (!name) return;
         if (!socMap[name]) socMap[name] = { name, count: 0, type: item.type };
         socMap[name].count++;
     });
@@ -118,6 +119,7 @@
     const userMap = {};
     allItems.forEach(item => {
         const name = item.createur;
+        if (!name) return;
         if (!userMap[name]) userMap[name] = { name, count: 0 };
         userMap[name].count++;
     });
@@ -149,7 +151,7 @@
     </div>
     
     <div class="flex gap-2">
-        <button on:click={loadData} class="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors">
+        <button on:click={loadData} class="p-2 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors" title="Rafraîchir">
             <TrendingUp size={20} />
         </button>
     </div>
