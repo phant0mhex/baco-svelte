@@ -62,14 +62,15 @@
 		}
 	}
 
-	function drawMarkers(markersData) {
-		// 1. NETTOYAGE : On supprime d'abord tous les marqueurs existants
+function drawMarkers(markersData) {
+		// 1. NETTOYAGE SYSTÉMATIQUE (C'est ici la correction importante)
+		// On supprime d'abord les anciens marqueurs, qu'il y en ait des nouveaux ou pas.
 		if (markerInstances.length > 0) {
 			markerInstances.forEach(m => m.remove());
 			markerInstances = [];
 		}
 
-		// 2. Si la liste est vide (filtres décochés), on s'arrête là -> La carte est propre
+		// 2. Si la nouvelle liste est vide ou nulle, on s'arrête ici.
 		if (!markersData || markersData.length === 0) return;
 
 		// 3. Dessin des nouveaux marqueurs
@@ -90,7 +91,7 @@
 				.setLngLat(m.lngLat)
 				.addTo(map);
 			
-			// Événements pour le Popup (Gestion Singleton)
+			// Événements pour le Popup
 			el.addEventListener('mouseenter', () => {
 				showPopup(m.lngLat, m.popupContent || m.label, 'custom-popup');
 			});

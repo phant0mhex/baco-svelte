@@ -100,30 +100,62 @@
       }
   }
 
-  async function fetchCoordinates(pn) {
+async function fetchCoordinates(pn) {
+      // 1. Nettoyage de l'adresse
+      // On retire "PN 123" ou "PN123" du début de l'adresse si présent
+      let cleanAddress = (pn.adresse || "").replace(/^PN\s*\d+\s*[-]?\s*/i, "").trim();
+      
+      // On retire les codes postaux erronés ou doublons si nécessaire (ex: parfois "7700 Mouscron 7700")
+      // Mais surtout, on s'assure d'avoir la ville.
+      
       let queries = [];
-      if (pn.adresse) queries.push(pn.adresse + ", Belgique");
-      if (pn.adresse && pn.adresse.includes(',')) {
-           const city = pn.adresse.split(',').pop();
-           queries.push(`Gare de ${city}, Belgique`);
+
+      // Stratégie 1 : Adresse nettoyée précise
+      if (cleanAddress) {
+          queries.push(`${cleanAddress}, Belgique`);
+      }
+
+      // Stratégie 2 : Recherche structurée (Rue, Ville) si on peut extraire la ville
+      // On suppose que la ville est à la fin (ex: "Rue X, 7700 Mouscron")
+      if (cleanAddress && /\d{4}/.test(cleanAddress)) {
+          // On garde tel quel, c'est souvent le meilleur format pour Nominatim
+      } else if (cleanAddress) {
+          // Si pas de code postal, on essaie d'ajouter Belgique
+          queries.push(`${cleanAddress} Belgique`);
+      }
+
+      // Stratégie 3 : Fallback Ville uniquement (si on a un code postal dans l'adresse)
+      const zipMatch = cleanAddress.match(/(\d{4})\s+([a-zA-Z\s-]+)/);
+      if (zipMatch) {
+          queries.push(`${zipMatch[1]} ${zipMatch[2]}, Belgique`);
       }
 
       for (const q of queries) {
+          // Check cache
           if (coordsCache[q]) return coordsCache[q];
+          
           try {
+              // Ajout de &addressdetails=1 pour vérifier la qualité si besoin
               const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1`;
+              
               const res = await fetch(url, { headers: { 'User-Agent': 'BacoApp/1.0' } });
+              
               if (res.ok) {
                   const data = await res.json();
                   if (data && data.length > 0) {
                       const coords = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
                       coordsCache[q] = coords;
+                      console.log(`✅ Trouvé: ${q}`);
                       return coords;
                   }
               }
           } catch (e) { console.warn("Erreur geocoding", q, e); }
-          await new Promise(r => setTimeout(r, 200));
+          
+          // Pause un peu plus longue (300ms) pour éviter le Rate Limiting (429 Too Many Requests)
+          await new Promise(r => setTimeout(r, 300));
       }
+      
+      console.warn(`❌ Non trouvé: ${pn.adresse} (Nettoyé: ${cleanAddress})`);
       return null;
   }
 
