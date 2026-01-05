@@ -49,39 +49,100 @@
   // Variable pour l'input texte de la société
   let societeInputValue = ""; 
 
-  // --- VARIABLES CARTE & GEOCODING ---
+// --- VARIABLES CARTE & GEOCODING ---
   let currentRoute = null;
   let isComputingRoute = false;
-  const coordsCache = {}; // Mémoire tampon pour éviter de rappeler l'API inutilement
+  const coordsCache = {}; // Cache pour éviter de rappeler l'API
 
-  // Fonction pour récupérer les coords via Nominatim (OpenStreetMap)
+  // Fonction améliorée avec tentatives multiples (Retry logic)
   async function getGareCoordinates(gareName) {
       if (!gareName) return null;
       
-      // Nettoyage du nom (ex: "Mons" -> "Gare de Mons, Belgium" pour être précis)
-      // On retire les parenthèses éventuelles qui pourraient troubler la recherche
+      // 1. Nettoyage : retire les parenthèses (ex: "Mons (SNCB)" -> "Mons")
       const cleanName = gareName.replace(/\(.*\)/, '').trim();
-      const query = `Gare de ${cleanName}, Belgium`;
       
-      // Si on l'a déjà cherché, on retourne la version en mémoire
-      if (coordsCache[query]) return coordsCache[query];
+      // 2. Vérifie le cache
+      if (coordsCache[cleanName]) return coordsCache[cleanName];
 
-      try {
-          // Appel API OpenStreetMap (Gratuit, pas de clé nécessaire)
-          const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
-          const res = await fetch(url, { headers: { 'User-Agent': 'BacoApp/1.0' } });
-          const data = await res.json();
+      // 3. Stratégies de recherche (de la plus précise à la plus large)
+      const queries = [
+          `Gare de ${cleanName}, Belgique`,   // Tentative 1 : Gare précise
+          `${cleanName} Station, Belgium`,    // Tentative 2 : Anglais (souvent mieux référencé)
+          `${cleanName}, Belgique`            // Tentative 3 : La ville (au pire, on centre sur la ville)
+      ];
 
-          if (data && data.length > 0) {
-              // Nominatim renvoie [lat, lon], MapLibre veut [lon, lat]
-              const coords = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
-              coordsCache[query] = coords; // On sauvegarde
-              return coords;
+      for (const query of queries) {
+          try {
+              const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`;
+              const res = await fetch(url, { 
+                  headers: { 'User-Agent': 'BacoApp/1.0' } // Requis par Nominatim
+              });
+              
+              if (res.ok) {
+                  const data = await res.json();
+                  if (data && data.length > 0) {
+                      // Nominatim renvoie [lat, lon], MapLibre veut [lon, lat]
+                      const coords = [parseFloat(data[0].lon), parseFloat(data[0].lat)];
+                      
+                      // On sauvegarde dans le cache et on retourne
+                      coordsCache[cleanName] = coords; 
+                      console.log(`📍 Trouvé pour "${cleanName}" via "${query}"`);
+                      return coords;
+                  }
+              }
+          } catch (e) {
+              console.warn(`Erreur recherche "${query}":`, e);
           }
-      } catch (e) {
-          console.warn("Erreur Geocoding:", e);
+          // Petite pause de 100ms pour être poli avec l'API
+          await new Promise(r => setTimeout(r, 100));
       }
+      
+      console.error(`❌ Échec total pour : ${cleanName}`);
       return null;
+  }
+
+  // --- BLOC RÉACTIF : Calcul du trajet ---
+  let searchTimeout;
+
+  $: if (form.origine && form.destination) {
+      clearTimeout(searchTimeout);
+      // Délai de 1 seconde pour laisser le temps de finir de taper
+      searchTimeout = setTimeout(async () => {
+          // On ne lance la recherche que si les champs ont changé
+          if (currentRoute) {
+             const prevStart = currentRoute.properties.startName;
+             const prevEnd = currentRoute.properties.endName;
+             if (prevStart === form.origine && prevEnd === form.destination) return;
+          }
+
+          isComputingRoute = true;
+          
+          const [start, end] = await Promise.all([
+              getGareCoordinates(form.origine),
+              getGareCoordinates(form.destination)
+          ]);
+
+          if (start && end) {
+              currentRoute = {
+                  "type": "Feature",
+                  "properties": {
+                      // On stocke les noms pour éviter de recharger inutilement
+                      startName: form.origine,
+                      endName: form.destination
+                  },
+                  "geometry": {
+                      "type": "LineString",
+                      "coordinates": [start, end]
+                  }
+              };
+          } else {
+              // Si on ne trouve pas, on garde null pour afficher le message d'erreur
+              currentRoute = null;
+          }
+          isComputingRoute = false;
+      }, 1000);
+  } else {
+      currentRoute = null;
   }
 
   // --- FORMULAIRE ---
