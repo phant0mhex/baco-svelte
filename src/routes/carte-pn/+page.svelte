@@ -341,7 +341,7 @@ async function fetchCoordinates(pn) {
                 >
                   <div class="min-w-0">
                     <h3 class="font-bold text-gray-300 text-sm flex items-center gap-2">
-                        PN {pn.pn} <span class="text-[10px] text-gray-500 font-normal px-1.5 py-0.5 rounded border border-white/5 bg-black/30">{pn.ligne_nom}</span>
+                         {pn.pn} <span class="text-[10px] text-gray-500 font-normal px-1.5 py-0.5 rounded border border-white/5 bg-black/30">{pn.ligne_nom}</span>
                         {#if !pn.geo}<span class="text-red-500 text-[10px] animate-pulse" title="Géolocalisation en cours">📍</span>{/if}
                     </h3>
                     <p class="text-[10px] text-gray-500 mt-0.5 truncate group-hover:text-gray-400 transition-colors">
