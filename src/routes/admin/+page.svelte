@@ -11,7 +11,7 @@
   import { 
     Shield, UserPlus, Search, User, UserX, UserCheck, 
     KeyRound, FileWarning, History, Loader2, X, Copy, 
-    AlertOctagon, CheckCircle, ShieldAlert, ChevronLeft, Save, Edit2, UserCog, ArrowUpDown 
+    AlertOctagon, CheckCircle, ShieldAlert, ChevronLeft, Save, Edit2, UserCog, ArrowUpDown, AlertTriangle 
   } from 'lucide-svelte';
   
   let currentUserProfile = null; 
