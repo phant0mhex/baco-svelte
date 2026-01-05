@@ -49,10 +49,10 @@
   // Variable pour l'input texte de la société
   let societeInputValue = ""; 
 
-// --- VARIABLES CARTE & GEOCODING ---
+  // --- VARIABLES CARTE & GEOCODING ---
   let currentRoute = null;
   let isComputingRoute = false;
-  const coordsCache = {}; // Cache pour éviter de rappeler l'API
+  const coordsCache = {}; // Mémoire tampon pour éviter de rappeler l'API inutilement
 
   // Fonction améliorée avec tentatives multiples (Retry logic)
   async function getGareCoordinates(gareName) {
@@ -67,8 +67,8 @@
       // 3. Stratégies de recherche (de la plus précise à la plus large)
       const queries = [
           `Gare de ${cleanName}, Belgique`,   // Tentative 1 : Gare précise
-          `${cleanName} Station, Belgium`,    // Tentative 2 : Anglais (souvent mieux référencé)
-          `${cleanName}, Belgique`            // Tentative 3 : La ville (au pire, on centre sur la ville)
+          `${cleanName} Station, Belgium`,    // Tentative 2 : Anglais
+          `${cleanName}, Belgique`            // Tentative 3 : La ville
       ];
 
       for (const query of queries) {
@@ -86,7 +86,6 @@
                       
                       // On sauvegarde dans le cache et on retourne
                       coordsCache[cleanName] = coords; 
-                      console.log(`📍 Trouvé pour "${cleanName}" via "${query}"`);
                       return coords;
                   }
               }
@@ -96,53 +95,7 @@
           // Petite pause de 100ms pour être poli avec l'API
           await new Promise(r => setTimeout(r, 100));
       }
-      
-      console.error(`❌ Échec total pour : ${cleanName}`);
       return null;
-  }
-
-  // --- BLOC RÉACTIF : Calcul du trajet ---
-  let searchTimeout;
-
-  $: if (form.origine && form.destination) {
-      clearTimeout(searchTimeout);
-      // Délai de 1 seconde pour laisser le temps de finir de taper
-      searchTimeout = setTimeout(async () => {
-          // On ne lance la recherche que si les champs ont changé
-          if (currentRoute) {
-             const prevStart = currentRoute.properties.startName;
-             const prevEnd = currentRoute.properties.endName;
-             if (prevStart === form.origine && prevEnd === form.destination) return;
-          }
-
-          isComputingRoute = true;
-          
-          const [start, end] = await Promise.all([
-              getGareCoordinates(form.origine),
-              getGareCoordinates(form.destination)
-          ]);
-
-          if (start && end) {
-              currentRoute = {
-                  "type": "Feature",
-                  "properties": {
-                      // On stocke les noms pour éviter de recharger inutilement
-                      startName: form.origine,
-                      endName: form.destination
-                  },
-                  "geometry": {
-                      "type": "LineString",
-                      "coordinates": [start, end]
-                  }
-              };
-          } else {
-              // Si on ne trouve pas, on garde null pour afficher le message d'erreur
-              currentRoute = null;
-          }
-          isComputingRoute = false;
-      }, 1000);
-  } else {
-      currentRoute = null;
   }
 
   // --- FORMULAIRE ---
@@ -178,8 +131,15 @@
 
   $: if (form.origine && form.destination) {
       clearTimeout(searchTimeout);
-      // On attend 800ms que l'utilisateur ait fini de taper ou sélectionner
+      // Délai de 1 seconde pour laisser le temps de finir de taper
       searchTimeout = setTimeout(async () => {
+          // Petit check pour ne pas recalculer si c'est déjà la bonne route
+          if (currentRoute && 
+              currentRoute.properties?.startName === form.origine && 
+              currentRoute.properties?.endName === form.destination) {
+              return;
+          }
+
           isComputingRoute = true;
           
           const [start, end] = await Promise.all([
@@ -190,7 +150,10 @@
           if (start && end) {
               currentRoute = {
                   "type": "Feature",
-                  "properties": {},
+                  "properties": {
+                      startName: form.origine,
+                      endName: form.destination
+                  },
                   "geometry": {
                       "type": "LineString",
                       "coordinates": [start, end]
@@ -200,7 +163,7 @@
               currentRoute = null;
           }
           isComputingRoute = false;
-      }, 800);
+      }, 1000);
   } else {
       currentRoute = null;
   }
