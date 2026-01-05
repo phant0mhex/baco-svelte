@@ -7,7 +7,7 @@
 	let map = $state(null);
     let markerInstances = [];
 
-    // Ajout de la prop 'markers'
+    // Props
 	let { route = null, markers = [], className = '' } = $props();
 
 	onMount(() => {
@@ -19,7 +19,11 @@
 			attributionControl: false
 		});
 
+        // Contrôles de navigation (Zoom +/-) en bas à droite
 		map.addControl(new maplibregl.NavigationControl(), 'bottom-right');
+
+        // AJOUT : Mode Plein Écran en haut à droite
+        map.addControl(new maplibregl.FullscreenControl(), 'top-right');
 
 		map.on('load', () => {
 			if (route) drawRoute(route);
@@ -31,7 +35,7 @@
 		map?.remove();
 	});
 
-    // Réactivité : on redessine si les données changent
+    // Réactivité
     $effect(() => {
         if (map && map.loaded()) {
             if (route) drawRoute(route);
@@ -53,7 +57,6 @@
              map.getSource('route').setData(routeData);
         }
 
-        // Zoom automatique pour tout voir
         const coordinates = routeData.geometry.coordinates;
         if (coordinates && coordinates.length > 0) {
             const bounds = coordinates.reduce((bounds, coord) => {
@@ -64,21 +67,16 @@
 	}
 
     function drawMarkers(markersData) {
-        // Nettoyage des anciens marqueurs
         markerInstances.forEach(m => m.remove());
         markerInstances = [];
 
         markersData.forEach(m => {
-            // Création de l'élément HTML du marqueur
             const el = document.createElement('div');
-            // Styles par défaut (Arrêt intermédiaire)
             el.className = 'w-3 h-3 bg-orange-500 rounded-full border-2 border-white shadow-lg cursor-pointer hover:scale-125 transition-transform';
             
-            // Styles spécifiques
             if (m.type === 'start') el.className = 'w-4 h-4 bg-green-500 rounded-full border-2 border-white shadow-lg z-10';
             if (m.type === 'end') el.className = 'w-4 h-4 bg-red-500 rounded-full border-2 border-white shadow-lg z-10';
 
-            // Popup au survol
             const popup = new maplibregl.Popup({ offset: 15, closeButton: false, closeOnClick: false }).setText(m.label);
 
             const marker = new maplibregl.Marker({ element: el })
@@ -98,3 +96,26 @@
 	<div bind:this={mapContainer} class="w-full h-full" />
     <slot />
 </div>
+
+<style>
+    /* Styling pour adapter les contrôles MapLibre au thème sombre */
+    :global(.maplibregl-ctrl-group) {
+        background-color: #0f1115 !important; /* Fond sombre */
+        border: 1px solid rgba(255,255,255,0.1) !important;
+    }
+    :global(.maplibregl-ctrl-icon) {
+        filter: invert(1); /* Icônes blanches */
+    }
+    :global(.maplibregl-popup-content) {
+        background-color: #1a1d24;
+        color: white;
+        border: 1px solid rgba(255,255,255,0.1);
+        border-radius: 8px;
+        padding: 5px 10px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    :global(.maplibregl-popup-tip) {
+        border-top-color: #1a1d24;
+    }
+</style>
