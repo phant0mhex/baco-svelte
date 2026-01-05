@@ -549,101 +549,101 @@ async function pardonInfraction(infractionId) {
             </div>
         </div>
 
-        <div class="bg-black/20 border border-white/5 rounded-3xl shadow-sm overflow-hidden" in:fly={{ y: 20, duration: 400, delay: 100 }}>
-            <div class="overflow-x-auto">
-            <table class="min-w-full divide-y divide-white/5">
-              <thead class="bg-white/[0.02]">
-                <tr>
-                  <th 
-                    class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-white select-none group" 
-                    on:click={() => toggleSort('full_name')}
-                  >
-                      <div class="flex items-center gap-2">Utilisateur <ArrowUpDown size={12} class="opacity-0 group-hover:opacity-50 {sortCol === 'full_name' ? 'opacity-100 text-blue-400' : ''}"/></div>
-                  </th>
-                  <th 
-                    class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-white select-none group" 
-                    on:click={() => toggleSort('role')}
-                  >
-                      <div class="flex items-center gap-2">Rôle <ArrowUpDown size={12} class="opacity-0 group-hover:opacity-50 {sortCol === 'role' ? 'opacity-100 text-blue-400' : ''}"/></div>
-                  </th>
-                  <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Statut</th>
-                  <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sanctions</th>
-                  <th 
-                    class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-white select-none group" 
-                    on:click={() => toggleSort('last_active')}
-                  >
-                      <div class="flex items-center gap-2">Dernière Connexion <ArrowUpDown size={12} class="opacity-0 group-hover:opacity-50 {sortCol === 'last_active' ? 'opacity-100 text-blue-400' : ''}"/></div>
-                  </th>
-                  <th class="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-white/5">
-                {#each users as user}
-                    {@const isBanned = user.banned_until && new Date(user.banned_until) > new Date()}
-                    {@const nextRoleData = getNextRole(user.role || 'user')}
-                    
-                    <tr class="group hover:bg-white/[0.02] transition-colors">
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="/admin/utilisateur/{user.user_id}" class="flex items-center gap-4 w-full text-left group-hover:opacity-80 transition-opacity">
-                            <img class="h-10 w-10 rounded-full object-cover border border-white/10" src={user.avatar_url || '/default-avatar.png'}>
-                            <div>
-                                <div class="text-sm font-bold text-gray-200" style="color: {user.email === targetEmail ? 'rgb(var(--primary-rgb))' : ''}">{user.full_name || user.email}</div>
-                                <div class="text-xs text-gray-500">{user.email}</div>
-                            </div>
-                        </a>
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        {#if user.role === 'admin'} <span class="role-badge role-admin">Admin</span>
-                        {:else if user.role === 'moderator'} <span class="role-badge role-modo">Modérateur</span>
-                        {:else} <span class="role-badge role-user">Utilisateur</span> {/if}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        {#if isBanned}
-                            <span class="px-2.5 py-1 text-xs font-bold rounded-lg border bg-red-500/10 text-red-400 border-red-500/20 animate-pulse">Banni</span>
-                        {:else}
-                            <span class="px-2.5 py-1 text-xs font-bold rounded-lg border bg-green-500/10 text-green-400 border-green-500/20">Actif</span>
-                        {/if}
-                      </td>
-                      <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex gap-2">
-                            {#if user.active_yellow_cards > 0} <span class="text-yellow-500 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">⚠ {user.active_yellow_cards}</span> {/if}
-                            {#if user.active_red_cards > 0} <span class="text-red-500 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">🚷 {user.active_red_cards}</span> {/if}
-                        </div>
-                      </td>
-                      
-                      <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-400 font-mono">
-                          {formatDate(user.last_active)}
-                          {#if user.last_active && new Date(user.last_active) > new Date(Date.now() - 300000)}
-                               <span class="inline-block w-2 h-2 rounded-full bg-green-500 ml-2 animate-pulse" title="En ligne récemment"></span>
-                          {/if}
-                      </td>
+<div class="bg-black/20 border border-white/5 rounded-3xl shadow-sm overflow-hidden" in:fly={{ y: 20, duration: 400, delay: 100 }}>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-white/5">
+                    <thead class="bg-white/[0.02]">
+                        <tr>
+                            <th 
+                                class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-white select-none group" 
+                                on:click={() => toggleSort('full_name')}
+                            >
+                                <div class="flex items-center gap-2">Utilisateur <ArrowUpDown size={12} class="opacity-0 group-hover:opacity-50 {sortCol === 'full_name' ? 'opacity-100 text-blue-400' : ''}"/></div>
+                            </th>
+                            <th 
+                                class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-white select-none group" 
+                                on:click={() => toggleSort('role')}
+                            >
+                                <div class="flex items-center gap-2">Rôle <ArrowUpDown size={12} class="opacity-0 group-hover:opacity-50 {sortCol === 'role' ? 'opacity-100 text-blue-400' : ''}"/></div>
+                            </th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Statut</th>
+                            <th class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider">Sanctions</th>
+                            <th 
+                                class="px-6 py-4 text-left text-xs font-bold text-gray-500 uppercase tracking-wider cursor-pointer hover:text-white select-none group" 
+                                on:click={() => toggleSort('last_active')}
+                            >
+                                <div class="flex items-center gap-2">Dernière Connexion <ArrowUpDown size={12} class="opacity-0 group-hover:opacity-50 {sortCol === 'last_active' ? 'opacity-100 text-blue-400' : ''}"/></div>
+                            </th>
+                            <th class="px-6 py-4 text-center text-xs font-bold text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-white/5">
+                        {#each users as user}
+                            {@const isBanned = user.banned_until && new Date(user.banned_until) > new Date()}
+                            {@const nextRoleData = getNextRole(user.role || 'user')}
+                            
+                            <tr class="group hover:bg-white/[0.02] transition-colors">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <a href="/admin/utilisateur/{user.user_id}" class="flex items-center gap-4 w-full text-left group-hover:opacity-80 transition-opacity">
+                                        <img class="h-10 w-10 rounded-full object-cover border border-white/10" src={user.avatar_url || '/default-avatar.png'} alt="avatar">
+                                        <div>
+                                            <div class="text-sm font-bold text-gray-200" style="color: {user.email === targetEmail ? 'rgb(var(--primary-rgb))' : ''}">{user.full_name || user.email}</div>
+                                            <div class="text-xs text-gray-500">{user.email}</div>
+                                        </div>
+                                    </a>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {#if user.role === 'admin'} <span class="role-badge role-admin">Admin</span>
+                                    {:else if user.role === 'moderator'} <span class="role-badge role-modo">Modérateur</span>
+                                    {:else} <span class="role-badge role-user">Utilisateur</span> {/if}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    {#if isBanned}
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-lg border bg-red-500/10 text-red-400 border-red-500/20 animate-pulse">Banni</span>
+                                    {:else}
+                                        <span class="px-2.5 py-1 text-xs font-bold rounded-lg border bg-green-500/10 text-green-400 border-green-500/20">Actif</span>
+                                    {/if}
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <div class="flex gap-2">
+                                        {#if user.active_yellow_cards > 0} <span class="text-yellow-500 text-xs font-bold bg-yellow-500/10 px-2 py-0.5 rounded border border-yellow-500/20">⚠ {user.active_yellow_cards}</span> {/if}
+                                        {#if user.active_red_cards > 0} <span class="text-red-500 text-xs font-bold bg-red-500/10 px-2 py-0.5 rounded border border-red-500/20">🚷 {user.active_red_cards}</span> {/if}
+                                    </div>
+                                </td>
+                                
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-400 font-mono">
+                                    {formatDate(user.last_active)}
+                                    {#if user.last_active && new Date(user.last_active) > new Date(Date.now() - 300000)}
+                                        <span class="inline-block w-2 h-2 rounded-full bg-green-500 ml-2 animate-pulse" title="En ligne récemment"></span>
+                                    {/if}
+                                </td>
 
-                      <td class="px-6 py-4 whitespace-nowrap text-center">
-                        {#if user.user_id !== currentAdminId}
-                          <div class="flex justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
-                            <button on:click={() => openResetModal(user)} class="action-icon-btn hover:text-white" title="Password"><KeyRound size={16}/></button>
-                            <button on:click={() => openInfractionModal(user)} class="action-icon-btn text-yellow-600 hover:text-yellow-400" title="Sanction"><FileWarning size={16}/></button>
-                            <button on:click={() => openHistoryModal(user)} class="action-icon-btn hover:text-themed" style="color: rgba(var(--primary-rgb), 0.6);" title="History"><History size={16}/></button>
-                            <button on:click={() => handleChangeRole(user, nextRoleData.role)} class="action-icon-btn {nextRoleData.color} hover:bg-white/5" title={nextRoleData.label}><svelte:component this={nextRoleData.icon} size={16} /></button>
-              
-                            {#if hasPermission(currentUserProfile, ACTIONS.USERS_BAN)}
-                                {#if isBanned}
-                                  <button on:click={() => handleBanUser(user, false)} class="action-icon-btn text-green-600 hover:text-green-400" title="Débannir"><UserCheck size={16}/></button>
-                                {:else}
-                                  <button on:click={() => handleBanUser(user, true)} class="action-icon-btn text-red-600 hover:text-red-400" title="Bannir"><UserX size={16}/></button>
-                                {/if}
-                            {/if}  
-                          </div>
-                        {:else}
-                          <span class="text-xs text-gray-500 italic">Vous</span>
-                        {/if}
-                      </td>
-                    </tr>
-                {/each}
-              </tbody>
-            </table>
-            </div>
-        </div>
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    {#if user.user_id !== currentAdminId}
+                                        <div class="flex justify-center gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
+                                            <button on:click={() => openResetModal(user)} class="action-icon-btn hover:text-white" title="Password"><KeyRound size={16}/></button>
+                                            <button on:click={() => openInfractionModal(user)} class="action-icon-btn text-yellow-600 hover:text-yellow-400" title="Sanction"><FileWarning size={16}/></button>
+                                            <button on:click={() => openHistoryModal(user)} class="action-icon-btn hover:text-themed" style="color: rgba(var(--primary-rgb), 0.6);" title="History"><History size={16}/></button>
+                                            <button on:click={() => handleChangeRole(user, nextRoleData.role)} class="action-icon-btn {nextRoleData.color} hover:bg-white/5" title={nextRoleData.label}><svelte:component this={nextRoleData.icon} size={16} /></button>
+                            
+                                            {#if hasPermission(currentUserProfile, ACTIONS.USERS_BAN)}
+                                                {#if isBanned}
+                                                    <button on:click={() => handleBanUser(user, false)} class="action-icon-btn text-green-600 hover:text-green-400" title="Débannir"><UserCheck size={16}/></button>
+                                                {:else}
+                                                    <button on:click={() => handleBanUser(user, true)} class="action-icon-btn text-red-600 hover:text-red-400" title="Bannir"><UserX size={16}/></button>
+                                                {/if}
+                                            {/if}  
+                                        </div>
+                                    {:else}
+                                        <span class="text-xs text-gray-500 italic">Vous</span>
+                                    {/if}
+                                </td>
+                            </tr>
+                        {/each}
+                    </tbody>
+                </table>
+            </div>
+        </div>
     {/if}
     </main>
 
