@@ -50,7 +50,6 @@
             const props = e.features[0].properties;
             const coordinates = e.features[0].geometry.coordinates.slice();
             
-            // --- AJOUT DU LIEN GOOGLE MAPS ICI ---
             const html = `
                 <div class="p-3 min-w-[200px] text-gray-100">
                     <div class="flex justify-between items-center border-b border-white/10 pb-2 mb-2">
@@ -61,7 +60,7 @@
                         <div>BK: <span class="font-mono text-white">${props.bk || '?'}</span></div>
                         <div class="italic text-gray-500">${props.adresse || '-'}</div>
                     </div>
-                    <a href="https://www.google.com/maps/search/?api=1&query=${coordinates[1]},${coordinates[0]}" 
+                    <a href="http://googleusercontent.com/maps.google.com/maps?daddr=${coordinates[1]},${coordinates[0]}" 
                        target="_blank" 
                        class="flex items-center justify-center gap-2 w-full bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold py-1.5 rounded transition-colors">
                         Ouvrir Maps 
@@ -82,7 +81,6 @@
 		map?.remove();
 	});
 
-    // C'est cet effet qui assure la réactivité des filtres
 	$effect(() => {
 		if (mapLoaded) {
 			updateMapElements();
@@ -95,17 +93,6 @@
         if (clustering) drawClusteredMarkers(markers);
         else drawSimpleMarkers(markers);
 	}
-
-	function switchLayer(type) {
-    if (type === 'satellite') {
-        map.setStyle('https://api.maptiler.com/maps/hybrid/style.json?key=TA_CLE_API'); 
-        // Note: Il faut souvent une clé API pour du bon satellite (MapTiler ou Mapbox)
-        // Alternative gratuite (souvent moins précise) : Esri World Imagery
-    } else {
-        map.setStyle('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json');
-    }
-}
-
 
     function toggleTraffic(show) {
         const sourceId = 'traffic-source';
@@ -152,6 +139,7 @@
                 clusterRadius: 50
             });
 
+            // 1. Cercle des Clusters
             map.addLayer({
                 id: 'clusters',
                 type: 'circle',
@@ -175,6 +163,7 @@
                 }
             });
 
+            // 2. Compteur (CORRECTION FONT ICI)
             map.addLayer({
                 id: 'cluster-count',
                 type: 'symbol',
@@ -182,12 +171,13 @@
                 filter: ['has', 'point_count'],
                 layout: {
                     'text-field': '{point_count_abbreviated}',
-                    'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], // <--- ICI
                     'text-size': 12
                 },
                 paint: { 'text-color': '#ffffff' }
             });
 
+            // 3. Points individuels
             map.addLayer({
                 id: 'unclustered-point',
                 type: 'circle',
@@ -202,13 +192,12 @@
             });
 
         } else {
-            // Mise à jour des données (pour le filtrage)
             map.getSource('pns-source').setData(sourceData);
         }
     }
 
     function drawSimpleMarkers(markersData) {
-        // ... (Code existant conservé si besoin)
+        // ... (Ton code legacy si utilisé)
     }
 
 	function drawZones(zonesData) {

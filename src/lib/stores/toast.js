@@ -48,4 +48,5 @@ export const toast = {
     error: (message, duration) => sendToast(message, 'error', duration),
     warning: (message, duration) => sendToast(message, 'warning', duration),
     info: (message, duration) => sendToast(message, 'info', duration),
+    loading: (message, duration = 5000) => sendToast(message, 'info', duration),
 };
