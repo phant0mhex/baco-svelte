@@ -124,16 +124,20 @@
   };
 
   // Préparation des zones pour la Map (GeoJSON)
-  const mapZones = Object.values(rawZones).map(z => {
-      const closedCoords = [...z.coords];
-      const first = closedCoords[0];
-      const last = closedCoords[closedCoords.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) closedCoords.push(first);
-      return {
-          name: z.name, color: z.color,
-          geojson: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [closedCoords] } }
-      };
-  });
+const mapZones = Object.values(rawZones).map(z => {
+    // Avec geojson.io, z.coords est déjà au format [[[x,y]...]] attendu par MapLibre
+    return {
+        name: z.name, 
+        color: z.color,
+        geojson: { 
+            type: 'Feature', 
+            geometry: { 
+                type: 'Polygon', 
+                coordinates: z.coords // <--- On l'utilise direct, sans crochets [] supplémentaires
+            } 
+        }
+    };
+});
 
   onMount(async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -168,12 +172,13 @@
             let computedZone = 'Autre';
             if (pn.geo) {
                 const [lat, lon] = pn.geo.split(',').map(parseFloat);
-                for (const [key, z] of Object.entries(rawZones)) {
-                    if (isPointInPolygon([lon, lat], z.coords)) {
-                        computedZone = key;
-                        break;
-                    }
-                }
+               for (const [key, z] of Object.entries(rawZones)) {
+    // CORRECTION : On cible z.coords[0] (le premier anneau du polygone)
+    if (isPointInPolygon([lon, lat], z.coords[0])) { 
+        computedZone = key;
+        break;
+    }
+}
             }
             return { 
                 ...pn, 
@@ -203,12 +208,13 @@ async function forceUpdateZones() {
         let detectedZone = null;
 
         // Calcul de la zone
-        for (const [key, z] of Object.entries(rawZones)) {
-            if (isPointInPolygon([lon, lat], z.coords)) {
-                detectedZone = key;
-                break;
-            }
-        }
+      for (const [key, z] of Object.entries(rawZones)) {
+    // CORRECTION ICI AUSSI : z.coords[0]
+    if (isPointInPolygon([lon, lat], z.coords[0])) {
+        detectedZone = key;
+        break;
+    }
+}
 
         // LA CORRECTION EST ICI : on compare avec pn.db_zone
         if (detectedZone && pn.db_zone !== detectedZone) {
