@@ -95,6 +95,43 @@
     isLoading = false;
   }
 
+
+  // Fonction utilitaire pour forcer la mise à jour des zones en DB
+async function forceUpdateZones() {
+    toast.loading("Mise à jour des zones en cours...");
+    let count = 0;
+    
+    // On prend tous les PN qui ont une géo mais pas de zone (ou on force tout le monde)
+    const pnsToUpdate = allPnData.filter(p => p.geo); 
+
+    for (const pn of pnsToUpdate) {
+        const [lat, lon] = pn.geo.split(',').map(parseFloat);
+        let detectedZone = null;
+
+        // On cherche la zone
+        for (const [key, z] of Object.entries(rawZones)) {
+            if (isPointInPolygon([lon, lat], z.coords)) {
+                detectedZone = key;
+                break;
+            }
+        }
+
+        // Si on a trouvé une zone et qu'elle est différente de ce qu'il y a en base
+        if (detectedZone && pn.zone !== detectedZone) {
+            await supabase
+                .from('pn_data')
+                .update({ zone: detectedZone })
+                .eq('pn', pn.pn)
+                .eq('ligne_nom', pn.ligne_nom);
+            count++;
+        }
+    }
+    toast.success(`${count} zones mises à jour !`);
+    // Recharger les données pour voir l'effet
+    loadAllPnData();
+}
+
+
   // --- ALGORITHME POINT IN POLYGON (Ray Casting) ---
   function isPointInPolygon(point, vs) {
       var x = point[0], y = point[1];
@@ -240,6 +277,11 @@
             <AlertTriangle size={16} />
             Trafic {showTraffic ? 'ON' : 'OFF'}
         </button>
+
+        <button onclick={forceUpdateZones} class="text-[10px] text-gray-600 underline hover:text-white">
+    Forcer MàJ Zones
+</button>
+
       </header>
 
       <div class="flex flex-col lg:flex-row gap-8">

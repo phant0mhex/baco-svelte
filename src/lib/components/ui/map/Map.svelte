@@ -96,6 +96,17 @@
         else drawSimpleMarkers(markers);
 	}
 
+	function switchLayer(type) {
+    if (type === 'satellite') {
+        map.setStyle('https://api.maptiler.com/maps/hybrid/style.json?key=TA_CLE_API'); 
+        // Note: Il faut souvent une clé API pour du bon satellite (MapTiler ou Mapbox)
+        // Alternative gratuite (souvent moins précise) : Esri World Imagery
+    } else {
+        map.setStyle('https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json');
+    }
+}
+
+
     function toggleTraffic(show) {
         const sourceId = 'traffic-source';
         if (show) {
