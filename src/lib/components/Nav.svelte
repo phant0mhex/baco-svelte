@@ -223,7 +223,7 @@
                   {#if activeDropdown === 'commandes'}
                       <div transition:fly={{ y: 10, duration: 200 }} class={dropdownBaseClass}>
                           <a href="/otto" class={dropdownLinkClass}><Bus /> C3 (Otto)</a>
-                          <a href="/generateTaxi" class={dropdownLinkClass}><Car /> Cmd Taxis</a>
+                          <!-- <a href="/generateTaxi" class={dropdownLinkClass}><Car /> Cmd Taxis</a> -->
                           <a href="/stats" class={dropdownLinkClass}><BarChart3 /> Statistiques</a>
                       </div>
                   {/if}
