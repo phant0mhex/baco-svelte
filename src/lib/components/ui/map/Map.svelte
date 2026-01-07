@@ -14,11 +14,10 @@
     } = $props();
 
 	let activePopup = null;
-    let mapLoaded = false;
-    let trafficLayerVisible = false;
+    // CORRECTION 1 : mapLoaded doit être un state pour déclencher l'effet
+    let mapLoaded = $state(false); 
 
     // 1. Préparation Réactive des Données (GeoJSON)
-    // Se met à jour automatiquement quand 'markers' change
     let pnsSourceData = $derived({
         type: 'FeatureCollection',
         features: markers
@@ -53,22 +52,24 @@
 		m.on('load', () => {
 			map = m; 
             
-            // Initialisation des sources et couches
+            // On initialise tout de suite
             initLayers();
             if (zones) drawZones(zones);
             
+            // Le changement de cet état va déclencher l'effet ci-dessous si besoin
             mapLoaded = true;
 		});
 
-        // Events Popup & Cluster
         setupMapEvents(m);
 	});
 
     function initLayers() {
-        // Source vide au départ, sera remplie par l'effect
+        if (!map) return;
+
+        // CORRECTION 2 : On charge les données tout de suite, pas de tableau vide []
         map.addSource('pns-source', {
             type: 'geojson',
-            data: { type: 'FeatureCollection', features: [] },
+            data: pnsSourceData, // <-- Données directes
             cluster: clustering,
             clusterMaxZoom: 14,
             clusterRadius: 50
@@ -91,7 +92,7 @@
             filter: ['has', 'point_count'],
             layout: {
                 'text-field': '{point_count_abbreviated}',
-                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], // Font standard
+                'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'],
                 'text-size': 12
             },
             paint: { 'text-color': '#ffffff' }
@@ -110,9 +111,9 @@
         });
     }
 
-    // 2. Réactivité : Mise à jour de la carte
-    // Dès que pnsSourceData change (filtre), on met à jour la source MapLibre
+    // 2. Réactivité : Mise à jour de la carte quand les filtres changent
     $effect(() => {
+        // Grâce à $state(false) sur mapLoaded, ceci se relance quand la carte est prête
         if (mapLoaded && map.getSource('pns-source')) {
             map.getSource('pns-source').setData(pnsSourceData);
         }
@@ -128,7 +129,7 @@
 	});
 
     function toggleTraffic(show) {
-        if (!mapLoaded) return;
+        if (!mapLoaded || !map) return;
         const sourceId = 'traffic-source';
         
         if (show && !map.getSource(sourceId)) {
@@ -137,10 +138,12 @@
                 tiles: ['https://tile.memomaps.de/tilegen/{z}/{x}/{y}.png'],
                 tileSize: 256
             });
+            // On essaie d'insérer sous les clusters, sinon par défaut
+            const beforeLayer = map.getLayer('clusters') ? 'clusters' : undefined;
             map.addLayer({ 
                 id: 'traffic-layer', type: 'raster', source: sourceId, 
                 minzoom: 10, paint: { 'raster-opacity': 0.6 } 
-            }, 'clusters'); // Insérer sous les clusters
+            }, beforeLayer);
         } else if (!show && map.getLayer('traffic-layer')) {
             map.removeLayer('traffic-layer');
             map.removeSource(sourceId);
@@ -148,24 +151,27 @@
     }
 
 	function drawZones(zonesData) {
+        if (!map) return;
 		zonesData.forEach((zone, index) => {
 			const sourceId = `zone-source-${index}`;
 			if (!map.getSource(sourceId)) {
 				map.addSource(sourceId, { 'type': 'geojson', 'data': zone.geojson });
+                
+                const beforeLayer = map.getLayer('clusters') ? 'clusters' : undefined;
+
 				map.addLayer({
 					'id': `zone-fill-${index}`, 'type': 'fill', 'source': sourceId,
 					'paint': { 'fill-color': zone.color || '#3b82f6', 'fill-opacity': 0.1 }
-				}, 'clusters'); // Sous les clusters
+				}, beforeLayer);
 				map.addLayer({
 					'id': `zone-line-${index}`, 'type': 'line', 'source': sourceId,
 					'paint': { 'line-color': zone.color || '#3b82f6', 'line-width': 2, 'line-dasharray': [2, 2] }
-				}, 'clusters');
+				}, beforeLayer);
 			}
 		});
 	}
 
     function setupMapEvents(m) {
-        // Clic Cluster
         m.on('click', 'clusters', (e) => {
             const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
             const clusterId = features[0].properties.cluster_id;
@@ -175,7 +181,6 @@
             });
         });
 
-        // Clic Point
         m.on('click', 'unclustered-point', (e) => {
             const props = e.features[0].properties;
             const coordinates = e.features[0].geometry.coordinates.slice();
@@ -200,7 +205,6 @@
             showPopup(coordinates, html);
         });
 
-        // Curseurs
         const layers = ['clusters', 'unclustered-point'];
         layers.forEach(layer => {
             m.on('mouseenter', layer, () => m.getCanvas().style.cursor = 'pointer');
