@@ -10,12 +10,19 @@
         className = '', 
         clustering = false,
         showTraffic = false,
+		style = 'dark', // Nouvelle prop
         map = $bindable() 
     } = $props();
 
 	let activePopup = null;
     // CORRECTION 1 : mapLoaded doit être un state pour déclencher l'effet
     let mapLoaded = $state(false); 
+
+	// URLs des styles (CartoDB Dark vs Light)
+    const STYLES = {
+        dark: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+        light: 'https://basemaps.cartocdn.com/gl/positron-gl-style/style.json' // Vue Plan détaillée
+    };
 
     // 1. Préparation Réactive des Données (GeoJSON)
     let pnsSourceData = $derived({
@@ -37,12 +44,12 @@
             })
     });
 
-	onMount(() => {
+onMount(() => {
 		const m = new maplibregl.Map({
 			container: mapContainer,
-			style: 'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+			style: STYLES[style], // Utilise le style initial
 			center: [4.47, 50.63],
-			zoom: 8,
+			zoom: 9,
 			attributionControl: false
 		});
 
@@ -51,14 +58,24 @@
 
 		m.on('load', () => {
 			map = m; 
-            
-            // On initialise tout de suite
             initLayers();
             if (zones) drawZones(zones);
-            
-            // Le changement de cet état va déclencher l'effet ci-dessous si besoin
             mapLoaded = true;
 		});
+
+        // Recharger les layers si le style change (car setStyle efface tout)
+        m.on('styledata', () => {
+            if (mapLoaded) {
+                // On vérifie si nos sources ont disparu (ce qui arrive après setStyle)
+                if (!m.getSource('pns-source')) {
+                    initLayers();
+                    if (zones) drawZones(zones);
+                    // On réapplique les données actuelles
+                    m.getSource('pns-source').setData(pnsSourceData);
+                    toggleTraffic(showTraffic);
+                }
+            }
+        });
 
         setupMapEvents(m);
 	});
@@ -111,6 +128,17 @@
         });
     }
 
+
+	// Réactivité : Changement de style
+    $effect(() => {
+        if (mapLoaded && map) {
+            // Si le style demandé est différent du style actuel (approximatif, car on ne peut pas lire l'URL facilement)
+            // On force simplement l'update si la prop change
+            map.setStyle(STYLES[style]);
+        }
+    });
+
+	
     // 2. Réactivité : Mise à jour de la carte quand les filtres changent
     $effect(() => {
         // Grâce à $state(false) sur mapLoaded, ceci se relance quand la carte est prête

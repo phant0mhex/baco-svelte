@@ -23,6 +23,8 @@
   let showTraffic = $state(false);
   let selectedZones = $state(['FTY', 'FMS', 'FCR']);
   let viewingPn = $state(null); 
+let mapStyle = $state('dark'); // 'dark' ou 'light' (Nouveau)
+  let selectedZones = $state(['FTY', 'FMS', 'FCR', 'Autre']);
 
   // Instance de carte
   let mapInstance = $state(null);
@@ -315,18 +317,8 @@
     </div>
 {:else}
     <div class="container mx-auto p-4 md:p-8 space-y-8 min-h-screen relative">
-      <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" 
+   <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 border-b border-white/5 pb-6" 
               in:fly={{ y: -20, duration: 600 }}>
-        <div class="flex items-center gap-3">
-            <div class="p-3 rounded-xl border border-white/10 bg-white/5 text-themed">
-                <MapIcon size={32} />
-            </div>
-            <div>
-                <h1 class="text-3xl font-bold text-gray-200 tracking-tight">Carte Interactive</h1>
-                <p class="text-gray-500 text-sm mt-1">Localisation des Passages à Niveau.</p>
-            </div>
-        </div>
-        
         <div class="flex gap-3">
              <button onclick={() => showTraffic = !showTraffic} 
                 class="flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-sm font-bold
@@ -334,6 +326,14 @@
                 <AlertTriangle size={16} />
                 Trafic
             </button>
+
+            <button onclick={() => mapStyle = mapStyle === 'dark' ? 'light' : 'dark'} 
+                class="flex items-center gap-2 px-4 py-2 rounded-lg border transition-all text-sm font-bold
+                {mapStyle === 'light' ? 'bg-blue-500/20 text-blue-400 border-blue-500/30' : 'bg-black/20 text-gray-400 border-white/10 hover:bg-white/5'}">
+                <MapIcon size={16} />
+                {mapStyle === 'dark' ? 'Vue Plan' : 'Vue Sombre'}
+            </button>
+
             <button onclick={forceUpdateZones} class="px-4 py-2 rounded-lg border border-white/10 hover:bg-white/5 text-sm font-bold text-gray-400">
                 Forcer MàJ Zones
             </button>
@@ -396,6 +396,7 @@
                 markers={filteredPn} 
                 zones={mapZones} 
                 showTraffic={showTraffic}
+                style={mapStyle}
                 clustering={true}
                 className="w-full h-full" 
             />
