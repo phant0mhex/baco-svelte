@@ -35,7 +35,7 @@
 			updateMapElements();
 		});
 
-        // Gestion des clusters
+        // Click sur Cluster
         m.on('click', 'clusters', (e) => {
             const features = m.queryRenderedFeatures(e.point, { layers: ['clusters'] });
             const clusterId = features[0].properties.cluster_id;
@@ -45,13 +45,11 @@
             });
         });
 
-        // Gestion des clics sur PN individuel
+        // Click sur Point Unique
         m.on('click', 'unclustered-point', (e) => {
             const props = e.features[0].properties;
             const coordinates = e.features[0].geometry.coordinates.slice();
             
-          // CORRECTION DE L'URL ICI
-            // Google Maps attend "Lat,Lon", donc coordinates[1],coordinates[0]
             const googleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${coordinates[1]},${coordinates[0]}`;
 
             const html = `
@@ -85,8 +83,11 @@
 		map?.remove();
 	});
 
+    // Réactivité Svelte 5 : quand 'markers' change, ceci s'exécute
 	$effect(() => {
 		if (mapLoaded) {
+            // On s'assure que markers est utilisé comme dépendance explicite
+            const currentMarkers = markers; 
 			updateMapElements();
             toggleTraffic(showTraffic);
 		}
@@ -133,9 +134,10 @@
             });
 
         const sourceData = { type: 'FeatureCollection', features };
+        const sourceId = 'pns-source';
 
-        if (!map.getSource('pns-source')) {
-            map.addSource('pns-source', {
+        if (!map.getSource(sourceId)) {
+            map.addSource(sourceId, {
                 type: 'geojson',
                 data: sourceData,
                 cluster: true,
@@ -147,7 +149,7 @@
             map.addLayer({
                 id: 'clusters',
                 type: 'circle',
-                source: 'pns-source',
+                source: sourceId,
                 filter: ['has', 'point_count'],
                 paint: {
                     'circle-color': [
@@ -167,15 +169,15 @@
                 }
             });
 
-            // 2. Compteur (CORRECTION FONT ICI)
+            // 2. Compteur
             map.addLayer({
                 id: 'cluster-count',
                 type: 'symbol',
-                source: 'pns-source',
+                source: sourceId,
                 filter: ['has', 'point_count'],
                 layout: {
                     'text-field': '{point_count_abbreviated}',
-                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], // <--- ICI
+                    'text-font': ['Open Sans Bold', 'Arial Unicode MS Bold'], 
                     'text-size': 12
                 },
                 paint: { 'text-color': '#ffffff' }
@@ -185,7 +187,7 @@
             map.addLayer({
                 id: 'unclustered-point',
                 type: 'circle',
-                source: 'pns-source',
+                source: sourceId,
                 filter: ['!', ['has', 'point_count']],
                 paint: {
                     'circle-color': '#f97316',
@@ -196,13 +198,13 @@
             });
 
         } else {
-            map.getSource('pns-source').setData(sourceData);
+            // C'est cette ligne qui met à jour la carte quand on filtre !
+            map.getSource(sourceId).setData(sourceData);
         }
     }
 
-    function drawSimpleMarkers(markersData) {
-        // ... (Ton code legacy si utilisé)
-    }
+    // (La fonction drawSimpleMarkers n'est pas utilisée avec clustering=true, je l'omets pour la clarté)
+    function drawSimpleMarkers(markersData) {}
 
 	function drawZones(zonesData) {
 		zonesData.forEach((zone, index) => {
